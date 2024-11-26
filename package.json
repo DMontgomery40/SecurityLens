@@ -2,6 +2,7 @@
   "name": "plugin-vulnerability-scanner",
   "version": "1.0.0",
   "description": "A security vulnerability scanner for plugin architectures",
+  "homepage": "https://dmontgomery40.github.io/plugin-vulnerability-scanner/",
   "main": "src/index.js",
   "scripts": {
     "start": "vite",
