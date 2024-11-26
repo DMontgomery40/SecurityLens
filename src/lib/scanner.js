@@ -23,15 +23,15 @@ class VulnerabilityScanner {
                 severity: 'HIGH',
                 description: 'Synchronous file operations can lead to DOS vulnerabilities'
             },
-            unsafePluginLoad: {
-                pattern: /require\s*\(\s*[^'"`][^)]*\)/,
+            dynamicImports: {
+                pattern: /import\s*\(\s*[^'"`][^)]*\)/,
                 severity: 'CRITICAL',
-                description: 'Dynamic require() calls can lead to remote code execution'
+                description: 'Dynamic imports without validation can lead to code execution vulnerabilities'
             },
-            unsafeEval: {
-                pattern: /eval\s*\(/,
-                severity: 'CRITICAL',
-                description: 'Use of eval() can lead to code injection vulnerabilities'
+            unsafeJsonParse: {
+                pattern: /JSON\.parse\s*\([^)]+\)\s*(?!catch)/,
+                severity: 'MEDIUM',
+                description: 'Unhandled JSON.parse can throw on invalid input'
             }
         };
     }
@@ -66,7 +66,7 @@ class VulnerabilityScanner {
         const lineNumbers = [];
         
         lines.forEach((line, index) => {
-            if (line.match(pattern)) {
+            if (pattern instanceof RegExp && line.match(pattern)) {
                 lineNumbers.push(index + 1);
             }
         });
@@ -79,7 +79,9 @@ class VulnerabilityScanner {
         const matches = Array.from(content.matchAll(eventListenerPattern));
         
         for (const match of matches) {
-            const removePattern = new RegExp(`\.removeEventListener\s*\(\s*${match[1]}`);
+            // Safely escape the match for use in RegExp
+            const escapedMatch = _.escapeRegExp(match[1]);
+            const removePattern = new RegExp(`\.removeEventListener\s*\(\s*${escapedMatch}`);
             if (!content.match(removePattern)) {
                 findings.push({
                     type: 'eventListenerLeak',
@@ -97,7 +99,9 @@ class VulnerabilityScanner {
         const matches = Array.from(content.matchAll(unsafeFileOps));
         
         for (const match of matches) {
-            const errorHandlingPattern = new RegExp(`${match[0]}[^;]*\.catch`);
+            // Safely escape the match for use in RegExp
+            const escapedMatch = _.escapeRegExp(match[0]);
+            const errorHandlingPattern = new RegExp(`${escapedMatch}[^;]*\.catch`);
             if (!content.match(errorHandlingPattern)) {
                 findings.push({
                     type: 'unhandledFileError',
@@ -115,12 +119,15 @@ class VulnerabilityScanner {
         const matches = Array.from(content.matchAll(dynamicImportPattern));
         
         for (const match of matches) {
-            const sanitizationPattern = new RegExp(`validate|sanitize|check.*${match[0]}`);
-            if (!content.match(sanitizationPattern)) {
+            // Use a whitelist approach instead of blacklist
+            const allowedImportPattern = /^(?:\.\/)(?:[a-zA-Z0-9-_]+\/)*[a-zA-Z0-9-_]+\.[jt]sx?$/;
+            const importPath = match[0].match(/import\s*\(\s*([^)]+)\)/)?.[1];
+            
+            if (importPath && !allowedImportPattern.test(importPath)) {
                 findings.push({
                     type: 'unsafePluginImport',
                     severity: 'CRITICAL',
-                    description: 'Dynamic import without proper validation',
+                    description: 'Dynamic import without proper path validation',
                     file: filePath,
                     lineNumbers: this.findLineNumbers(content, match[0])
                 });
@@ -143,35 +150,26 @@ class VulnerabilityScanner {
     }
 
     generateRecommendations(findings) {
-        const recommendations = new Map();
-        
+        const recommendationMap = {
+            bufferOverflow: 'Replace Buffer.allocUnsafe() with Buffer.alloc() for safer memory allocation',
+            memoryLeak: 'Store timer IDs and clear them in component cleanup',
+            pathTraversal: 'Use path.normalize() and validate paths against allowed directories',
+            unsafeFileOps: 'Use async file operations with proper error handling',
+            dynamicImports: 'Implement strict path validation for dynamic imports',
+            unsafeJsonParse: 'Add try/catch blocks around JSON.parse calls'
+        };
+
+        const recommendations = new Set();
         findings.forEach(finding => {
-            switch(finding.type) {
-                case 'bufferOverflow':
-                    recommendations.set(finding.type, 'Replace Buffer.allocUnsafe() with Buffer.alloc()');
-                    break;
-                case 'memoryLeak':
-                    recommendations.set(finding.type, 'Store timer IDs and clear them in component cleanup');
-                    break;
-                case 'pathTraversal':
-                    recommendations.set(finding.type, 'Use path.normalize() and validate paths against allowed directories');
-                    break;
-                case 'unsafeFileOps':
-                    recommendations.set(finding.type, 'Use async file operations with proper error handling');
-                    break;
-                case 'unsafePluginLoad':
-                    recommendations.set(finding.type, 'Implement a whitelist of allowed plugins and validate paths');
-                    break;
-                case 'unsafeEval':
-                    recommendations.set(finding.type, 'Replace eval() with safer alternatives like JSON.parse()');
-                    break;
+            if (recommendationMap[finding.type]) {
+                recommendations.add({
+                    type: finding.type,
+                    recommendation: recommendationMap[finding.type]
+                });
             }
         });
-        
-        return Array.from(recommendations.entries()).map(([type, recommendation]) => ({
-            type,
-            recommendation
-        }));
+
+        return Array.from(recommendations);
     }
 }
 
