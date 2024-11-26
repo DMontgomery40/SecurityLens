@@ -3,136 +3,131 @@ import _ from 'lodash';
 class VulnerabilityScanner {
     constructor() {
         this.vulnerabilityPatterns = {
-            bufferOverflow: {
-                pattern: /Buffer\.allocUnsafe\s*\(/,
-                severity: 'HIGH',
-                description: 'Use of Buffer.allocUnsafe() can lead to memory leaks and potential information disclosure'
-            },
-            memoryLeak: {
-                pattern: /(setInterval|setTimeout)\s*\([^,]+,\s*\d+\s*\)/,
-                severity: 'MEDIUM',
-                description: 'Potential memory leak in timer that might not be properly cleared'
-            },
-            pathTraversal: {
-                pattern: /\.\.\//, 
+            evalUsage: {
+                pattern: /(?<!\/\/\s*)eval\s*\(/,
                 severity: 'CRITICAL',
-                description: 'Potential path traversal vulnerability detected'
-            },
-            unsafeFileOps: {
-                pattern: /fs\.([rw]rite|append)FileSync/,
-                severity: 'HIGH',
-                description: 'Synchronous file operations can lead to DOS vulnerabilities'
+                description: 'Use of eval() is dangerous and can lead to code injection'
             },
             dynamicImports: {
-                pattern: /import\s*\(\s*[^'"`][^)]*\)/,
-                severity: 'CRITICAL',
+                pattern: /(?<!\/\/\s*)import\s*\(\s*(?!['"`][^'"`]+['"`])[^)]*\)/,
+                severity: 'HIGH',
                 description: 'Dynamic imports without validation can lead to code execution vulnerabilities'
             },
-            unsafeJsonParse: {
-                pattern: /JSON\.parse\s*\([^)]+\)\s*(?!catch)/,
+            bufferOverflow: {
+                pattern: /(?<!\/\/\s*)Buffer\.allocUnsafe\s*\(/,
                 severity: 'MEDIUM',
+                description: 'Use of Buffer.allocUnsafe() should be replaced with Buffer.alloc()'
+            },
+            consoleUsage: {
+                pattern: /console\.(log|debug|info)\s*\(/,
+                severity: 'LOW',
+                description: 'Console statements should be removed in production'
+            },
+            hardcodedSecrets: {
+                pattern: /(password|secret|key|token|api[_-]?key)\s*=\s*['"`][^'"`]{8,}['"`]/i,
+                severity: 'HIGH',
+                description: 'Potential hardcoded secret detected'
+            },
+            unsafeRegex: {
+                pattern: /new RegExp\([^)]+\)/,
+                severity: 'MEDIUM',
+                description: 'Dynamic RegExp construction could lead to ReDoS attacks'
+            },
+            unsafeJsonParse: {
+                pattern: /JSON\.parse\s*\([^)]+\)(?!\s*\.(catch|then)|\s*catch\s*{)/,
+                severity: 'LOW',
                 description: 'Unhandled JSON.parse can throw on invalid input'
+            },
+            debuggerStatement: {
+                pattern: /debugger;/,
+                severity: 'LOW',
+                description: 'Debugger statement should be removed in production'
             }
         };
     }
 
+    async fetchRepositoryFiles(url) {
+        // Extract owner, repo, and path from URL
+        const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/[^/]+)?\/?(.*)/;
+        const match = url.match(githubRegex);
+        if (!match) {
+            throw new Error('Invalid GitHub URL format');
+        }
+
+        const [, owner, repo, path] = match;
+        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+        try {
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                throw new Error('Failed to fetch repository contents');
+            }
+
+            const data = await response.json();
+            const files = [];
+
+            // Recursively fetch all JS/TS files
+            await this.fetchFiles(files, data, owner, repo);
+            return files;
+        } catch (error) {
+            throw new Error(`Failed to fetch repository: ${error.message}`);
+        }
+    }
+
+    async fetchFiles(files, items, owner, repo) {
+        for (const item of items) {
+            if (item.type === 'file' && /\.(js|jsx|ts|tsx)$/.test(item.name)) {
+                const response = await fetch(item.download_url);
+                const content = await response.text();
+                files.push({
+                    path: item.path,
+                    content: content
+                });
+            } else if (item.type === 'dir') {
+                const response = await fetch(item._links.self);
+                const data = await response.json();
+                await this.fetchFiles(files, data, owner, repo);
+            }
+        }
+    }
+
     async scanFile(fileContent, filePath) {
+        if (!fileContent || typeof fileContent !== 'string') {
+            throw new Error('Invalid file content provided');
+        }
+
         const findings = [];
         
         // Analyze each pattern
         for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
-            const matches = fileContent.match(new RegExp(vulnInfo.pattern, 'g'));
-            if (matches) {
-                findings.push({
-                    type: vulnType,
-                    severity: vulnInfo.severity,
-                    description: vulnInfo.description,
-                    file: filePath,
-                    occurrences: matches.length,
-                    lineNumbers: this.findLineNumbers(fileContent, vulnInfo.pattern)
-                });
+            try {
+                const matches = fileContent.match(new RegExp(vulnInfo.pattern, 'g')) || [];
+                if (matches.length > 0) {
+                    findings.push({
+                        type: vulnType,
+                        severity: vulnInfo.severity,
+                        description: vulnInfo.description,
+                        file: filePath,
+                        occurrences: matches.length,
+                        lineNumbers: this.findLineNumbers(fileContent, vulnInfo.pattern)
+                    });
+                }
+            } catch (error) {
+                console.error(`Error analyzing pattern ${vulnType}:`, error);
             }
         }
-
-        await this.analyzeMemoryIssues(fileContent, filePath, findings);
-        await this.analyzeFileSystemIssues(fileContent, filePath, findings);
-        await this.analyzePluginArchitecture(fileContent, filePath, findings);
 
         return findings;
     }
 
     findLineNumbers(content, pattern) {
         const lines = content.split('\n');
-        const lineNumbers = [];
-        
-        lines.forEach((line, index) => {
-            if (pattern instanceof RegExp && line.match(pattern)) {
-                lineNumbers.push(index + 1);
+        return lines.reduce((numbers, line, index) => {
+            if (pattern.test(line)) {
+                numbers.push(index + 1);
             }
-        });
-        
-        return lineNumbers;
-    }
-
-    async analyzeMemoryIssues(content, filePath, findings) {
-        const eventListenerPattern = /\.addEventListener\s*\(\s*(['"`][^'"`]+['"`])/g;
-        const matches = Array.from(content.matchAll(eventListenerPattern));
-        
-        for (const match of matches) {
-            // Safely escape the match for use in RegExp
-            const escapedMatch = _.escapeRegExp(match[1]);
-            const removePattern = new RegExp(`\.removeEventListener\s*\(\s*${escapedMatch}`);
-            if (!content.match(removePattern)) {
-                findings.push({
-                    type: 'eventListenerLeak',
-                    severity: 'MEDIUM',
-                    description: 'Event listener without corresponding removal',
-                    file: filePath,
-                    lineNumbers: this.findLineNumbers(content, match[0])
-                });
-            }
-        }
-    }
-
-    async analyzeFileSystemIssues(content, filePath, findings) {
-        const unsafeFileOps = /fs\.([rw]rite|append)File(?!Sync)/g;
-        const matches = Array.from(content.matchAll(unsafeFileOps));
-        
-        for (const match of matches) {
-            // Safely escape the match for use in RegExp
-            const escapedMatch = _.escapeRegExp(match[0]);
-            const errorHandlingPattern = new RegExp(`${escapedMatch}[^;]*\.catch`);
-            if (!content.match(errorHandlingPattern)) {
-                findings.push({
-                    type: 'unhandledFileError',
-                    severity: 'HIGH',
-                    description: 'File operation without proper error handling',
-                    file: filePath,
-                    lineNumbers: this.findLineNumbers(content, match[0])
-                });
-            }
-        }
-    }
-
-    async analyzePluginArchitecture(content, filePath, findings) {
-        const dynamicImportPattern = /import\s*\(\s*[^'"`][^)]*\)/g;
-        const matches = Array.from(content.matchAll(dynamicImportPattern));
-        
-        for (const match of matches) {
-            // Use a whitelist approach instead of blacklist
-            const allowedImportPattern = /^(?:\.\/)(?:[a-zA-Z0-9-_]+\/)*[a-zA-Z0-9-_]+\.[jt]sx?$/;
-            const importPath = match[0].match(/import\s*\(\s*([^)]+)\)/)?.[1];
-            
-            if (importPath && !allowedImportPattern.test(importPath)) {
-                findings.push({
-                    type: 'unsafePluginImport',
-                    severity: 'CRITICAL',
-                    description: 'Dynamic import without proper path validation',
-                    file: filePath,
-                    lineNumbers: this.findLineNumbers(content, match[0])
-                });
-            }
-        }
+            return numbers;
+        }, []);
     }
 
     generateReport(findings) {
@@ -151,25 +146,20 @@ class VulnerabilityScanner {
 
     generateRecommendations(findings) {
         const recommendationMap = {
-            bufferOverflow: 'Replace Buffer.allocUnsafe() with Buffer.alloc() for safer memory allocation',
-            memoryLeak: 'Store timer IDs and clear them in component cleanup',
-            pathTraversal: 'Use path.normalize() and validate paths against allowed directories',
-            unsafeFileOps: 'Use async file operations with proper error handling',
+            evalUsage: 'Replace eval() with safer alternatives like JSON.parse() or Function()',
             dynamicImports: 'Implement strict path validation for dynamic imports',
-            unsafeJsonParse: 'Add try/catch blocks around JSON.parse calls'
+            bufferOverflow: 'Use Buffer.alloc() instead of Buffer.allocUnsafe()',
+            consoleUsage: 'Remove console statements or use a logging library',
+            hardcodedSecrets: 'Move secrets to environment variables or secure secret management',
+            unsafeRegex: 'Use static regular expressions or validate dynamic patterns',
+            unsafeJsonParse: 'Add try/catch blocks around JSON.parse calls',
+            debuggerStatement: 'Remove debugger statements before deploying to production'
         };
 
-        const recommendations = new Set();
-        findings.forEach(finding => {
-            if (recommendationMap[finding.type]) {
-                recommendations.add({
-                    type: finding.type,
-                    recommendation: recommendationMap[finding.type]
-                });
-            }
-        });
-
-        return Array.from(recommendations);
+        return Array.from(new Set(findings.map(finding => ({
+            type: finding.type,
+            recommendation: recommendationMap[finding.type] || 'Review and fix the identified issue'
+        }))));
     }
 }
 
