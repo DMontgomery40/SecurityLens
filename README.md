@@ -1,6 +1,6 @@
 # Plugin Vulnerability Scanner
 
-A security vulnerability scanner for plugin architectures, focusing on memory, filesystem, and plugin system vulnerabilities.
+A command-line security vulnerability scanner for plugin architectures, focusing on memory, filesystem, and plugin system vulnerabilities.
 
 ## Features
 
@@ -11,42 +11,49 @@ A security vulnerability scanner for plugin architectures, focusing on memory, f
   - Event listener leaks
   - Unhandled file operations
 
-- Provides detailed reports with:
-  - Severity levels (Critical, High, Medium, Low)
-  - File locations and line numbers
-  - Vulnerability descriptions
-  - Recommended fixes
+## Installation
 
-## Setup
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/DMontgomery40/plugin-vulnerability-scanner.git
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-   ```bash
-   npm start
-   ```
+```bash
+npm install -g plugin-vulnerability-scanner
+```
 
 ## Usage
 
-1. Click the 'Start Scan' button to begin scanning
-2. The scanner will analyze the code for potential vulnerabilities
-3. Results will be displayed with severity levels and recommendations
+```bash
+# Scan a single file
+plugin-vulnerability-scanner scan path/to/file.js
 
-## Technologies Used
+# Output JSON format
+plugin-vulnerability-scanner scan path/to/file.js --output json
+```
 
-- React
-- TailwindCSS
-- Vite
-- Lodash
-- Lucide React Icons
+## Example Output
+
+```
+Vulnerability Scan Report
+========================
+
+Summary:
+Critical Issues: 2
+High Issues: 1
+Medium Issues: 3
+Low Issues: 0
+Total Issues: 6
+
+CRITICAL Findings:
+  unsafePluginLoad
+  Description: Dynamic require() calls can lead to remote code execution
+  File: test.js
+  Line(s): 15, 23
+
+  ...
+
+Recommendations:
+  bufferOverflow:
+  Replace Buffer.allocUnsafe() with Buffer.alloc()
+
+  ...
+```
 
 ## Contributing
 
