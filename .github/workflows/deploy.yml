@@ -1,7 +1,5 @@
 name: Deploy to GitHub Pages
-remote_theme: pages-themes/hacker@v0.2.0
-plugins:
-- jekyll-remote-theme # add this line to the plugins list if you already have one
+
 on:
   push:
     branches:
@@ -14,18 +12,18 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v3
-
+      
       - name: Set up Node
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-
+          
       - name: Install dependencies
         run: npm install
-
+        
       - name: Build
         run: npm run build
-
+        
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
