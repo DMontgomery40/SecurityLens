@@ -1,6 +1,6 @@
 # Plugin Vulnerability Scanner
 
-A command-line security vulnerability scanner for plugin architectures, focusing on memory, filesystem, and plugin system vulnerabilities.
+A vulnerability scanner for plugin architectures, focusing on memory, filesystem, and plugin system vulnerabilities.
 A comprehensive security vulnerability scanner for dependency management across multiple programming languages and package ecosystems. This tool helps identify security vulnerabilities in your project's dependencies, regardless of the programming language or package manager used.
 
 https://dmontgomery40.github.io/plugin-vulnerability-scanner/
