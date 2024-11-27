@@ -1,15 +1,22 @@
 import _ from 'lodash';
 
 class VulnerabilityScanner {
-    constructor() {
-        this.vulnerabilityPatterns = {
+    constructor(config = {}) {
+        // Default configuration
+        this.config = {
+            enableNewPatterns: true,  // Toggle new patterns
+            ...config
+        };
+
+        // Core patterns (existing ones)
+        this.corePatterns = {
             evalUsage: {
                 pattern: /(?<!\/\/\s*)eval\s*\(/,
                 severity: 'CRITICAL',
                 description: 'Use of eval() is dangerous and can lead to code injection'
             },
             dynamicImports: {
-                pattern: /(?<!\/\/\s*)import\s*\(\s*(?!['"`][^'"`]+['"`])[^)]*\)/,
+                pattern: /(?<!\/\/\s*)import\s*\(\s*(?!['\"`][^'\"`]+['\"`])[^)]*\)/,
                 severity: 'HIGH',
                 description: 'Dynamic imports without validation can lead to code execution vulnerabilities'
             },
@@ -24,7 +31,7 @@ class VulnerabilityScanner {
                 description: 'Console statements should be removed in production'
             },
             hardcodedSecrets: {
-                pattern: /(password|secret|key|token|api[_-]?key)\s*=\s*['"`][^'"`]{8,}['"`]/i,
+                pattern: /(password|secret|key|token|api[_-]?key)\s*=\s*['\"`][^'\"`]{8,}['\"`]/i,
                 severity: 'HIGH',
                 description: 'Potential hardcoded secret detected'
             },
@@ -44,10 +51,71 @@ class VulnerabilityScanner {
                 description: 'Debugger statement should be removed in production'
             }
         };
+
+        // Enhanced patterns (new ones)
+        this.enhancedPatterns = {
+            sqlInjection: {
+                pattern: /(?<!\/\/\s*)(executeQuery|query)\s*\(\s*[`'"]*.*?\$\{.*?\}.*?[`'"]*\s*\)/,
+                severity: 'CRITICAL',
+                description: 'Potential SQL injection vulnerability detected through template literal usage in queries'
+            },
+            xss: {
+                pattern: /(?<!\/\/\s*)(innerHTML|outerHTML)\s*=|document\.write\(|(?<!\.escape\().*?\$\{.*?\}.*?(?=\`)/,
+                severity: 'CRITICAL',
+                description: 'Potential XSS vulnerability through unsafe DOM manipulation or unescaped template literals'
+            },
+            insecurePasswords: {
+                pattern: /(crypto\.createHash\(['\"]md5[\'"]\)|crypto\.createHash\(['\"]sha1[\'"]\))/,
+                severity: 'HIGH',
+                description: 'Use of weak hashing algorithms (MD5/SHA1) for passwords'
+            },
+            sensitiveDataExposure: {
+                pattern: /(?<!\/\/\s*)(console\.(log|debug|info|warn|error)|alert)\s*\([^)]*(?:password|secret|key|token|credentials)[^)]*\)/i,
+                severity: 'HIGH',
+                description: 'Potential exposure of sensitive data through logging or alerts'
+            },
+            insecureRandomness: {
+                pattern: /Math\.random\(\)/,
+                severity: 'MEDIUM',
+                description: 'Use of Math.random() for security-sensitive operations. Use crypto.getRandomValues() instead'
+            },
+            noAuthenticationCheck: {
+                pattern: /(?<!\/\/\s*)(?:delete|update|remove|drop)\s*(?:user|account|data|record).*?(?<!check.*?)(?<!verify.*?)(?<!authenticate.*?)(?<!authorize.*?)\(/i,
+                severity: 'HIGH',
+                description: 'Critical operation without apparent authentication check'
+            },
+            pathTraversal: {
+                pattern: /(?<!\/\/\s*)(fs\.read|fs\.write|fs\.append).*?\+\s*(?:req\.params|req\.query|req\.body)/,
+                severity: 'CRITICAL',
+                description: 'Potential path traversal vulnerability through unvalidated user input'
+            },
+            insecureDirectObjectRef: {
+                pattern: /(?<!\/\/\s*)(?:findById|getById|selectById).*?(?:req\.params|req\.query|req\.body)/,
+                severity: 'HIGH',
+                description: 'Potential Insecure Direct Object Reference (IDOR) through unvalidated user input'
+            }
+        };
+
+        // Combine patterns based on configuration
+        this.vulnerabilityPatterns = {
+            ...this.corePatterns,
+            ...(this.config.enableNewPatterns ? this.enhancedPatterns : {})
+        };
+
+        // Extended recommendations
+        this.extendedRecommendations = {
+            sqlInjection: 'Use parameterized queries or an ORM to prevent SQL injection',
+            xss: 'Use dedicated HTML sanitization libraries and avoid direct DOM manipulation with user input',
+            insecurePasswords: 'Use strong hashing algorithms like bcrypt, Argon2, or PBKDF2',
+            sensitiveDataExposure: 'Remove debug logging of sensitive data and implement proper logging policies',
+            insecureRandomness: 'Replace Math.random() with crypto.getRandomValues() for security operations',
+            noAuthenticationCheck: 'Implement proper authentication checks before critical operations',
+            pathTraversal: 'Implement strict input validation and use path normalization',
+            insecureDirectObjectRef: 'Implement proper authorization checks and use indirect references'
+        };
     }
 
     async fetchRepositoryFiles(url) {
-        // Extract owner, repo, and path from URL
         const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/[^/]+)?\/?(.*)/;
         const match = url.match(githubRegex);
         if (!match) {
@@ -66,7 +134,6 @@ class VulnerabilityScanner {
             const data = await response.json();
             const files = [];
 
-            // Recursively fetch all JS/TS files
             await this.fetchFiles(files, data, owner, repo);
             return files;
         } catch (error) {
@@ -98,7 +165,6 @@ class VulnerabilityScanner {
 
         const findings = [];
         
-        // Analyze each pattern
         for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
             try {
                 const matches = fileContent.match(new RegExp(vulnInfo.pattern, 'g')) || [];
@@ -146,14 +212,17 @@ class VulnerabilityScanner {
 
     generateRecommendations(findings) {
         const recommendationMap = {
-            evalUsage: 'Replace eval() with safer alternatives like JSON.parse() or Function()',
-            dynamicImports: 'Implement strict path validation for dynamic imports',
-            bufferOverflow: 'Use Buffer.alloc() instead of Buffer.allocUnsafe()',
-            consoleUsage: 'Remove console statements or use a logging library',
-            hardcodedSecrets: 'Move secrets to environment variables or secure secret management',
-            unsafeRegex: 'Use static regular expressions or validate dynamic patterns',
-            unsafeJsonParse: 'Add try/catch blocks around JSON.parse calls',
-            debuggerStatement: 'Remove debugger statements before deploying to production'
+            ...{
+                evalUsage: 'Replace eval() with safer alternatives like JSON.parse() or Function()',
+                dynamicImports: 'Implement strict path validation for dynamic imports',
+                bufferOverflow: 'Use Buffer.alloc() instead of Buffer.allocUnsafe()',
+                consoleUsage: 'Remove console statements or use a logging library',
+                hardcodedSecrets: 'Move secrets to environment variables or secure secret management',
+                unsafeRegex: 'Use static regular expressions or validate dynamic patterns',
+                unsafeJsonParse: 'Add try/catch blocks around JSON.parse calls',
+                debuggerStatement: 'Remove debugger statements before deploying to production'
+            },
+            ...(this.config.enableNewPatterns ? this.extendedRecommendations : {})
         };
 
         return Array.from(new Set(findings.map(finding => ({
