@@ -1,96 +1,62 @@
 # Plugin Vulnerability Scanner
 
-A security vulnerability scanner for dependency management, currently focused on JavaScript/Node.js projects with plans to expand to other languages.
+A specialized security scanner that analyzes JavaScript code for potential vulnerabilities and dangerous coding patterns. The scanner performs static analysis to identify issues ranging from critical security vulnerabilities to production-ready code quality concerns.
 
-## Current Status
+## What It Scans For
 
-🚧 **Early Development** 🚧
+### Critical Severity
+- eval() usage that could enable code injection attacks
 
-This project is currently in active development. Here's what's working now:
+### Medium Severity
+- Buffer overflow vulnerabilities (Buffer.allocUnsafe())
+- Unsafe regex patterns that could lead to ReDos attacks
 
-* JavaScript/Node.js dependency scanning
-* Basic vulnerability detection
-* Command-line interface
-* JSON and plain text output formats
-
-## Roadmap
-
-Future plans include support for:
-* Additional programming languages (Python, Ruby, Java, etc.)
-* Enhanced vulnerability detection
-* Web interface
-* CI/CD integration
-* Custom rules and policies
-
-## Installation
-
-```bash
-# Install globally via npm
-npm install -g plugin-vulnerability-scanner
-
-# Or run directly with npx
-npx plugin-vulnerability-scanner
-```
+### Low Severity
+- Console statements in production code
+- Debugger statements that should be removed
 
 ## Usage
 
 ```bash
-# Basic scan of a project
-plugin-vulnerability-scanner scan ./path/to/project
+# Scan a URL
+Enter a GitHub repository URL in the input field and click 'Scan URL'
 
-# Scan with JSON output
-plugin-vulnerability-scanner scan ./path/to/project --output json
+# Scan local files
+Click 'Select Files' and choose the JavaScript files you want to analyze
 ```
 
 ## Example Output
 
-```
-Vulnerability Scan Report
-========================
+The scanner provides a detailed report categorizing findings by severity level:
 
+```
 Summary:
-Critical Issues: 1
-High Issues: 2
-Medium Issues: 1
-Low Issues: 0
-Total Issues: 4
+Critical: 2
+High: 0
+Medium: 4
+Low: 3
 
-Critical Findings:
-  1. Prototype Pollution in lodash
-     CVE-2021-23337
-     Affected versions: <4.17.21
-     Current version: 4.17.15
-     Recommendation: Upgrade to 4.17.21 or later
-
-Recommendations:
-  1. Update vulnerable packages
-  2. Run tests after updates
+Findings include:
+- File locations (src/index.js, src/lib/scanner.js, etc)
+- Line numbers for each issue
+- Detailed descriptions of the problems
+- Specific recommendations for fixing each type of issue
 ```
+
+## Recommendations
+
+The tool provides specific guidance for fixing each type of issue:
+
+- evalUsage: Replace eval() with safer alternatives like JSON.parse() or Function()
+- bufferOverflow: Use Buffer.alloc() instead of Buffer.allocUnsafe()
+- unsafeRegex: Use static regular expressions or validate dynamic patterns
+- consoleUsage: Remove console statements or use a logging library
+- debuggerStatement: Remove debugger statements before deploying to production
 
 ## Contributing
 
-Contributions are welcome! Here's how you can help:
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/cool-new-thing`)
-3. Commit your changes (`git commit -m 'Add some cool new thing'`)
-4. Push to the branch (`git push origin feature/cool-new-thing`)
-5. Open a Pull Request
-
-### Development Setup
-
-```bash
-git clone https://github.com/yourusername/plugin-vulnerability-scanner.git
-cd plugin-vulnerability-scanner
-npm install
-npm run dev
-```
+Contributions are welcome! Feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-* Issues: [GitHub Issues](https://github.com/DMontgomery40/plugin-vulnerability-scanner/issues)
-* Discussions: [GitHub Discussions](https://github.com/DMontgomery40/plugin-vulnerability-scanner/discussions)
+MIT
