@@ -6,9 +6,13 @@ A comprehensive security vulnerability scanner for dependency management across 
 https://dmontgomery40.github.io/plugin-vulnerability-scanner/
 
 <p align="center">
-  <img src="[[[https://user-images.githubusercontent.com/yourusername/yourimage1.png](https://private-user-images.githubusercontent.com/130489651/390199833-30968d1f-5f22-4da6-b08b-c7b0b60a96c8.png)](https://private-user-images.githubusercontent.com/130489651/390199833-30968d1f-5f22-4da6-b08b-c7b0b60a96c8.png)](https://github.com/user-attachments/assets/30968d1f-5f22-4da6-b08b-c7b0b60a96c8)" alt="Home Page" width="45%"/>
-  <img src="[https://user-images.githubusercontent.com/yourusername/yourimage2.png](https://github.com/user-attachments/assets/c708b25e-ee33-45c8-baea-01e71a4061e8)" alt="Dashboard" width="45%"/>
+  <a href="https://github.com/user-attachments/assets/c708b25e-ee33-45c8-baea-01e71a4061e8">
+    <img src="https://private-user-images.githubusercontent.com/130489651/390199844-c708b25e-ee33-45c8-baea-01e71a4061e8.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzI2Njg5NDIsIm5iZiI6MTczMjY2ODY0MiwicGF0aCI6Ii8xMzA0ODk2NTEvMzkwMTk5ODQ0LWM3MDhiMjVlLWVlMzMtNDVjOC1iYWVhLTAxZTcxYTQwNjFlOC5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjQxMTI3JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI0MTEyN1QwMDUwNDJaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT01NThlNzI2MTJhODFiYTk0ODQ1YmE1MGMyZmUwMDIyNjdhN2Q5NGU2NTBhZmYxNzk0ZjkzNTdjZTVlZmIwYzNlJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.vfCgiRbUTiLLhKYSaNco9YPuRR1ulskAxgMSvXm6Tjw" alt="Dashboard" width="45%"/>
+  </a>
 </p>
+
+
+
 
 ## Features
 
