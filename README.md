@@ -1,57 +1,38 @@
 # Plugin Vulnerability Scanner
 
-A specialized security scanner that analyzes JavaScript code for potential vulnerabilities and dangerous coding patterns. The scanner performs static analysis to identify issues ranging from critical security vulnerabilities to production-ready code quality concerns.
+Scan JavaScript files or repositories for security vulnerabilities
 
-## What It Scans For
+<img src="screenshots/main-interface.png" alt="Main Scanner Interface" />
 
-### Critical Severity
-- eval() usage that could enable code injection attacks
+## Features
 
-### Medium Severity
-- Buffer overflow vulnerabilities (Buffer.allocUnsafe())
-- Unsafe regex patterns that could lead to ReDos attacks
-
-### Low Severity
-- Console statements in production code
-- Debugger statements that should be removed
+- Scan GitHub repositories directly via URL
+- Upload and scan local JavaScript files
+- Real-time vulnerability analysis
+- Color-coded severity levels
+- Detailed line-number references
 
 ## Usage
 
-```bash
-# Scan a URL
-Enter a GitHub repository URL in the input field and click 'Scan URL'
+1. Enter a GitHub repository URL and click 'Scan URL'
+   OR
+2. Click 'Select Files' to analyze local JavaScript files
 
-# Scan local files
-Click 'Select Files' and choose the JavaScript files you want to analyze
-```
+## Example Results
 
-## Example Output
+<img src="screenshots/scan-results.png" alt="Scan Results Example" />
 
-The scanner provides a detailed report categorizing findings by severity level:
+The scanner identifies issues in several categories:
 
-```
-Summary:
-Critical: 2
-High: 0
-Medium: 4
-Low: 3
+### Critical Findings
+- Code injection vulnerabilities (eval usage)
 
-Findings include:
-- File locations (src/index.js, src/lib/scanner.js, etc)
-- Line numbers for each issue
-- Detailed descriptions of the problems
-- Specific recommendations for fixing each type of issue
-```
+### Medium Findings
+- Buffer management issues
+- Regular expression vulnerabilities
 
-## Recommendations
-
-The tool provides specific guidance for fixing each type of issue:
-
-- evalUsage: Replace eval() with safer alternatives like JSON.parse() or Function()
-- bufferOverflow: Use Buffer.alloc() instead of Buffer.allocUnsafe()
-- unsafeRegex: Use static regular expressions or validate dynamic patterns
-- consoleUsage: Remove console statements or use a logging library
-- debuggerStatement: Remove debugger statements before deploying to production
+### Low Findings
+- Development artifacts (console statements, debugger)
 
 ## Contributing
 
