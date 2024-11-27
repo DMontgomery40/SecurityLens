@@ -1,40 +1,26 @@
 # Plugin Vulnerability Scanner
 
-A comprehensive security vulnerability scanner for dependency management across multiple programming languages and package ecosystems. This tool helps identify security vulnerabilities in your project's dependencies, regardless of the programming language or package manager used.
+A security vulnerability scanner for dependency management, currently focused on JavaScript/Node.js projects with plans to expand to other languages.
 
-## Features
+## Current Status
 
-### Multi-Language Support
-Analyzes dependencies and vulnerabilities across multiple package ecosystems:
-* JavaScript/Node.js (npm)
-* Python (pip, poetry)
-* Ruby (gem)
-* Java (Maven, Gradle)
-* PHP (Composer)
-* Go (go modules)
-* Rust (Cargo)
+🚧 **Early Development** 🚧
 
-### Vulnerability Detection
-* Dependency vulnerability scanning
-* Version compatibility checking
-* Known CVE detection
-* Outdated package identification
-* License compliance checking
-* Security advisory integration
+This project is currently in active development. Here's what's working now:
 
-### Analysis Types
-* Deep dependency tree analysis
-* Transitive dependency checking
-* Supply chain vulnerability detection
-* Package integrity verification
-* Version constraint validation
+* JavaScript/Node.js dependency scanning
+* Basic vulnerability detection
+* Command-line interface
+* JSON and plain text output formats
 
-### Output Formats
-* JSON
-* Plain text
-* HTML reports
-* GitHub-flavored Markdown
-* CI/CD compatible formats
+## Roadmap
+
+Future plans include support for:
+* Additional programming languages (Python, Ruby, Java, etc.)
+* Enhanced vulnerability detection
+* Web interface
+* CI/CD integration
+* Custom rules and policies
 
 ## Installation
 
@@ -49,127 +35,46 @@ npx plugin-vulnerability-scanner
 ## Usage
 
 ```bash
-# Basic scan of a project directory
+# Basic scan of a project
 plugin-vulnerability-scanner scan ./path/to/project
 
-# Scan with specific output format
+# Scan with JSON output
 plugin-vulnerability-scanner scan ./path/to/project --output json
-
-# Scan specific package managers
-plugin-vulnerability-scanner scan ./path/to/project --ecosystem npm,pip
-
-# Generate detailed HTML report
-plugin-vulnerability-scanner scan ./path/to/project --output html --report-file report.html
-
-# Continuous Integration mode
-plugin-vulnerability-scanner scan --ci
-```
-
-### Configuration
-
-Create a `.scannerrc` or `scanner.config.json` file to customize behavior:
-
-```json
-{
-  "ignorePatterns": ["**/node_modules/**", "**/vendor/**"],
-  "severityThreshold": "medium",
-  "ecosystems": ["npm", "pip", "gem"],
-  "outputFormat": "json",
-  "failOnIssues": true
-}
 ```
 
 ## Example Output
 
 ```
-📊 Vulnerability Scan Report
-===========================
+Vulnerability Scan Report
+========================
 
-📍 Project: my-application
-📅 Scan Date: 2024-03-26 14:30:00
+Summary:
+Critical Issues: 1
+High Issues: 2
+Medium Issues: 1
+Low Issues: 0
+Total Issues: 4
 
-📈 Summary:
-├── Critical Issues: 2
-├── High Issues: 3
-├── Medium Issues: 5
-├── Low Issues: 1
-└── Total Issues: 11
-
-🛑 Critical Findings:
-  
-  1. Critical Severity in lodash (npm)
-     CVE-2021-23337: Prototype Pollution
+Critical Findings:
+  1. Prototype Pollution in lodash
+     CVE-2021-23337
      Affected versions: <4.17.21
      Current version: 4.17.15
      Recommendation: Upgrade to 4.17.21 or later
 
-  2. Critical Severity in django (pip)
-     CVE-2023-23969: SQL Injection
-     Affected versions: <4.2.1
-     Current version: 4.1.0
-     Recommendation: Upgrade to 4.2.1 or later
-
-💡 Recommendations:
-  
-  1. Update vulnerable packages:
-     npm update lodash@4.17.21
-     pip install django==4.2.1
-
-  2. Review dependency update impact
-  3. Run tests after updates
-  4. Monitor security advisories
-```
-
-## Features in Development
-
-* Real-time vulnerability monitoring
-* Custom rule creation
-* Plugin ecosystem for custom checks
-* Integration with additional package managers
-* Enhanced CI/CD pipeline integration
-* Custom policy enforcement
-* Automated fix suggestions
-* Impact analysis reports
-
-## Integration
-
-### GitHub Actions
-
-```yaml
-- name: Security Scan
-  uses: plugin-vulnerability-scanner/action@v1
-  with:
-    path: '.'
-    fail-on: 'high'
-```
-
-### GitLab CI
-
-```yaml
-security_scan:
-  image: plugin-vulnerability-scanner
-  script:
-    - plugin-vulnerability-scanner scan ./ --ci
-```
-
-### Jenkins Pipeline
-
-```groovy
-stage('Security Scan') {
-  steps {
-    sh 'plugin-vulnerability-scanner scan ./ --output json'
-  }
-}
+Recommendations:
+  1. Update vulnerable packages
+  2. Run tests after updates
 ```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. Here's how you can contribute:
+Contributions are welcome! Here's how you can help:
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create your feature branch (`git checkout -b feature/cool-new-thing`)
+3. Commit your changes (`git commit -m 'Add some cool new thing'`)
+4. Push to the branch (`git push origin feature/cool-new-thing`)
 5. Open a Pull Request
 
 ### Development Setup
@@ -187,6 +92,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-* Documentation: [https://plugin-vulnerability-scanner.dev](https://plugin-vulnerability-scanner.dev)
 * Issues: [GitHub Issues](https://github.com/DMontgomery40/plugin-vulnerability-scanner/issues)
 * Discussions: [GitHub Discussions](https://github.com/DMontgomery40/plugin-vulnerability-scanner/discussions)
