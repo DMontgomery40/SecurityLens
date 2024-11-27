@@ -1,5 +1,3 @@
-// src/components/ui/ScanButton.jsx
-
 import React from 'react';
 import { Globe, Folder } from 'lucide-react';
 

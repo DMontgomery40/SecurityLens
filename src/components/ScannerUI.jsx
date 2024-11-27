@@ -1,8 +1,6 @@
-// src/components/ui/ScannerUI.jsx
-
 import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
-import VulnerabilityScanner from '../../lib/scanner';
+import VulnerabilityScanner from '../lib/scanner';
 import ScanButton from './ScanButton';
 import ScanResults from './ScanResults';
 

@@ -1,99 +1,104 @@
-// src/components/ui/ScanResults.jsx
-
 import React from 'react';
-import { Shield, File } from 'lucide-react';
-
-const SeverityCard = ({ title, count, bgColor, icon }) => (
-  <div className={`p-6 ${bgColor} rounded-lg shadow-md flex items-center`}>
-    <div className="p-3 bg-white rounded-full shadow-sm mr-4">
-      {icon}
-    </div>
-    <div>
-      <h4 className="text-sm font-semibold text-gray-700">{title}</h4>
-      <p className="text-xl font-bold text-gray-900">{count}</p>
-    </div>
-  </div>
-);
-
-const Finding = ({ finding }) => (
-  <div className="bg-white p-5 rounded-lg shadow hover:shadow-lg transition-shadow duration-300">
-    <div className="flex items-start">
-      <Shield className="h-6 w-6 text-red-500 mr-3 mt-1" />
-      <div>
-        <h3 className="text-lg font-semibold text-gray-800">{finding.type}</h3>
-        <p className="text-gray-600 mt-1">{finding.description}</p>
-        <div className="mt-3 flex items-center text-sm text-gray-500">
-          <File className="h-4 w-4 mr-2" />
-          <span>
-            {finding.file} <span className="font-medium">({finding.lineNumbers.join(', ')})</span>
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-);
+import { AlertTriangle, CheckCircle, Info, AlertCircle } from 'lucide-react';
 
 const ScanResults = ({ results }) => {
   if (!results) return null;
 
+  const { summary, findings, recommendedFixes } = results;
+
+  const severityColors = {
+    CRITICAL: 'bg-red-100 text-red-700',
+    HIGH: 'bg-orange-100 text-orange-700',
+    MEDIUM: 'bg-yellow-100 text-yellow-700',
+    LOW: 'bg-blue-100 text-blue-700',
+  };
+
+  const severityIcons = {
+    CRITICAL: AlertTriangle,
+    HIGH: AlertCircle,
+    MEDIUM: AlertCircle,
+    LOW: Info,
+  };
+
   return (
-    <div className="space-y-8">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <SeverityCard
-          title="Critical"
-          count={results.summary.criticalIssues}
-          bgColor="bg-red-100"
-          icon={<Shield className="h-6 w-6 text-red-600" />}
-        />
-        <SeverityCard
-          title="High"
-          count={results.summary.highIssues}
-          bgColor="bg-orange-100"
-          icon={<Shield className="h-6 w-6 text-orange-600" />}
-        />
-        <SeverityCard
-          title="Medium"
-          count={results.summary.mediumIssues}
-          bgColor="bg-yellow-100"
-          icon={<Shield className="h-6 w-6 text-yellow-600" />}
-        />
-        <SeverityCard
-          title="Low"
-          count={results.summary.lowIssues}
-          bgColor="bg-blue-100"
-          icon={<Shield className="h-6 w-6 text-blue-600" />}
-        />
+    <div className="space-y-6">
+      {/* Summary Section */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="p-4 bg-red-100 text-red-700 rounded-lg">
+          <div className="text-2xl font-bold">{summary.criticalIssues}</div>
+          <div className="text-sm font-medium">Critical</div>
+        </div>
+        <div className="p-4 bg-orange-100 text-orange-700 rounded-lg">
+          <div className="text-2xl font-bold">{summary.highIssues}</div>
+          <div className="text-sm font-medium">High</div>
+        </div>
+        <div className="p-4 bg-yellow-100 text-yellow-700 rounded-lg">
+          <div className="text-2xl font-bold">{summary.mediumIssues}</div>
+          <div className="text-sm font-medium">Medium</div>
+        </div>
+        <div className="p-4 bg-blue-100 text-blue-700 rounded-lg">
+          <div className="text-2xl font-bold">{summary.lowIssues}</div>
+          <div className="text-sm font-medium">Low</div>
+        </div>
       </div>
 
       {/* Findings Section */}
       <div className="space-y-6">
-        {Object.entries(results.findings).map(([severity, findings]) => (
-          <div key={severity} className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-2xl font-bold mb-5 text-gray-800">
-              {severity} Findings
-            </h2>
-            <div className="space-y-4">
-              {findings.map((finding, index) => (
-                <Finding key={index} finding={finding} />
+        {Object.entries(findings).map(([severity, issues]) => {
+          if (issues.length === 0) return null;
+          const Icon = severityIcons[severity];
+
+          return (
+            <div key={severity} className="space-y-4">
+              <h3 className="text-lg font-semibold">{severity} Findings</h3>
+              {issues.map((issue, index) => (
+                <div
+                  key={`${issue.type}-${index}`}
+                  className={`p-4 rounded-lg ${severityColors[severity]}`}
+                >
+                  <div className="flex items-start">
+                    <Icon className="h-5 w-5 mr-2 mt-0.5" />
+                    <div>
+                      <div className="font-medium">{issue.type}</div>
+                      <div className="text-sm mt-1">{issue.description}</div>
+                      <div className="text-sm mt-2">
+                        <span className="font-medium">File:</span> {issue.file}
+                      </div>
+                      {issue.lineNumbers && issue.lineNumbers.length > 0 && (
+                        <div className="text-sm">
+                          <span className="font-medium">Line{issue.lineNumbers.length > 1 ? 's' : ''}:</span>{' '}
+                          {issue.lineNumbers.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Recommendations Section */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold mb-5 text-gray-800">Recommendations</h2>
+      {recommendedFixes && recommendedFixes.length > 0 && (
         <div className="space-y-4">
-          {results.recommendedFixes.map((fix, index) => (
-            <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="text-lg font-semibold text-gray-700">{fix.type}</div>
-              <div className="text-gray-600 mt-2">{fix.recommendation}</div>
-            </div>
-          ))}
+          <h3 className="text-lg font-semibold">Recommendations</h3>
+          <div className="space-y-3">
+            {recommendedFixes.map((fix, index) => (
+              <div
+                key={index}
+                className="p-4 bg-gray-100 text-gray-700 rounded-lg flex items-start"
+              >
+                <CheckCircle className="h-5 w-5 mr-2 mt-0.5 text-green-500" />
+                <div>
+                  <div className="font-medium">{fix.type}</div>
+                  <div className="text-sm mt-1">{fix.recommendation}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
