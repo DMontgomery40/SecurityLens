@@ -6,7 +6,7 @@ A comprehensive security vulnerability scanner for dependency management across 
 https://dmontgomery40.github.io/plugin-vulnerability-scanner/
 
 <p align="center">
-  <img src="[https://user-images.githubusercontent.com/yourusername/yourimage1.png](https://github.com/user-attachments/assets/30968d1f-5f22-4da6-b08b-c7b0b60a96c8)" alt="Home Page" width="45%"/>
+  <img src="[[[https://user-images.githubusercontent.com/yourusername/yourimage1.png](https://private-user-images.githubusercontent.com/130489651/390199833-30968d1f-5f22-4da6-b08b-c7b0b60a96c8.png)](https://private-user-images.githubusercontent.com/130489651/390199833-30968d1f-5f22-4da6-b08b-c7b0b60a96c8.png)](https://github.com/user-attachments/assets/30968d1f-5f22-4da6-b08b-c7b0b60a96c8)" alt="Home Page" width="45%"/>
   <img src="[https://user-images.githubusercontent.com/yourusername/yourimage2.png](https://github.com/user-attachments/assets/c708b25e-ee33-45c8-baea-01e71a4061e8)" alt="Dashboard" width="45%"/>
 </p>
 
