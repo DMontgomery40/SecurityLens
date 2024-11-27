@@ -39,7 +39,6 @@ class NPMScanner extends BaseScanner {
         const findings = [];
         
         for (const [name, version] of Object.entries(dependencies)) {
-            // Check for insecure version ranges
             if (this.vulnerabilityPatterns.insecureVersionRange.pattern.test(version)) {
                 findings.push({
                     type: 'insecureVersionRange',
