@@ -47,7 +47,7 @@ class VulnerabilityScanner {
 
     async fetchFiles(files, items, owner, repo) {
         for (const item of items) {
-            if (item.type === 'file' && /\.(js|jsx|ts|tsx)$/.test(item.name)) {
+            if (item.type === 'file' && /\.(json|py|css|html|config|conf|sh|patch|yaml|yml|Dockerfile|ini|js|jsx|ts|tsx)$/.test(item.name)) {
                 try {
                     const response = await fetch(item.download_url);
                     if (!response.ok) throw new Error(`Failed to fetch ${item.path}`);
