@@ -1,7 +1,7 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle, Info, AlertCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Info, AlertCircle, RefreshCw } from 'lucide-react';
 
-const ScanResults = ({ results }) => {
+const ScanResults = ({ results, usedCache }) => {
   if (!results) return null;
 
   const { summary, findings, recommendedFixes } = results;
@@ -22,6 +22,13 @@ const ScanResults = ({ results }) => {
 
   return (
     <div className="space-y-6">
+      {usedCache && (
+        <div className="flex items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-lg mb-4">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          <span className="text-sm">Results from cached scan data</span>
+        </div>
+      )}
+
       {/* Summary Section */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-4 bg-red-100 text-red-700 rounded-lg">
@@ -97,6 +104,19 @@ const ScanResults = ({ results }) => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Cache Refresh Option */}
+      {usedCache && results.summary.totalIssues > 0 && (
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={() => window.location.reload()}
+            className="flex items-center px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Perform fresh scan
+          </button>
         </div>
       )}
     </div>
