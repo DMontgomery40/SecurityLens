@@ -1,4 +1,5 @@
 import _ from 'lodash';
+<<<<<<< HEAD
 import { VULNERABILITY_PATTERNS as patterns } from './patterns/index.js';
 import { getScannerForFile, PACKAGE_FILE_PATTERNS } from './scanners/index.js';
 import { repoCache } from './cache.js';
@@ -18,6 +19,11 @@ const recommendations = {
     dynamicRequire: 'Use static imports and proper dependency management',
     unsafeDeserialization: 'Validate and sanitize data before deserialization'
 };
+=======
+import { corePatterns, enhancedPatterns, recommendations } from './patterns';
+import { getScannerForFile, PACKAGE_FILE_PATTERNS } from './scanners';
+import { repoCache } from './cache';
+>>>>>>> 81342ac2800f95e58c70d0204d4e1fd9b4d976ed
 
 class VulnerabilityScanner {
     constructor(config = {}) {
@@ -28,8 +34,16 @@ class VulnerabilityScanner {
             ...config
         };
 
+<<<<<<< HEAD
         // Use all patterns
         this.vulnerabilityPatterns = patterns;
+=======
+        // Combine patterns based on configuration
+        this.vulnerabilityPatterns = {
+            ...corePatterns,
+            ...(this.config.enableNewPatterns ? enhancedPatterns : {})
+        };
+>>>>>>> 81342ac2800f95e58c70d0204d4e1fd9b4d976ed
 
         // Track rate limit information
         this.rateLimitInfo = null;
@@ -42,6 +56,7 @@ class VulnerabilityScanner {
 
         if (token) {
             headers.Authorization = `token ${token}`;
+<<<<<<< HEAD
         }
 
         const response = await fetch(url, { headers });
@@ -140,8 +155,31 @@ class VulnerabilityScanner {
                 } catch (error) {
                     console.error(`Error fetching directory ${item.path}:`, error.message);
                 }
-            }
+=======
         }
+
+        const response = await fetch(url, { headers });
+        
+        // Extract rate limit information from headers
+        this.rateLimitInfo = {
+            limit: parseInt(response.headers.get('x-ratelimit-limit') || '60'),
+            remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
+            reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
+        };
+
+        if (!response.ok) {
+            if (response.status === 403 && this.rateLimitInfo.remaining === 0) {
+                const resetDate = new Date(this.rateLimitInfo.reset * 1000);
+                throw new Error(`GitHub API rate limit exceeded. Resets at ${resetDate.toLocaleString()}`);
+            }
+            if (response.status === 404) {
+                throw new Error('Repository or file not found. Check the URL and ensure you have access.');
+>>>>>>> 81342ac2800f95e58c70d0204d4e1fd9b4d976ed
+            }
+            throw new Error(`GitHub API error: ${response.statusText}`);
+        }
+
+        return response;
     }
 
     async scanFile(fileContent, filePath) {
@@ -200,6 +238,83 @@ class VulnerabilityScanner {
             }
             return numbers;
         }, []);
+    }
+
+    async fetchRepositoryFiles(url, token = null) {
+        const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/[^/]+)?\/?(.*)/;
+        const match = url.match(githubRegex);
+        if (!match) {
+            throw new Error('Invalid GitHub URL format');
+        }
+
+        // Check cache first
+        const cachedData = repoCache.get(url, token);
+        if (cachedData) {
+            return {
+                files: cachedData.files,
+                rateLimit: this.rateLimitInfo,
+                fromCache: true
+            };
+        }
+
+        const [, owner, repo, path] = match;
+        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+        try {
+            const response = await this.fetchWithAuth(apiUrl, token);
+            const data = await response.json();
+            const files = [];
+
+            await this.fetchFiles(files, data, owner, repo, token);
+            
+            // Cache the results
+            repoCache.set(url, token, { files });
+            
+            return {
+                files,
+                rateLimit: this.rateLimitInfo,
+                fromCache: false
+            };
+        } catch (error) {
+            throw new Error(error.message);
+        }
+    }
+
+    async fetchFiles(files, items, owner, repo, token) {
+        for (const item of items) {
+            // Check if we're running low on rate limit
+            if (this.rateLimitInfo && this.rateLimitInfo.remaining < 5) {
+                const resetDate = new Date(this.rateLimitInfo.reset * 1000);
+                console.warn(`Warning: Rate limit running low. Resets at ${resetDate.toLocaleString()}`);
+            }
+
+            const supportedExtensions = Object.keys(PACKAGE_FILE_PATTERNS)
+                .concat(['.json', '.py', '.css', '.html', '.config', '.conf', '.sh', '.patch', 
+                        '.yaml', '.yml', 'Dockerfile', '.ini', '.js', '.jsx', '.ts', '.tsx']);
+            
+            if (item.type === 'file' && 
+                (supportedExtensions.some(ext => item.name.toLowerCase().endsWith(ext.toLowerCase())) ||
+                 supportedExtensions.some(ext => item.name.toLowerCase() === ext.toLowerCase()))) {
+                try {
+                    const response = await this.fetchWithAuth(item.download_url, token);
+                    const content = await response.text();
+                    files.push({
+                        path: item.path,
+                        content: content
+                    });
+                } catch (error) {
+                    console.error(`Error fetching ${item.path}:`, error.message);
+                }
+            } else if (item.type === 'dir') {
+                try {
+                    const response = await this.fetchWithAuth(item._links.self, token);
+                    const data = await response.json();
+                    await this.fetchFiles(files, data, owner, repo, token);
+                } catch (error) {
+                    console.error(`Error fetching directory ${item.path}:`, error.message);
+                }
+            }
+        }
     }
 
     generateReport(findings) {
