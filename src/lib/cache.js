@@ -96,4 +96,16 @@ class RepositoryCache {
     }
 }
 
+// For CLI environment where localStorage isn't available
+const isNode = typeof window === 'undefined';
+if (isNode) {
+    global.localStorage = {
+        _data: {},
+        setItem: function(id, val) { return this._data[id] = String(val); },
+        getItem: function(id) { return this._data.hasOwnProperty(id) ? this._data[id] : null; },
+        removeItem: function(id) { return delete this._data[id]; },
+        clear: function() { return this._data = {}; }
+    };
+}
+
 export const repoCache = new RepositoryCache();

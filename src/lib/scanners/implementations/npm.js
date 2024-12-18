@@ -13,6 +13,11 @@ class NPMScanner extends BaseScanner {
                 pattern: /"version"\s*:\s*"([0-9]+)\.([0-9]+)\.([0-9]+)"/,
                 severity: 'LOW',
                 description: 'Package version may be outdated'
+            },
+            noLockFile: {
+                pattern: /package\.json$/,
+                severity: 'MEDIUM',
+                description: 'No package lock file found'
             }
         };
     }
@@ -35,27 +40,47 @@ class NPMScanner extends BaseScanner {
         }
     }
 
-    async checkVulnerabilities(dependencies) {
+    async scan(filePath, content) {
         const findings = [];
         
-        for (const [name, version] of Object.entries(dependencies)) {
-            if (this.vulnerabilityPatterns.insecureVersionRange.pattern.test(version)) {
-                findings.push({
-                    type: 'insecureVersionRange',
-                    severity: this.vulnerabilityPatterns.insecureVersionRange.severity,
-                    description: this.vulnerabilityPatterns.insecureVersionRange.description,
-                    package: name,
-                    version: version
-                });
+        try {
+            const parsedData = await this.parseFile(content);
+            
+            // Check dependencies
+            for (const [name, version] of Object.entries(parsedData.dependencies || {})) {
+                if (this.vulnerabilityPatterns.insecureVersionRange.pattern.test(version)) {
+                    findings.push({
+                        type: 'insecureVersionRange',
+                        severity: this.vulnerabilityPatterns.insecureVersionRange.severity,
+                        description: this.vulnerabilityPatterns.insecureVersionRange.description,
+                        package: name,
+                        version: version,
+                        file: filePath
+                    });
+                }
             }
+
+            // Check package version
+            if (parsedData.metadata?.version) {
+                const versionParts = parsedData.metadata.version.split('.');
+                const majorVersion = parseInt(versionParts[0]);
+                if (majorVersion === 0 || isNaN(majorVersion)) {
+                    findings.push({
+                        type: 'unstableVersion',
+                        severity: 'MEDIUM',
+                        description: 'Using unstable version (0.x.x)',
+                        package: parsedData.metadata.name,
+                        version: parsedData.metadata.version,
+                        file: filePath
+                    });
+                }
+            }
+
+        } catch (error) {
+            console.error(`Error scanning ${filePath}:`, error.message);
         }
 
         return findings;
-    }
-
-    async scan(filePath, content) {
-        const parsedData = await this.parseFile(content);
-        return this.checkVulnerabilities(parsedData.dependencies);
     }
 }
 
