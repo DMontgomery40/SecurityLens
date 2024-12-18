@@ -5,6 +5,19 @@ on:
     branches:
       - main
       - development
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -12,20 +25,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
-
+        run: |
+          npm ci
+          
       - name: Build
-        run: npm run build
+        run: |
+          npm run clean
+          npm run build
+        env:
+          NODE_ENV: production
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          branch: gh-pages
-          folder: dist
+          folder: dist # The folder the action should deploy.
+          branch: gh-pages # The branch the action should deploy to.
+          clean: true # Automatically remove deleted files from the deploy branch
+          clean-exclude: |
+            .nojekyll
+            CNAME
+          commit-message: "Deploy: ${{ github.event.head_commit.message || 'Update website' }}"
+          git-config-name: GitHub Actions
+          git-config-email: github-actions[bot]@users.noreply.github.com
+          single-commit: true
