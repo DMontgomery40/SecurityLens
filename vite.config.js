@@ -7,11 +7,14 @@ export default defineConfig(({ command, mode }) => {
   // Load env vars for all modes
   const env = loadEnv(mode, process.cwd(), '');
   
+  const baseUrl = mode === 'production' 
+    ? '/plugin-vulnerability-scanner/'  // GitHub Pages base URL
+    : '/';
+
   return {
     plugins: [react()],
     
-    // Base URL for GitHub Pages
-    base: mode === 'production' ? '/plugin-vulnerability-scanner/' : '/',
+    base: baseUrl,  // Set the base URL for all assets
     
     resolve: {
       alias: {
@@ -52,6 +55,7 @@ export default defineConfig(({ command, mode }) => {
     build: {
       // Output directory for production build
       outDir: 'dist',
+      assetsDir: 'assets',  // Where to store assets in production
       
       // Generate sourcemaps for production
       sourcemap: true,
@@ -69,11 +73,28 @@ export default defineConfig(({ command, mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            // Split vendor code
-            vendor: ['react', 'react-dom', 'lodash'],
-            // Split UI components
-            ui: ['@/components/ui']
-          }
+            // Split vendor code into chunks
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-utils': ['lodash'],
+            'vendor-ui': ['lucide-react', '@radix-ui/react-alert-dialog']
+          },
+          // Ensure assets use relative paths
+          assetFileNames: (assetInfo) => {
+            const info = assetInfo.name.split('.');
+            const ext = info[info.length - 1];
+            if (/\.(png|jpe?g|gif|svg|ico)$/.test(assetInfo.name)) {
+              return `assets/images/[name]-[hash][extname]`;
+            }
+            if (/\.(css)$/.test(assetInfo.name)) {
+              return `assets/css/[name]-[hash][extname]`;
+            }
+            if (/\.(woff|woff2|eot|ttf|otf)$/.test(assetInfo.name)) {
+              return `assets/fonts/[name]-[hash][extname]`;
+            }
+            return `assets/[name]-[hash][extname]`;
+          },
+          chunkFileNames: 'assets/js/[name]-[hash].js',
+          entryFileNames: 'assets/js/[name]-[hash].js',
         }
       }
     },
