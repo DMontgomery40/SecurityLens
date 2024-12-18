@@ -1,83 +1,150 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle, Info, AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Info, AlertCircle, RefreshCw, Clock } from 'lucide-react';
+import { Alert, AlertDescription } from './ui/alert';
 
-const ScanResults = ({ results, usedCache }) => {
-  if (!results) return null;
-
-  const { summary, findings, recommendedFixes } = results;
-
-  const severityColors = {
-    CRITICAL: 'bg-red-100 text-red-700',
-    HIGH: 'bg-orange-100 text-orange-700',
-    MEDIUM: 'bg-yellow-100 text-yellow-700',
-    LOW: 'bg-blue-100 text-blue-700',
+const SeverityBadge = ({ severity, count }) => {
+  const colors = {
+    CRITICAL: 'bg-red-100 text-red-800 border-red-200',
+    HIGH: 'bg-orange-100 text-orange-800 border-orange-200',
+    MEDIUM: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    LOW: 'bg-blue-100 text-blue-800 border-blue-200'
   };
 
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium border ${colors[severity] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
+      {count}
+    </span>
+  );
+};
+
+const TimeToReset = ({ resetTimestamp }) => {
+  const [timeLeft, setTimeLeft] = React.useState('');
+
+  React.useEffect(() => {
+    const updateTime = () => {
+      const now = new Date().getTime();
+      const reset = new Date(resetTimestamp * 1000).getTime();
+      const diff = reset - now;
+
+      if (diff <= 0) {
+        setTimeLeft('Reset now');
+        return;
+      }
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${minutes}m ${seconds}s`);
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [resetTimestamp]);
+
+  return (
+    <div className="flex items-center text-sm text-gray-600">
+      <Clock className="h-4 w-4 mr-1" />
+      {timeLeft}
+    </div>
+  );
+};
+
+const ScanResults = ({ 
+  results, 
+  usedCache, 
+  onRefreshRequest,
+  scanning 
+}) => {
+  if (!results) return null;
+
+  const { summary, findings, recommendedFixes, rateLimit } = results;
+
+  const severityOrder = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
   const severityIcons = {
     CRITICAL: AlertTriangle,
     HIGH: AlertCircle,
     MEDIUM: AlertCircle,
-    LOW: Info,
+    LOW: Info
   };
 
   return (
     <div className="space-y-6">
-      {usedCache && (
-        <div className="flex items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-lg mb-4">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          <span className="text-sm">Results from cached scan data</span>
+      {/* Rate Limit Info */}
+      {rateLimit && (
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-4">
+          <div className="flex items-center space-x-4">
+            <div className="text-sm text-gray-600">
+              API Calls Remaining: {rateLimit.remaining}/{rateLimit.limit}
+            </div>
+            <TimeToReset resetTimestamp={rateLimit.reset} />
+          </div>
+          {usedCache && !scanning && (
+            <button
+              onClick={onRefreshRequest}
+              className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+              disabled={rateLimit.remaining === 0}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Refresh Scan
+            </button>
+          )}
         </div>
       )}
 
-      {/* Summary Section */}
+      {/* Summary Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="p-4 bg-red-100 text-red-700 rounded-lg">
-          <div className="text-2xl font-bold">{summary?.criticalIssues || 0}</div>
-          <div className="text-sm font-medium">Critical</div>
-        </div>
-        <div className="p-4 bg-orange-100 text-orange-700 rounded-lg">
-          <div className="text-2xl font-bold">{summary?.highIssues || 0}</div>
-          <div className="text-sm font-medium">High</div>
-        </div>
-        <div className="p-4 bg-yellow-100 text-yellow-700 rounded-lg">
-          <div className="text-2xl font-bold">{summary?.mediumIssues || 0}</div>
-          <div className="text-sm font-medium">Medium</div>
-        </div>
-        <div className="p-4 bg-blue-100 text-blue-700 rounded-lg">
-          <div className="text-2xl font-bold">{summary?.lowIssues || 0}</div>
-          <div className="text-sm font-medium">Low</div>
-        </div>
+        {severityOrder.map(severity => (
+          <div key={severity} className={`p-4 rounded-lg ${
+            severity === 'CRITICAL' ? 'bg-red-100' :
+            severity === 'HIGH' ? 'bg-orange-100' :
+            severity === 'MEDIUM' ? 'bg-yellow-100' : 'bg-blue-100'
+          }`}>
+            <div className="text-2xl font-bold">
+              {summary[`${severity.toLowerCase()}Issues`] || 0}
+            </div>
+            <div className="text-sm font-medium">{severity}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Findings Section */}
+      {/* Findings Sections */}
       <div className="space-y-6">
-        {Object.entries(findings || {}).map(([severity, issues]) => {
-          if (!Array.isArray(issues) || issues.length === 0) return null;
-          const Icon = severityIcons[severity];
+        {severityOrder.map(severity => {
+          const issuesList = findings[severity] || [];
+          if (issuesList.length === 0) return null;
 
+          const Icon = severityIcons[severity];
+          
           return (
             <div key={severity} className="space-y-4">
-              <h3 className="text-lg font-semibold">{severity} Findings</h3>
-              {issues.map((issue, index) => (
-                <div
-                  key={`${issue.type}-${index}`}
-                  className={`p-4 rounded-lg ${severityColors[severity] || 'bg-gray-100 text-gray-700'}`}
-                >
-                  <div className="flex items-start">
-                    {Icon && <Icon className="h-5 w-5 mr-2 mt-0.5" />}
-                    <div>
-                      <div className="font-medium">{issue.type}</div>
-                      <div className="text-sm mt-1">{issue.description}</div>
-                      <div className="text-sm mt-2">
-                        <span className="font-medium">File:</span> {issue.file}
-                      </div>
-                      {Array.isArray(issue.lineNumbers) && issue.lineNumbers.length > 0 && (
-                        <div className="text-sm">
-                          <span className="font-medium">Line{issue.lineNumbers.length > 1 ? 's' : ''}:</span>{' '}
-                          {issue.lineNumbers.join(', ')}
-                        </div>
-                      )}
+              <h3 className="text-lg font-semibold flex items-center">
+                {Icon && <Icon className="h-5 w-5 mr-2" />}
+                {severity} Findings
+                <SeverityBadge severity={severity} count={issuesList.length} />
+              </h3>
+              
+              {issuesList.map((issue, index) => (
+                <div key={`${issue.type}-${index}`} className="p-4 rounded-lg bg-white border">
+                  <div className="space-y-2">
+                    <div className="font-medium text-gray-900">{issue.type}</div>
+                    <div className="text-sm text-gray-600">{issue.description}</div>
+                    <div className="text-sm">
+                      <span className="font-medium">File: </span>
+                      <code className="px-2 py-1 bg-gray-100 rounded">{issue.file}</code>
                     </div>
+                    {Array.isArray(issue.lineNumbers) && issue.lineNumbers.length > 0 && (
+                      <div className="text-sm">
+                        <span className="font-medium">Line{issue.lineNumbers.length > 1 ? 's' : ''}: </span>
+                        <code className="px-2 py-1 bg-gray-100 rounded">
+                          {issue.lineNumbers.join(', ')}
+                        </code>
+                      </div>
+                    )}
+                    {issue.recommendation && (
+                      <Alert className="mt-2">
+                        <AlertDescription>{issue.recommendation}</AlertDescription>
+                      </Alert>
+                    )}
                   </div>
                 </div>
               ))}
@@ -86,38 +153,23 @@ const ScanResults = ({ results, usedCache }) => {
         })}
       </div>
 
-      {/* Recommendations Section */}
-      {Array.isArray(recommendedFixes) && recommendedFixes.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Recommendations</h3>
-          <div className="space-y-3">
-            {recommendedFixes.map((fix, index) => (
-              <div
-                key={index}
-                className="p-4 bg-gray-100 text-gray-700 rounded-lg flex items-start"
+      {/* Cache Notice */}
+      {usedCache && (
+        <Alert className="mt-4">
+          <AlertDescription className="flex items-center">
+            <Info className="h-4 w-4 mr-2" />
+            Results are from cached data. 
+            {!scanning && (
+              <button
+                onClick={onRefreshRequest}
+                className="ml-2 text-blue-600 hover:text-blue-800"
+                disabled={rateLimit?.remaining === 0}
               >
-                <CheckCircle className="h-5 w-5 mr-2 mt-0.5 text-green-500" />
-                <div>
-                  <div className="font-medium">{fix.type}</div>
-                  <div className="text-sm mt-1">{fix.recommendation}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Cache Refresh Option */}
-      {usedCache && summary?.totalIssues > 0 && (
-        <div className="mt-8 flex justify-center">
-          <button
-            onClick={() => window.location.reload()}
-            className="flex items-center px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Perform fresh scan
-          </button>
-        </div>
+                Perform fresh scan
+              </button>
+            )}
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );

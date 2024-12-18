@@ -10,6 +10,14 @@ const printReport = (report) => {
     console.log(chalk.bold('\nVulnerability Scan Report'));
     console.log(chalk.bold('========================'));
     
+    // Print rate limit info if available
+    if (report.rateLimit) {
+        console.log(chalk.cyan('\nGitHub API Rate Limit:'));
+        console.log(chalk.cyan(`  Remaining: ${report.rateLimit.remaining}/${report.rateLimit.limit}`));
+        const resetTime = new Date(report.rateLimit.reset * 1000).toLocaleTimeString();
+        console.log(chalk.cyan(`  Resets at: ${resetTime}`));
+    }
+    
     console.log(chalk.bold('\nSummary:'));
     console.log(chalk.red(`Critical Issues: ${report.summary.criticalIssues}`));
     console.log(chalk.yellow(`High Issues: ${report.summary.highIssues}`));
@@ -138,6 +146,87 @@ program
 
             console.log(chalk.blue('Starting vulnerability scan...'));
             const findings = await scanPath(path, scanner);
+            const report = scanner.generateReport(findings);
+
+            if (options.output === 'json') {
+                console.log(JSON.stringify(report, null, 2));
+            } else {
+                printReport(report);
+            }
+
+            // Exit with error code if critical or high vulnerabilities found
+            if (report.summary.criticalIssues > 0 || report.summary.highIssues > 0) {
+                process.exit(1);
+            }
+        } catch (error) {
+            console.error(chalk.red('Error:'), error.message);
+            process.exit(1);
+        }
+    });
+
+program
+    .command('scan-repo')
+    .description('Scan a GitHub repository for vulnerabilities')
+    .argument('<url>', 'GitHub repository URL')
+    .option('-t, --token <token>', 'GitHub personal access token')
+    .option('-b, --branch <branch>', 'Branch to scan (defaults to main/master)')
+    .option('-p, --path <path>', 'Subpath within repository to scan')
+    .option('-o, --output <type>', 'Output format (text/json)', 'text')
+    .option('--no-cache', 'Disable cache usage')
+    .option('--no-package-scanners', 'Disable package-specific scanners')
+    .option('--no-patterns', 'Disable general vulnerability patterns')
+    .option('-v, --verbose', 'Enable verbose output')
+    .action(async (url, options) => {
+        try {
+            const scanner = new VulnerabilityScanner({
+                enableNewPatterns: options.patterns !== false,
+                enablePackageScanners: options.packageScanners !== false
+            });
+
+            // Load token from environment if not provided
+            const token = options.token || process.env.GITHUB_TOKEN;
+
+            console.log(chalk.blue('Starting repository scan...'));
+            if (options.verbose) {
+                console.log(chalk.gray(`URL: ${url}`));
+                console.log(chalk.gray(`Branch: ${options.branch || 'default'}`));
+                console.log(chalk.gray(`Path: ${options.path || 'root'}`));
+                console.log(chalk.gray(`Cache: ${options.cache ? 'enabled' : 'disabled'}`));
+            }
+
+            let repoUrl = url;
+            if (options.branch) {
+                repoUrl = repoUrl.replace(/\/tree\/[^/]+/, '') + `/tree/${options.branch}`;
+            }
+            if (options.path) {
+                repoUrl = repoUrl.replace(/\/?$/, '/') + options.path.replace(/^\//, '');
+            }
+
+            const { files, rateLimit, fromCache } = await scanner.fetchRepositoryFiles(repoUrl, token);
+            
+            if (options.verbose && fromCache) {
+                console.log(chalk.gray('Using cached repository data'));
+            }
+
+            let findings = [];
+            console.log(chalk.blue(`Processing ${files.length} files...`));
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (options.verbose) {
+                    process.stdout.write(`\r${chalk.gray(`Scanning file ${i + 1}/${files.length}: ${file.path}`)}`);
+                }
+                const fileFindings = await scanner.scanFile(file.content, file.path);
+                if (fileFindings.length > 0 && options.verbose) {
+                    process.stdout.write(`\n${chalk.yellow(`Found ${fileFindings.length} issues in ${file.path}`)}\n`);
+                }
+                findings.push(...fileFindings);
+            }
+            
+            if (options.verbose) {
+                process.stdout.write('\n');
+            }
+
             const report = scanner.generateReport(findings);
 
             if (options.output === 'json') {

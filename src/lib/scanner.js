@@ -8,6 +8,9 @@ class VulnerabilityScanner {
         this.config = {
             enableNewPatterns: true,
             enablePackageScanners: true,
+            maxRetries: 3,
+            retryDelay: 1000,
+            octokit: null,
             ...config
         };
 
@@ -19,163 +22,126 @@ class VulnerabilityScanner {
         this.rateLimitInfo = null;
     }
 
-    async fetchWithAuth(url, token) {
-        const headers = {
-            'Accept': 'application/vnd.github.v3+json',
-            'X-GitHub-Api-Version': '2022-11-28'
-        };
-
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
+    async getRateLimitInfo() {
+        if (!this.config.octokit) {
+            return null;
         }
 
         try {
-            const response = await fetch(url, { 
-                headers,
-                mode: 'cors'
-            });
-
-            this.rateLimitInfo = {
-                limit: parseInt(response.headers.get('x-ratelimit-limit') || '60'),
-                remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
-                reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
-            };
-
-            if (!response.ok) {
-                if (response.status === 403 && this.rateLimitInfo.remaining === 0) {
-                    const resetDate = new Date(this.rateLimitInfo.reset * 1000);
-                    throw new Error(`GitHub API rate limit exceeded. Resets at ${resetDate.toLocaleString()}`);
-                }
-                if (response.status === 404) {
-                    throw new Error('Repository or file not found. Check the URL and ensure you have access.');
-                }
-                if (response.status === 401) {
-                    throw new Error('Authentication failed. Please check your GitHub token.');
-                }
-                throw new Error(`GitHub API error: ${response.statusText}`);
-            }
-
-            return response;
+            const response = await this.config.octokit.rateLimit.get();
+            const { limit, remaining, reset } = response.data.rate;
+            
+            this.rateLimitInfo = { limit, remaining, reset };
+            return this.rateLimitInfo;
         } catch (error) {
-            if (error.name === 'TypeError') {
-                throw new Error('Network error occurred. Please check your connection and try again.');
-            }
-            throw error;
+            console.error('Error fetching rate limit:', error);
+            return null;
         }
     }
 
-    async fetchRepositoryFiles(url, token = null) {
-        const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/[^/]+)?\/?(.*)/;
+    async fetchRepositoryFiles(url, octokit = null) {
+        if (octokit) {
+            this.config.octokit = octokit;
+        }
+
+        const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/([^/]+))?\/?(.*)/;
         const match = url.match(githubRegex);
         
         if (!match) {
             throw new Error('Invalid GitHub URL format');
         }
 
-        const cachedData = repoCache.get(url, token);
+        const [, owner, repo, branch = 'main', path = ''] = match;
+        
+        // Check cache first
+        const cacheKey = `${owner}/${repo}/${branch}/${path}`;
+        const cachedData = repoCache.get(cacheKey);
         if (cachedData) {
             return {
                 files: cachedData.files,
-                rateLimit: this.rateLimitInfo,
+                rateLimit: await this.getRateLimitInfo(),
                 fromCache: true
             };
         }
 
-        const [, owner, repo, path] = match;
-        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`.replace(/\/+$/, '');
-
         try {
-            const response = await this.fetchWithAuth(apiUrl, token);
-            const data = await response.json();
-            const files = [];
-
-            await this.fetchFiles(files, data, owner, repo, token);
+            const files = await this.fetchDirectoryContent(owner, repo, path, branch);
             
-            repoCache.set(url, token, { files });
+            repoCache.set(cacheKey, { files });
             
             return {
                 files,
-                rateLimit: this.rateLimitInfo,
+                rateLimit: await this.getRateLimitInfo(),
                 fromCache: false
             };
         } catch (error) {
+            if (error.status === 403) {
+                throw new Error('Rate limit exceeded or access denied. Please check your token.');
+            }
+            if (error.status === 404) {
+                throw new Error('Repository or path not found. Please check the URL.');
+            }
             throw error;
         }
     }
 
-    async fetchFiles(files, items, owner, repo, token) {
-        // Ensure items is always an array
-        const itemsArray = Array.isArray(items) ? items : [items];
-        
-        for (const item of itemsArray) {
-            if (this.rateLimitInfo && this.rateLimitInfo.remaining < 5) {
-                const resetDate = new Date(this.rateLimitInfo.reset * 1000);
-                console.warn(`Warning: Rate limit running low. Resets at ${resetDate.toLocaleString()}`);
-            }
+    async fetchDirectoryContent(owner, repo, path, branch, accumulator = []) {
+        if (!this.config.octokit) {
+            throw new Error('GitHub client not initialized');
+        }
 
-            const supportedExtensions = Object.keys(PACKAGE_FILE_PATTERNS)
-                .concat(['.json', '.py', '.css', '.html', '.config', '.conf', '.sh', '.patch', 
-                        '.yaml', '.yml', 'Dockerfile', '.ini', '.js', '.jsx', '.ts', '.tsx']);
-            
-            try {
+        try {
+            const response = await this.config.octokit.repos.getContent({
+                owner,
+                repo,
+                path: path || '',
+                ref: branch
+            });
+
+            const items = Array.isArray(response.data) ? response.data : [response.data];
+
+            for (const item of items) {
+                const rateLimit = await this.getRateLimitInfo();
+                if (rateLimit?.remaining < 10) {
+                    console.warn(`Warning: Rate limit running low (${rateLimit.remaining} remaining)`);
+                }
+
                 if (item.type === 'file') {
-                    const isSupported = supportedExtensions.some(ext => 
-                        item.name.toLowerCase().endsWith(ext.toLowerCase()) ||
-                        item.name.toLowerCase() === ext.toLowerCase()
-                    );
+                    const ext = item.name.split('.').pop()?.toLowerCase();
+                    const isSupported = PACKAGE_FILE_PATTERNS[item.name] || 
+                                      ['.js', '.jsx', '.ts', '.tsx', '.py', '.yml', '.yaml', '.json'].includes('.' + ext);
 
                     if (isSupported) {
-                        // Get raw content using base64 content from API
-                        if (item.content) {
-                            const content = atob(item.content.replace(/\\n/g, ''));
-                            files.push({
+                        try {
+                            const contentResponse = await this.config.octokit.repos.getContent({
+                                owner,
+                                repo,
+                                path: item.path,
+                                ref: branch,
+                                mediaType: {
+                                    format: 'raw'
+                                }
+                            });
+
+                            const content = Buffer.from(contentResponse.data, 'base64').toString('utf8');
+                            
+                            accumulator.push({
                                 path: item.path,
                                 content: content
                             });
-                        } else {
-                            // Fallback to raw URL if content not included
-                            const contentUrl = item.download_url;
-                            const response = await this.fetchWithAuth(contentUrl, token);
-                            const content = await response.text();
-                            files.push({
-                                path: item.path,
-                                content: content
-                            });
+                        } catch (error) {
+                            console.error(`Error fetching content for ${item.path}:`, error.message);
                         }
                     }
                 } else if (item.type === 'dir') {
-                    const dirUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${item.path}`;
-                    const response = await this.fetchWithAuth(dirUrl, token);
-                    const data = await response.json();
-                    await this.fetchFiles(files, data, owner, repo, token);
+                    await this.fetchDirectoryContent(owner, repo, item.path, branch, accumulator);
                 }
-            } catch (error) {
-                console.error(`Error processing ${item.path || 'unknown file'}:`, error.message);
             }
+
+            return accumulator;
+        } catch (error) {
+            throw new Error(`Failed to fetch directory content: ${error.message}`);
         }
-    }
-
-    generateReport(findings) {
-        const groupedBySeverity = _.groupBy(findings, 'severity');
-        
-        // Convert findings object to arrays inside severity groups
-        const findingsWithArrays = {};
-        Object.entries(groupedBySeverity).forEach(([severity, items]) => {
-            findingsWithArrays[severity] = Array.isArray(items) ? items : [];
-        });
-
-        return {
-            summary: {
-                totalIssues: findings.length,
-                criticalIssues: (findingsWithArrays.CRITICAL || []).length,
-                highIssues: (findingsWithArrays.HIGH || []).length,
-                mediumIssues: (findingsWithArrays.MEDIUM || []).length,
-                lowIssues: (findingsWithArrays.LOW || []).length
-            },
-            findings: findingsWithArrays,
-            recommendedFixes: this.generateRecommendations(findings),
-            rateLimit: this.rateLimitInfo
-        };
     }
 
     async scanFile(fileContent, filePath) {
@@ -234,8 +200,29 @@ class VulnerabilityScanner {
         }, []);
     }
 
+    generateReport(findings) {
+        const groupedBySeverity = _.groupBy(findings, 'severity');
+        
+        const findingsWithArrays = {};
+        Object.entries(groupedBySeverity).forEach(([severity, items]) => {
+            findingsWithArrays[severity] = Array.isArray(items) ? items : [];
+        });
+
+        return {
+            summary: {
+                totalIssues: findings.length,
+                criticalIssues: (findingsWithArrays.CRITICAL || []).length,
+                highIssues: (findingsWithArrays.HIGH || []).length,
+                mediumIssues: (findingsWithArrays.MEDIUM || []).length,
+                lowIssues: (findingsWithArrays.LOW || []).length
+            },
+            findings: findingsWithArrays,
+            recommendedFixes: this.generateRecommendations(findings),
+            rateLimit: this.rateLimitInfo
+        };
+    }
+
     generateRecommendations(findings) {
-        // Make sure findings is an array
         const findingsArray = Array.isArray(findings) ? findings : [];
         
         return Array.from(new Set(findingsArray.map(finding => ({

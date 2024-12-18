@@ -1,8 +1,8 @@
-// Cache implementation for repository data
 class RepositoryCache {
     constructor() {
         this.CACHE_KEY = 'repo_scan_cache';
         this.CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+        this.MAX_SIZE = 50 * 1024 * 1024; // 50MB max cache size
         this.initializeCache();
     }
 
@@ -11,18 +11,40 @@ class RepositoryCache {
             const cached = localStorage.getItem(this.CACHE_KEY);
             this.cache = cached ? JSON.parse(cached) : {};
             
-            // Clean up expired entries
-            const now = Date.now();
-            Object.keys(this.cache).forEach(key => {
-                if (now > this.cache[key].expiry) {
-                    delete this.cache[key];
-                }
-            });
-            this.saveCache();
+            // Clean up expired entries and check size
+            this.cleanup();
         } catch (error) {
             console.error('Error initializing cache:', error);
             this.cache = {};
         }
+    }
+
+    cleanup() {
+        const now = Date.now();
+        let totalSize = 0;
+        const entries = Object.entries(this.cache);
+        
+        // Sort by last accessed time
+        entries.sort(([, a], [, b]) => b.lastAccessed - a.lastAccessed);
+        
+        for (const [key, entry] of entries) {
+            // Remove expired entries
+            if (now > entry.expiry) {
+                delete this.cache[key];
+                continue;
+            }
+
+            // Calculate size (approximate)
+            const size = new TextEncoder().encode(JSON.stringify(entry)).length;
+            totalSize += size;
+
+            // If we exceed max size, remove oldest entries
+            if (totalSize > this.MAX_SIZE) {
+                delete this.cache[key];
+            }
+        }
+
+        this.saveCache();
     }
 
     saveCache() {
@@ -30,82 +52,55 @@ class RepositoryCache {
             localStorage.setItem(this.CACHE_KEY, JSON.stringify(this.cache));
         } catch (error) {
             console.error('Error saving cache:', error);
-            // If localStorage is full, clear old entries
             if (error.name === 'QuotaExceededError') {
-                this.clearOldEntries();
-                this.saveCache();
+                this.cleanup();
             }
         }
     }
 
-    clearOldEntries() {
-        const entries = Object.entries(this.cache);
-        if (entries.length === 0) return;
-
-        // Sort by expiry and remove oldest half
-        entries.sort((a, b) => a[1].expiry - b[1].expiry);
-        const halfLength = Math.floor(entries.length / 2);
-        
-        entries.slice(0, halfLength).forEach(([key]) => {
-            delete this.cache[key];
-        });
+    generateKey(url) {
+        return url.toLowerCase();
     }
 
-    generateKey(url, token) {
-        // Include part of token hash in key to differentiate between authenticated and non-authenticated requests
-        const tokenHash = token ? this.hashCode(token).toString().slice(-8) : 'no-auth';
-        return `${url}:${tokenHash}`;
-    }
-
-    hashCode(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return hash;
-    }
-
-    get(url, token) {
-        const key = this.generateKey(url, token);
+    get(url) {
+        const key = this.generateKey(url);
         const entry = this.cache[key];
         
         if (!entry) return null;
+
+        // Check expiration
         if (Date.now() > entry.expiry) {
             delete this.cache[key];
             this.saveCache();
             return null;
         }
         
+        // Update last accessed time
+        entry.lastAccessed = Date.now();
+        this.saveCache();
+        
         return entry.data;
     }
 
-    set(url, token, data) {
-        const key = this.generateKey(url, token);
+    set(url, data) {
+        const key = this.generateKey(url);
+        
+        // Don't cache error responses
+        if (data.error) return;
+
         this.cache[key] = {
             data,
-            expiry: Date.now() + this.CACHE_DURATION
+            expiry: Date.now() + this.CACHE_DURATION,
+            lastAccessed: Date.now()
         };
-        this.saveCache();
+
+        this.cleanup();
     }
 
     clear() {
         this.cache = {};
         this.saveCache();
     }
-}
-
-// For CLI environment where localStorage isn't available
-const isNode = typeof window === 'undefined';
-if (isNode) {
-    global.localStorage = {
-        _data: {},
-        setItem: function(id, val) { return this._data[id] = String(val); },
-        getItem: function(id) { return this._data.hasOwnProperty(id) ? this._data[id] : null; },
-        removeItem: function(id) { return delete this._data[id]; },
-        clear: function() { return this._data = {}; }
-    };
 }
 
 export const repoCache = new RepositoryCache();
