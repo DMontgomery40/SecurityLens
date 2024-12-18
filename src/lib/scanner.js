@@ -1,95 +1,77 @@
 import _ from 'lodash';
-<<<<<<< HEAD
-import { VULNERABILITY_PATTERNS as patterns } from './patterns/index.js';
-import { getScannerForFile, PACKAGE_FILE_PATTERNS } from './scanners/index.js';
-import { repoCache } from './cache.js';
-
-// Define recommendations based on vulnerability types
-const recommendations = {
-    bufferOverflow: 'Use safe buffer allocation methods and validate buffer sizes',
-    memoryLeak: 'Ensure proper cleanup of timers and event listeners',
-    pathTraversal: 'Validate and sanitize all file paths before use',
-    unsafeFileOps: 'Use asynchronous file operations and proper error handling',
-    eval: 'Avoid using eval() and other dynamic code execution methods',
-    commandInjection: 'Use parameterized commands and input validation',
-    sqlInjection: 'Use parameterized queries or an ORM',
-    xss: 'Use proper content encoding and CSP headers',
-    hardcodedSecrets: 'Move secrets to environment variables or secure storage',
-    insecureCrypto: 'Use strong cryptographic algorithms and proper key management',
-    dynamicRequire: 'Use static imports and proper dependency management',
-    unsafeDeserialization: 'Validate and sanitize data before deserialization'
-};
-=======
 import { corePatterns, enhancedPatterns, recommendations } from './patterns';
 import { getScannerForFile, PACKAGE_FILE_PATTERNS } from './scanners';
 import { repoCache } from './cache';
->>>>>>> 81342ac2800f95e58c70d0204d4e1fd9b4d976ed
 
 class VulnerabilityScanner {
     constructor(config = {}) {
-        // Default configuration
         this.config = {
-            enableNewPatterns: true,  // Toggle new patterns
-            enablePackageScanners: true, // Toggle specialized package scanners
+            enableNewPatterns: true,
+            enablePackageScanners: true,
             ...config
         };
 
-<<<<<<< HEAD
-        // Use all patterns
-        this.vulnerabilityPatterns = patterns;
-=======
-        // Combine patterns based on configuration
         this.vulnerabilityPatterns = {
             ...corePatterns,
             ...(this.config.enableNewPatterns ? enhancedPatterns : {})
         };
->>>>>>> 81342ac2800f95e58c70d0204d4e1fd9b4d976ed
 
-        // Track rate limit information
         this.rateLimitInfo = null;
     }
 
     async fetchWithAuth(url, token) {
         const headers = {
-            'Accept': 'application/vnd.github.v3+json'
+            'Accept': 'application/vnd.github.v3+json',
+            'X-GitHub-Api-Version': '2022-11-28'
         };
 
         if (token) {
-            headers.Authorization = `token ${token}`;
-<<<<<<< HEAD
+            headers.Authorization = `Bearer ${token}`;
         }
 
-        const response = await fetch(url, { headers });
-        
-        // Extract rate limit information from headers
-        this.rateLimitInfo = {
-            limit: parseInt(response.headers.get('x-ratelimit-limit') || '60'),
-            remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
-            reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
-        };
+        try {
+            const response = await fetch(url, { 
+                headers,
+                mode: 'cors'
+            });
 
-        if (!response.ok) {
-            if (response.status === 403 && this.rateLimitInfo.remaining === 0) {
-                const resetDate = new Date(this.rateLimitInfo.reset * 1000);
-                throw new Error(`GitHub API rate limit exceeded. Resets at ${resetDate.toLocaleString()}`);
+            this.rateLimitInfo = {
+                limit: parseInt(response.headers.get('x-ratelimit-limit') || '60'),
+                remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
+                reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
+            };
+
+            if (!response.ok) {
+                if (response.status === 403 && this.rateLimitInfo.remaining === 0) {
+                    const resetDate = new Date(this.rateLimitInfo.reset * 1000);
+                    throw new Error(`GitHub API rate limit exceeded. Resets at ${resetDate.toLocaleString()}`);
+                }
+                if (response.status === 404) {
+                    throw new Error('Repository or file not found. Check the URL and ensure you have access.');
+                }
+                if (response.status === 401) {
+                    throw new Error('Authentication failed. Please check your GitHub token.');
+                }
+                throw new Error(`GitHub API error: ${response.statusText}`);
             }
-            if (response.status === 404) {
-                throw new Error('Repository or file not found. Check the URL and ensure you have access.');
+
+            return response;
+        } catch (error) {
+            if (error.name === 'TypeError') {
+                throw new Error('Network error occurred. Please check your connection and try again.');
             }
-            throw new Error(`GitHub API error: ${response.statusText}`);
+            throw error;
         }
-
-        return response;
     }
 
     async fetchRepositoryFiles(url, token = null) {
         const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/[^/]+)?\/?(.*)/;
         const match = url.match(githubRegex);
+        
         if (!match) {
             throw new Error('Invalid GitHub URL format');
         }
 
-        // Check cache first
         const cachedData = repoCache.get(url, token);
         if (cachedData) {
             return {
@@ -100,7 +82,7 @@ class VulnerabilityScanner {
         }
 
         const [, owner, repo, path] = match;
-        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`.replace(/\/+$/, '');
 
         try {
             const response = await this.fetchWithAuth(apiUrl, token);
@@ -109,7 +91,6 @@ class VulnerabilityScanner {
 
             await this.fetchFiles(files, data, owner, repo, token);
             
-            // Cache the results
             repoCache.set(url, token, { files });
             
             return {
@@ -118,13 +99,15 @@ class VulnerabilityScanner {
                 fromCache: false
             };
         } catch (error) {
-            throw new Error(error.message);
+            throw error;
         }
     }
 
     async fetchFiles(files, items, owner, repo, token) {
-        for (const item of items) {
-            // Check if we're running low on rate limit
+        // Ensure items is always an array
+        const itemsArray = Array.isArray(items) ? items : [items];
+        
+        for (const item of itemsArray) {
             if (this.rateLimitInfo && this.rateLimitInfo.remaining < 5) {
                 const resetDate = new Date(this.rateLimitInfo.reset * 1000);
                 console.warn(`Warning: Rate limit running low. Resets at ${resetDate.toLocaleString()}`);
@@ -134,52 +117,65 @@ class VulnerabilityScanner {
                 .concat(['.json', '.py', '.css', '.html', '.config', '.conf', '.sh', '.patch', 
                         '.yaml', '.yml', 'Dockerfile', '.ini', '.js', '.jsx', '.ts', '.tsx']);
             
-            if (item.type === 'file' && 
-                (supportedExtensions.some(ext => item.name.toLowerCase().endsWith(ext.toLowerCase())) ||
-                 supportedExtensions.some(ext => item.name.toLowerCase() === ext.toLowerCase()))) {
-                try {
-                    const response = await this.fetchWithAuth(item.download_url, token);
-                    const content = await response.text();
-                    files.push({
-                        path: item.path,
-                        content: content
-                    });
-                } catch (error) {
-                    console.error(`Error fetching ${item.path}:`, error.message);
-                }
-            } else if (item.type === 'dir') {
-                try {
-                    const response = await this.fetchWithAuth(item._links.self, token);
+            try {
+                if (item.type === 'file') {
+                    const isSupported = supportedExtensions.some(ext => 
+                        item.name.toLowerCase().endsWith(ext.toLowerCase()) ||
+                        item.name.toLowerCase() === ext.toLowerCase()
+                    );
+
+                    if (isSupported) {
+                        // Get raw content using base64 content from API
+                        if (item.content) {
+                            const content = atob(item.content.replace(/\\n/g, ''));
+                            files.push({
+                                path: item.path,
+                                content: content
+                            });
+                        } else {
+                            // Fallback to raw URL if content not included
+                            const contentUrl = item.download_url;
+                            const response = await this.fetchWithAuth(contentUrl, token);
+                            const content = await response.text();
+                            files.push({
+                                path: item.path,
+                                content: content
+                            });
+                        }
+                    }
+                } else if (item.type === 'dir') {
+                    const dirUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${item.path}`;
+                    const response = await this.fetchWithAuth(dirUrl, token);
                     const data = await response.json();
                     await this.fetchFiles(files, data, owner, repo, token);
-                } catch (error) {
-                    console.error(`Error fetching directory ${item.path}:`, error.message);
                 }
-=======
+            } catch (error) {
+                console.error(`Error processing ${item.path || 'unknown file'}:`, error.message);
+            }
         }
+    }
 
-        const response = await fetch(url, { headers });
+    generateReport(findings) {
+        const groupedBySeverity = _.groupBy(findings, 'severity');
         
-        // Extract rate limit information from headers
-        this.rateLimitInfo = {
-            limit: parseInt(response.headers.get('x-ratelimit-limit') || '60'),
-            remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
-            reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
+        // Convert findings object to arrays inside severity groups
+        const findingsWithArrays = {};
+        Object.entries(groupedBySeverity).forEach(([severity, items]) => {
+            findingsWithArrays[severity] = Array.isArray(items) ? items : [];
+        });
+
+        return {
+            summary: {
+                totalIssues: findings.length,
+                criticalIssues: (findingsWithArrays.CRITICAL || []).length,
+                highIssues: (findingsWithArrays.HIGH || []).length,
+                mediumIssues: (findingsWithArrays.MEDIUM || []).length,
+                lowIssues: (findingsWithArrays.LOW || []).length
+            },
+            findings: findingsWithArrays,
+            recommendedFixes: this.generateRecommendations(findings),
+            rateLimit: this.rateLimitInfo
         };
-
-        if (!response.ok) {
-            if (response.status === 403 && this.rateLimitInfo.remaining === 0) {
-                const resetDate = new Date(this.rateLimitInfo.reset * 1000);
-                throw new Error(`GitHub API rate limit exceeded. Resets at ${resetDate.toLocaleString()}`);
-            }
-            if (response.status === 404) {
-                throw new Error('Repository or file not found. Check the URL and ensure you have access.');
->>>>>>> 81342ac2800f95e58c70d0204d4e1fd9b4d976ed
-            }
-            throw new Error(`GitHub API error: ${response.statusText}`);
-        }
-
-        return response;
     }
 
     async scanFile(fileContent, filePath) {
@@ -189,7 +185,6 @@ class VulnerabilityScanner {
 
         const findings = [];
         
-        // Check if we have a specialized scanner for this file type
         const packageScanner = this.config.enablePackageScanners ? getScannerForFile(filePath) : null;
         
         if (packageScanner) {
@@ -205,7 +200,6 @@ class VulnerabilityScanner {
             }
         }
 
-        // Always run the general vulnerability scanner
         for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
             try {
                 const matches = fileContent.match(new RegExp(vulnInfo.pattern, 'g')) || [];
@@ -240,112 +234,11 @@ class VulnerabilityScanner {
         }, []);
     }
 
-    async fetchRepositoryFiles(url, token = null) {
-        const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/[^/]+)?\/?(.*)/;
-        const match = url.match(githubRegex);
-        if (!match) {
-            throw new Error('Invalid GitHub URL format');
-        }
-
-        // Check cache first
-        const cachedData = repoCache.get(url, token);
-        if (cachedData) {
-            return {
-                files: cachedData.files,
-                rateLimit: this.rateLimitInfo,
-                fromCache: true
-            };
-        }
-
-        const [, owner, repo, path] = match;
-        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
-        try {
-            const response = await this.fetchWithAuth(apiUrl, token);
-            const data = await response.json();
-            const files = [];
-
-            await this.fetchFiles(files, data, owner, repo, token);
-            
-            // Cache the results
-            repoCache.set(url, token, { files });
-            
-            return {
-                files,
-                rateLimit: this.rateLimitInfo,
-                fromCache: false
-            };
-        } catch (error) {
-            throw new Error(error.message);
-        }
-    }
-
-    async fetchFiles(files, items, owner, repo, token) {
-        for (const item of items) {
-            // Check if we're running low on rate limit
-            if (this.rateLimitInfo && this.rateLimitInfo.remaining < 5) {
-                const resetDate = new Date(this.rateLimitInfo.reset * 1000);
-                console.warn(`Warning: Rate limit running low. Resets at ${resetDate.toLocaleString()}`);
-            }
-
-            const supportedExtensions = Object.keys(PACKAGE_FILE_PATTERNS)
-                .concat(['.json', '.py', '.css', '.html', '.config', '.conf', '.sh', '.patch', 
-                        '.yaml', '.yml', 'Dockerfile', '.ini', '.js', '.jsx', '.ts', '.tsx']);
-            
-            if (item.type === 'file' && 
-                (supportedExtensions.some(ext => item.name.toLowerCase().endsWith(ext.toLowerCase())) ||
-                 supportedExtensions.some(ext => item.name.toLowerCase() === ext.toLowerCase()))) {
-                try {
-                    const response = await this.fetchWithAuth(item.download_url, token);
-                    const content = await response.text();
-                    files.push({
-                        path: item.path,
-                        content: content
-                    });
-                } catch (error) {
-                    console.error(`Error fetching ${item.path}:`, error.message);
-                }
-            } else if (item.type === 'dir') {
-                try {
-                    const response = await this.fetchWithAuth(item._links.self, token);
-                    const data = await response.json();
-                    await this.fetchFiles(files, data, owner, repo, token);
-                } catch (error) {
-                    console.error(`Error fetching directory ${item.path}:`, error.message);
-                }
-            }
-        }
-    }
-
-    generateReport(findings) {
-        // Separate findings by scanner type
-        const generalFindings = findings.filter(f => f.scannerType === 'general');
-        const packageFindings = findings.filter(f => f.scannerType === 'package');
-
-        return {
-            summary: {
-                totalIssues: findings.length,
-                generalIssues: generalFindings.length,
-                packageIssues: packageFindings.length,
-                criticalIssues: findings.filter(f => f.severity === 'CRITICAL').length,
-                highIssues: findings.filter(f => f.severity === 'HIGH').length,
-                mediumIssues: findings.filter(f => f.severity === 'MEDIUM').length,
-                lowIssues: findings.filter(f => f.severity === 'LOW').length
-            },
-            findings: {
-                ..._.groupBy(findings, 'severity'),
-                byType: {
-                    general: _.groupBy(generalFindings, 'severity'),
-                    package: _.groupBy(packageFindings, 'severity')
-                }
-            },
-            recommendedFixes: this.generateRecommendations(findings),
-            rateLimit: this.rateLimitInfo
-        };
-    }
-
     generateRecommendations(findings) {
-        return Array.from(new Set(findings.map(finding => ({
+        // Make sure findings is an array
+        const findingsArray = Array.isArray(findings) ? findings : [];
+        
+        return Array.from(new Set(findingsArray.map(finding => ({
             type: finding.type,
             recommendation: recommendations[finding.type] || finding.recommendation || 'Review and fix the identified issue',
             scannerType: finding.scannerType

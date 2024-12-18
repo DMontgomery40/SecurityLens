@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "start": "node src/cli/index.js",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "1.0.5",

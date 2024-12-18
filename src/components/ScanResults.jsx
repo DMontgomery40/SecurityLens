@@ -32,27 +32,27 @@ const ScanResults = ({ results, usedCache }) => {
       {/* Summary Section */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-4 bg-red-100 text-red-700 rounded-lg">
-          <div className="text-2xl font-bold">{summary.criticalIssues}</div>
+          <div className="text-2xl font-bold">{summary?.criticalIssues || 0}</div>
           <div className="text-sm font-medium">Critical</div>
         </div>
         <div className="p-4 bg-orange-100 text-orange-700 rounded-lg">
-          <div className="text-2xl font-bold">{summary.highIssues}</div>
+          <div className="text-2xl font-bold">{summary?.highIssues || 0}</div>
           <div className="text-sm font-medium">High</div>
         </div>
         <div className="p-4 bg-yellow-100 text-yellow-700 rounded-lg">
-          <div className="text-2xl font-bold">{summary.mediumIssues}</div>
+          <div className="text-2xl font-bold">{summary?.mediumIssues || 0}</div>
           <div className="text-sm font-medium">Medium</div>
         </div>
         <div className="p-4 bg-blue-100 text-blue-700 rounded-lg">
-          <div className="text-2xl font-bold">{summary.lowIssues}</div>
+          <div className="text-2xl font-bold">{summary?.lowIssues || 0}</div>
           <div className="text-sm font-medium">Low</div>
         </div>
       </div>
 
       {/* Findings Section */}
       <div className="space-y-6">
-        {Object.entries(findings).map(([severity, issues]) => {
-          if (issues.length === 0) return null;
+        {Object.entries(findings || {}).map(([severity, issues]) => {
+          if (!Array.isArray(issues) || issues.length === 0) return null;
           const Icon = severityIcons[severity];
 
           return (
@@ -61,17 +61,17 @@ const ScanResults = ({ results, usedCache }) => {
               {issues.map((issue, index) => (
                 <div
                   key={`${issue.type}-${index}`}
-                  className={`p-4 rounded-lg ${severityColors[severity]}`}
+                  className={`p-4 rounded-lg ${severityColors[severity] || 'bg-gray-100 text-gray-700'}`}
                 >
                   <div className="flex items-start">
-                    <Icon className="h-5 w-5 mr-2 mt-0.5" />
+                    {Icon && <Icon className="h-5 w-5 mr-2 mt-0.5" />}
                     <div>
                       <div className="font-medium">{issue.type}</div>
                       <div className="text-sm mt-1">{issue.description}</div>
                       <div className="text-sm mt-2">
                         <span className="font-medium">File:</span> {issue.file}
                       </div>
-                      {issue.lineNumbers && issue.lineNumbers.length > 0 && (
+                      {Array.isArray(issue.lineNumbers) && issue.lineNumbers.length > 0 && (
                         <div className="text-sm">
                           <span className="font-medium">Line{issue.lineNumbers.length > 1 ? 's' : ''}:</span>{' '}
                           {issue.lineNumbers.join(', ')}
@@ -87,7 +87,7 @@ const ScanResults = ({ results, usedCache }) => {
       </div>
 
       {/* Recommendations Section */}
-      {recommendedFixes && recommendedFixes.length > 0 && (
+      {Array.isArray(recommendedFixes) && recommendedFixes.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">Recommendations</h3>
           <div className="space-y-3">
@@ -108,7 +108,7 @@ const ScanResults = ({ results, usedCache }) => {
       )}
 
       {/* Cache Refresh Option */}
-      {usedCache && results.summary.totalIssues > 0 && (
+      {usedCache && summary?.totalIssues > 0 && (
         <div className="mt-8 flex justify-center">
           <button
             onClick={() => window.location.reload()}

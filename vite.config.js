@@ -17,9 +17,6 @@ export default defineConfig({
     minify: 'terser',
     emptyOutDir: true,
     rollupOptions: {
-      input: {
-        main: path.resolve(__dirname, 'index.html'),
-      },
       output: {
         manualChunks: undefined
       }
