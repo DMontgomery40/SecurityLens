@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle, CheckCircle2, Settings, Trash2, RefreshCw, Shield } from 'lucide-react';
+import { 
+  AlertTriangle, 
+  CheckCircle2, 
+  Settings, 
+  Trash2, 
+  RefreshCw, 
+  Shield 
+} from 'lucide-react';
 import { validateGitHubToken, scanRepository } from '../lib/apiClient';
 import { repoCache } from '../lib/cache';
-import VulnerabilityScanner from '../lib/scanner';  // Keep for local file scanning
+import VulnerabilityScanner from '../lib/scanner';
 import ScanButton from './ScanButton';
 import ScanResults from './ScanResults';
 import { Alert, AlertDescription } from './ui/alert';
@@ -20,12 +27,32 @@ const ScannerUI = () => {
   const [rateLimitInfo, setRateLimitInfo] = useState(null);
   const [urlInput, setUrlInput] = useState('');
   const [tokenValidated, setTokenValidated] = useState(false);
+  const [tokenValidating, setTokenValidating] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const handleUrlScan = useCallback(async () => {
+    if (!urlInput) return;
+    
+    setScanning(true);
+    setError(null);
+    setUsedCache(false);
+    
+    try {
+      const results = await scanRepository(urlInput);
+      setScanResults(results);
+      if (results.rateLimit) {
+        setRateLimitInfo(results.rateLimit);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setScanning(false);
+    }
+  }, [urlInput]);
 
   // Component rendering:
   return (
     <div className="p-8 bg-gray-100 min-h-screen">
-      {/* Previous JSX remains the same until Cache Indicator */}
-
       {/* Cache Indicator */}
       {usedCache && (
         <div className="mb-4 flex items-center justify-center text-gray-600">
