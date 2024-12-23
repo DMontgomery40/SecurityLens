@@ -1,3 +1,17 @@
+// Package file patterns
+export const PACKAGE_FILE_PATTERNS = {
+  'package.json': 'npm',
+  'requirements.txt': 'pip',
+  'Gemfile': 'ruby',
+  'pom.xml': 'maven',
+  'build.gradle': 'gradle'
+};
+
+export function getScannerForFile(type) {
+  // TODO: Implement scanner selection based on file type
+  return null;
+}
+
 // Base scanner interface
 export class SecurityScanner {
   name = 'base';

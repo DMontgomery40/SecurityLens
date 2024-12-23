@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A security vulnerability scanner for plugin architectures",
   "type": "module",
-  "homepage": "https://dmontgomery40.github.io/plugin-vulnerability-scanner/",
+  "homepage": "https://dmontgomery40.github.io/SecurityLens/",
   "main": "src/index.js",
   "scripts": {
     "dev": "vite",
