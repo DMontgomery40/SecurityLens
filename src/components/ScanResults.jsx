@@ -153,6 +153,71 @@ const ScanResults = ({
         })}
       </div>
 
+      {/* Recommended Fixes Section */}
+      {recommendedFixes && recommendedFixes.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold flex items-center">
+            <CheckCircle className="h-5 w-5 mr-2" />
+            Recommended Security Fixes
+          </h3>
+          {recommendedFixes.map((fix, index) => (
+            <div key={index} className="p-4 rounded-lg bg-white border">
+              <div className="space-y-3">
+                <div className="font-medium text-gray-900 flex items-center">
+                  <AlertTriangle className="h-4 w-4 mr-2 text-orange-500" />
+                  {fix.type}
+                </div>
+                <div className="text-sm space-y-2">
+                  <div className="font-medium">Mitigation Steps:</div>
+                  <div className="text-gray-700">{fix.recommendation}</div>
+                  {fix.references && (
+                    <div className="mt-2">
+                      <div className="font-medium text-sm">Security References:</div>
+                      <ul className="list-disc pl-4 text-sm text-gray-600 space-y-1">
+                        {fix.references.map((ref, i) => (
+                          <li key={i}>
+                            <a 
+                              href={ref.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              {ref.title}
+                            </a>
+                            {ref.description && (
+                              <span className="text-gray-500"> - {ref.description}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {fix.cwe && (
+                    <div className="mt-2">
+                      <div className="font-medium text-sm">CWE Reference:</div>
+                      <a 
+                        href={`https://cwe.mitre.org/data/definitions/${fix.cwe}.html`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        CWE-{fix.cwe}
+                      </a>
+                    </div>
+                  )}
+                  {fix.severity && (
+                    <div className="mt-2 flex items-center">
+                      <div className="font-medium text-sm mr-2">CVSS Severity:</div>
+                      <SeverityBadge severity={fix.severity} count={fix.severity} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Cache Notice */}
       {usedCache && (
         <Alert className="mt-4">
