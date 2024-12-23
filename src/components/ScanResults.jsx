@@ -59,12 +59,71 @@ const ScanResults = ({
 
   const { summary, findings, recommendedFixes, rateLimit } = results;
 
-  const severityOrder = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
-  const severityIcons = {
-    CRITICAL: AlertTriangle,
-    HIGH: AlertCircle,
-    MEDIUM: AlertCircle,
-    LOW: Info
+  // Add safety check for findings
+  if (!findings || typeof findings !== 'object') {
+    console.error('Invalid findings structure');
+    return (
+      <Alert variant="error">
+        <AlertDescription>
+          Invalid scan results structure. Please try again.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Add safety check for recommendedFixes
+  const safeRecommendedFixes = recommendedFixes && Array.isArray(recommendedFixes) 
+    ? recommendedFixes 
+    : [];
+
+  // Helper function to get severity icon
+  const getSeverityIcon = (severity) => {
+    switch(severity) {
+      case 'CRITICAL': return <AlertTriangle className="text-red-500" />;
+      case 'HIGH': return <AlertCircle className="text-orange-500" />;
+      case 'MEDIUM': return <AlertCircle className="text-yellow-500" />;
+      case 'LOW': return <Info className="text-blue-500" />;
+      default: return <Info />;
+    }
+  };
+
+  // Helper function to consolidate findings by type
+  const consolidateFindings = (findings) => {
+    if (!findings || typeof findings !== 'object') {
+        console.error('Invalid findings structure');
+        return {};
+    }
+    
+    const consolidated = {};
+    
+    try {
+        Object.entries(findings).forEach(([category, subcategories]) => {
+            if (!subcategories || typeof subcategories !== 'object') return;
+            
+            Object.entries(subcategories).forEach(([subcategory, issues]) => {
+                if (!Array.isArray(issues)) return;
+                
+                issues.forEach(issue => {
+                    if (!issue || !issue.type) return;
+                    
+                    const key = issue.type;
+                    if (!consolidated[key]) {
+                        consolidated[key] = {
+                            ...issue,
+                            files: [],
+                            allLineNumbers: {}
+                        };
+                    }
+                    consolidated[key].files.push(issue.file);
+                    consolidated[key].allLineNumbers[issue.file] = issue.lineNumbers;
+                });
+            });
+        });
+    } catch (error) {
+        console.error('Error consolidating findings:', error);
+    }
+    
+    return consolidated;
   };
 
   return (
@@ -93,7 +152,7 @@ const ScanResults = ({
 
       {/* Summary Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {severityOrder.map(severity => (
+        {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(severity => (
           <div key={severity} className={`p-4 rounded-lg ${
             severity === 'CRITICAL' ? 'bg-red-100' :
             severity === 'HIGH' ? 'bg-orange-100' :
@@ -107,78 +166,87 @@ const ScanResults = ({
         ))}
       </div>
 
-      {/* Findings Sections */}
-      <div className="space-y-6">
-        {severityOrder.map(severity => {
-          const issuesList = findings[severity] || [];
-          if (issuesList.length === 0) return null;
-
-          const Icon = severityIcons[severity];
-          
-          return (
-            <div key={severity} className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center">
-                {Icon && <Icon className="h-5 w-5 mr-2" />}
-                {severity} Findings
-                <SeverityBadge severity={severity} count={issuesList.length} />
-              </h3>
-              
-              {issuesList.map((issue, index) => (
-                <div key={`${issue.type}-${index}`} className="p-4 rounded-lg bg-white border">
-                  <div className="space-y-2">
-                    <div className="font-medium text-gray-900">{issue.type}</div>
-                    <div className="text-sm text-gray-600">{issue.description}</div>
-                    <div className="text-sm">
-                      <span className="font-medium">File: </span>
-                      <code className="px-2 py-1 bg-gray-100 rounded">{issue.file}</code>
+      {/* Consolidated Findings */}
+      <div className="space-y-8">
+        {Object.entries(consolidateFindings(findings)).map(([type, finding]) => (
+          <div key={type} className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-start">
+              {getSeverityIcon(finding.severity)}
+              <div className="ml-3 flex-1">
+                <h3 className="text-lg font-medium">
+                  {type}
+                  {finding.subcategory && (
+                    <span className="text-sm text-gray-500 ml-2">
+                      CWE-{finding.subcategory}
+                    </span>
+                  )}
+                </h3>
+                <p className="text-gray-600 mt-1">{finding.description}</p>
+                
+                {/* Affected Files */}
+                <div className="mt-4 space-y-2">
+                  {Object.entries(finding.allLineNumbers).map(([file, lines]) => (
+                    <div key={file} className="text-sm">
+                      <code className="bg-gray-100 px-2 py-1 rounded">
+                        {file}
+                      </code>
+                      {lines?.length > 0 && (
+                        <span className="ml-2 text-gray-600">
+                          Line{lines.length > 1 ? 's' : ''}: {lines.join(', ')}
+                        </span>
+                      )}
                     </div>
-                    {Array.isArray(issue.lineNumbers) && issue.lineNumbers.length > 0 && (
-                      <div className="text-sm">
-                        <span className="font-medium">Line{issue.lineNumbers.length > 1 ? 's' : ''}: </span>
-                        <code className="px-2 py-1 bg-gray-100 rounded">
-                          {issue.lineNumbers.join(', ')}
-                        </code>
-                      </div>
-                    )}
-                    {issue.recommendation && (
-                      <Alert className="mt-2">
-                        <AlertDescription>{issue.recommendation}</AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
+                  ))}
                 </div>
-              ))}
+
+                {/* Recommendation */}
+                {finding.recommendation && (
+                  <Alert className="mt-4" variant="info">
+                    <AlertDescription>
+                      {finding.recommendation}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
 
-      {/* Recommended Fixes Section */}
-      {recommendedFixes && recommendedFixes.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold flex items-center">
-            <CheckCircle className="h-5 w-5 mr-2" />
-            Recommended Security Fixes
-          </h3>
-          {recommendedFixes.map((fix, index) => (
-            <div key={index} className="p-4 rounded-lg bg-white border">
-              <div className="space-y-3">
-                <div className="font-medium text-gray-900 flex items-center">
-                  <AlertTriangle className="h-4 w-4 mr-2 text-orange-500" />
-                  {fix.type}
-                </div>
-                <div className="text-sm space-y-2">
-                  <div className="font-medium">Mitigation Steps:</div>
-                  <div className="text-gray-700">{fix.recommendation?.toString()}</div>
-                  {fix.references && fix.references.length > 0 && (
+      {/* References Section */}
+      {safeRecommendedFixes.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">
+            Security References & Mitigation
+          </h2>
+          <div className="space-y-4">
+            {Array.from(new Set(safeRecommendedFixes.map(fix => fix.type))).map(type => {
+              const fix = safeRecommendedFixes.find(f => f.type === type);
+              return (
+                <div key={type} className="border-t pt-4 first:border-t-0 first:pt-0">
+                  <h3 className="font-medium">
+                    {type}
+                    {fix.cwe && (
+                      <a 
+                        href={`https://cwe.mitre.org/data/definitions/${fix.cwe}.html`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        (CWE-{fix.cwe})
+                      </a>
+                    )}
+                  </h3>
+                  <p className="text-gray-600 mt-1">{fix.recommendation}</p>
+                  {fix.references?.length > 0 && (
                     <div className="mt-2">
-                      <div className="font-medium text-sm">Security References:</div>
-                      <ul className="list-disc pl-4 text-sm text-gray-600 space-y-1">
-                        {fix.references?.map((ref, i) => (
+                      <div className="text-sm font-medium">Additional Resources:</div>
+                      <ul className="list-disc pl-5 text-sm text-gray-600">
+                        {fix.references.map((ref, i) => (
                           <li key={i}>
                             <a 
-                              href={ref.url} 
-                              target="_blank" 
+                              href={ref.url}
+                              target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800"
                             >
@@ -192,23 +260,10 @@ const ScanResults = ({
                       </ul>
                     </div>
                   )}
-                  {fix.cwe && (
-                    <div className="mt-2">
-                      <div className="font-medium text-sm">CWE Reference:</div>
-                      <a 
-                        href={`https://cwe.mitre.org/data/definitions/${fix.cwe}.html`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:text-blue-800"
-                      >
-                        CWE-{fix.cwe?.toString()}
-                      </a>
-                    </div>
-                  )}
                 </div>
-              </div>
-            </div>
-          ))}
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -12,6 +12,9 @@ class VulnerabilityScanner {
             retryDelay: 1000,
             octokit: null,
             onProgress: null,
+            maxFileSize: 1024 * 1024, // 1MB
+            patternTimeout: 30000, // 30 seconds per file
+            totalScanTimeout: 300000, // 5 minutes for entire scan
             ...config
         };
 
@@ -176,6 +179,11 @@ class VulnerabilityScanner {
             return [];
         }
 
+        if (fileContent.length > this.config.maxFileSize) {
+            console.warn(`File ${filePath} exceeds size limit of ${this.config.maxFileSize} bytes`);
+            return [];
+        }
+
         const findings = [];
         
         if (!this.vulnerabilityPatterns || Object.keys(this.vulnerabilityPatterns).length === 0) {
@@ -185,51 +193,95 @@ class VulnerabilityScanner {
 
         console.log(`Active patterns: ${Object.keys(this.vulnerabilityPatterns).length}`);
 
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Pattern matching timeout')), this.config.patternTimeout);
+        });
+
         try {
-            // Package scanners
-            if (this.config.enablePackageScanners) {
-                for (const [pattern, type] of Object.entries(PACKAGE_FILE_PATTERNS)) {
-                    if (filePath.toLowerCase().endsWith(pattern.toLowerCase())) {
-                        console.log(`Found package file match: ${pattern} -> ${type}`);
-                        const scanner = getScannerForFile(type);
-                        if (scanner) {
-                            const packageFindings = await scanner.scan(filePath, fileContent);
-                            console.log(`Package scanner found ${packageFindings.length} issues`);
-                            findings.push(...packageFindings);
+            await Promise.race([
+                (async () => {
+                    // Package scanners
+                    if (this.config.enablePackageScanners) {
+                        for (const [pattern, type] of Object.entries(PACKAGE_FILE_PATTERNS)) {
+                            if (filePath.toLowerCase().endsWith(pattern.toLowerCase())) {
+                                console.log(`Found package file match: ${pattern} -> ${type}`);
+                                const scanner = getScannerForFile(type);
+                                if (scanner) {
+                                    const packageFindings = await scanner.scan(filePath, fileContent);
+                                    console.log(`Package scanner found ${packageFindings.length} issues`);
+                                    findings.push(...packageFindings);
+                                }
+                                break;
+                            }
                         }
-                        break;
                     }
-                }
-            }
 
-            // Pattern scanning
-            for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
-                try {
-                    const regex = new RegExp(vulnInfo.pattern, 'g');
-                    const matches = fileContent.match(regex);
-                    
-                    if (matches && matches.length > 0) {
-                        console.log(`Found ${matches.length} matches for pattern: ${vulnType}`);
-                        findings.push({
-                            type: vulnType,
-                            severity: vulnInfo.severity,
-                            description: vulnInfo.description,
-                            file: filePath,
-                            occurrences: matches.length,
-                            lineNumbers: this.findLineNumbers(fileContent, vulnInfo.pattern),
-                            recommendation: recommendations[vulnType]?.recommendation || 'Review and fix the identified issue',
-                            references: recommendations[vulnType]?.references || [],
-                            cwe: recommendations[vulnType]?.cwe,
-                            scannerType: 'pattern'
-                        });
+                    // Pattern scanning with chunking for large files
+                    const chunkSize = 100000; // 100KB chunks
+                    const totalChunks = Math.ceil(fileContent.length / chunkSize);
+                    let processedChunks = 0;
+
+                    if (this.config.onProgress) {
+                        this.config.onProgress.setTotal(totalChunks);
                     }
-                } catch (error) {
-                    console.error(`Error analyzing pattern ${vulnType}:`, error);
-                }
-            }
 
-            console.log(`Total findings for ${filePath}: ${findings.length}`);
+                    for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
+                        try {
+                            const regex = new RegExp(vulnInfo.pattern, 'g');
+                            let matches = [];
+                            
+                            // Process large files in chunks
+                            if (fileContent.length > chunkSize) {
+                                for (let i = 0; i < fileContent.length; i += chunkSize) {
+                                    const chunk = fileContent.slice(i, i + chunkSize);
+                                    const chunkMatches = chunk.match(regex) || [];
+                                    matches.push(...chunkMatches);
+                                    
+                                    // Increment and update progress
+                                    processedChunks++;
+                                    if (this.config.onProgress) {
+                                        this.config.onProgress.increment();
+                                    }
+                                }
+                            } else {
+                                matches = fileContent.match(regex) || [];
+                                // Single chunk for small files
+                                processedChunks++;
+                                if (this.config.onProgress) {
+                                    this.config.onProgress.increment();
+                                }
+                            }
+                            
+                            if (matches.length > 0) {
+                                console.log(`Found ${matches.length} matches for pattern: ${vulnType}`);
+                                findings.push({
+                                    ...vulnInfo,
+                                    type: vulnType,
+                                    file: filePath,
+                                    occurrences: matches.length,
+                                    lineNumbers: this.findLineNumbers(fileContent, vulnInfo.pattern),
+                                    recommendation: recommendations[vulnType]?.recommendation || 'Review and fix the identified issue',
+                                    references: recommendations[vulnType]?.references || [],
+                                    cwe: recommendations[vulnType]?.cwe,
+                                    scannerType: 'pattern'
+                                });
+                            }
+                        } catch (error) {
+                            console.error(`Error analyzing pattern ${vulnType}:`, error);
+                        }
+                    }
+
+                    if (this.config.onProgress) {
+                        this.config.onProgress.complete();
+                    }
+                })(),
+                timeoutPromise
+            ]);
         } catch (error) {
+            if (error.message === 'Pattern matching timeout') {
+                console.warn(`Pattern matching timeout for ${filePath} after ${this.config.patternTimeout}ms`);
+                return findings;
+            }
             console.error(`Error scanning file ${filePath}:`, error);
         }
 
@@ -247,23 +299,38 @@ class VulnerabilityScanner {
         }, []);
     }
 
-    generateReport(findings) {
-        const groupedBySeverity = _.groupBy(findings, 'severity');
-
-        const findingsWithArrays = {};
-        Object.entries(groupedBySeverity).forEach(([severity, items]) => {
-            findingsWithArrays[severity] = Array.isArray(items) ? items : [];
+    findingsByCategory(findings) {
+        const categorized = {};
+        
+        findings.forEach(finding => {
+            const category = finding.category || 'UNCATEGORIZED';
+            const subcategory = finding.subcategory || 'UNKNOWN';
+            
+            if (!categorized[category]) {
+                categorized[category] = {};
+            }
+            if (!categorized[category][subcategory]) {
+                categorized[category][subcategory] = [];
+            }
+            
+            categorized[category][subcategory].push(finding);
         });
+        
+        return categorized;
+    }
 
+    generateReport(findings) {
+        const categorizedFindings = this.findingsByCategory(findings);
+        
         return {
             summary: {
                 totalIssues: findings.length,
-                criticalIssues: (findingsWithArrays.CRITICAL || []).length,
-                highIssues: (findingsWithArrays.HIGH || []).length,
-                mediumIssues: (findingsWithArrays.MEDIUM || []).length,
-                lowIssues: (findingsWithArrays.LOW || []).length
+                criticalIssues: findings.filter(f => f.severity === 'CRITICAL').length,
+                highIssues: findings.filter(f => f.severity === 'HIGH').length,
+                mediumIssues: findings.filter(f => f.severity === 'MEDIUM').length,
+                lowIssues: findings.filter(f => f.severity === 'LOW').length
             },
-            findings: findingsWithArrays,
+            findings: categorizedFindings,
             recommendedFixes: this.generateRecommendations(findings),
             rateLimit: this.rateLimitInfo
         };
