@@ -1,9 +1,7 @@
-import { Octokit } from '@octokit/rest';
-import { decryptToken } from './utils/secureToken.js';
-import { checkRateLimit } from './utils/rateLimiter.js';
-import VulnerabilityScanner from '../../src/lib/scanner.js';
+const { Octokit } = require('@octokit/rest');
+const VulnerabilityScanner = require('../../src/lib/scanner').default;
 
-export const handler = async (event, context) => {
+exports.handler = async (event) => {
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return {
@@ -13,14 +11,7 @@ export const handler = async (event, context) => {
   }
 
   try {
-    // Get client IP for rate limiting
-    const clientIP = event.headers['x-forwarded-for'] || event.headers['client-ip'];
-    
-    // Check rate limit
-    await checkRateLimit(clientIP);
-
-    // Parse request body
-    const { url, secureToken } = JSON.parse(event.body);
+    const { url } = JSON.parse(event.body);
 
     if (!url) {
       return {
@@ -29,30 +20,14 @@ export const handler = async (event, context) => {
       };
     }
 
-    // Initialize GitHub client
-    let octokit;
-    if (secureToken) {
-      try {
-        const token = await decryptToken(secureToken);
-        octokit = new Octokit({
-          auth: token,
-          userAgent: 'plugin-vulnerability-scanner'
-        });
-      } catch (error) {
-        return {
-          statusCode: 401,
-          body: JSON.stringify({ error: 'Invalid token' })
-        };
-      }
-    } else {
-      octokit = new Octokit({
-        userAgent: 'plugin-vulnerability-scanner'
-      });
-    }
+    // Initialize GitHub client (without token for now)
+    const octokit = new Octokit({
+      userAgent: 'plugin-vulnerability-scanner'
+    });
 
     // Parse GitHub URL
-    const urlRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/([^/]+))?\/?(.*)/;
-    const match = url.match(urlRegex);
+    const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/([^/]+))?\/?(.*)/;
+    const match = url.match(githubRegex);
     
     if (!match) {
       return {
@@ -63,26 +38,106 @@ export const handler = async (event, context) => {
 
     const [, owner, repo, branch = 'main', path = ''] = match;
 
-    // Fetch repository content
-    const scanner = new VulnerabilityScanner({
-      octokit,
-      enableNewPatterns: true,
-      enablePackageScanners: true
-    });
+    try {
+      // First check rate limit
+      const rateLimit = await octokit.rateLimit.get();
+      console.log('Rate limit:', rateLimit.data.rate);
 
-    const results = await scanner.fetchRepositoryFiles(url, octokit);
+      if (rateLimit.data.rate.remaining === 0) {
+        return {
+          statusCode: 429,
+          body: JSON.stringify({
+            error: 'Rate limit exceeded',
+            resetAt: new Date(rateLimit.data.rate.reset * 1000).toISOString()
+          })
+        };
+      }
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify(results)
-    };
+      // Initialize scanner
+      const scanner = new VulnerabilityScanner({
+        enableNewPatterns: true,
+        enablePackageScanners: true,
+        octokit
+      });
+
+      // Get repository contents and scan them
+      const { data: contents } = await octokit.repos.getContent({
+        owner,
+        repo,
+        path,
+        ref: branch
+      });
+
+      // Process files
+      const files = Array.isArray(contents) ? contents : [contents];
+      let allFindings = [];
+
+      for (const file of files) {
+        if (file.type === 'file') {
+          try {
+            const { data: content } = await octokit.repos.getContent({
+              owner,
+              repo,
+              path: file.path,
+              ref: branch,
+              mediaType: {
+                format: 'raw'
+              }
+            });
+
+            const fileContent = Buffer.from(content, 'base64').toString('utf8');
+            const findings = await scanner.scanFile(fileContent, file.path);
+            allFindings.push(...findings);
+          } catch (error) {
+            console.error(`Error scanning file ${file.path}:`, error);
+          }
+        }
+      }
+
+      // Generate report
+      const report = scanner.generateReport(allFindings);
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          files: files.map(f => ({
+            name: f.name,
+            path: f.path,
+            type: f.type,
+            size: f.size
+          })),
+          findings: allFindings,
+          summary: report.summary,
+          rateLimit: rateLimit.data.rate
+        })
+      };
+
+    } catch (error) {
+      if (error.status === 403) {
+        return {
+          statusCode: 403,
+          body: JSON.stringify({
+            error: 'Access denied or rate limit exceeded. Try again later.'
+          })
+        };
+      }
+      if (error.status === 404) {
+        return {
+          statusCode: 404,
+          body: JSON.stringify({
+            error: 'Repository or path not found. Please check the URL.'
+          })
+        };
+      }
+      throw error;
+    }
   } catch (error) {
     console.error('Scan error:', error);
-
     return {
-      statusCode: error.message.includes('Rate limit') ? 429 : 500,
-      body: JSON.stringify({ 
-        error: error.message || 'An error occurred during scanning'
+      statusCode: 500,
+      body: JSON.stringify({
+        error: 'Internal server error',
+        details: error.message
       })
     };
   }

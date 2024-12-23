@@ -11,6 +11,7 @@ class VulnerabilityScanner {
             maxRetries: 3,
             retryDelay: 1000,
             octokit: null,
+            onProgress: null,
             ...config
         };
 
@@ -57,6 +58,11 @@ class VulnerabilityScanner {
         const cacheKey = `${owner}/${repo}/${branch}/${path}`;
         const cachedData = repoCache.get(cacheKey);
         if (cachedData) {
+            if (this.config.onProgress) {
+                this.config.onProgress.setTotal(1);
+                this.config.onProgress.increment();
+                this.config.onProgress.complete();
+            }
             return {
                 files: cachedData.files,
                 rateLimit: await this.getRateLimitInfo(),
@@ -68,6 +74,10 @@ class VulnerabilityScanner {
             const files = await this.fetchDirectoryContent(owner, repo, path, branch);
             
             repoCache.set(cacheKey, { files });
+            
+            if (this.config.onProgress) {
+                this.config.onProgress.complete();
+            }
             
             return {
                 files,
@@ -100,6 +110,20 @@ class VulnerabilityScanner {
 
             const items = Array.isArray(response.data) ? response.data : [response.data];
 
+            // Update total count for progress
+            if (this.config.onProgress) {
+                const totalFiles = items.filter(item => 
+                    item.type === 'file' && 
+                    (PACKAGE_FILE_PATTERNS[item.name] || 
+                    ['.js', '.jsx', '.ts', '.tsx', '.py', '.yml', '.yaml', '.json']
+                        .includes('.' + item.name.split('.').pop()?.toLowerCase()))
+                ).length;
+                
+                this.config.onProgress.setTotal(
+                    (this.config.onProgress.total || 0) + totalFiles
+                );
+            }
+
             for (const item of items) {
                 const rateLimit = await this.getRateLimitInfo();
                 if (rateLimit?.remaining < 10) {
@@ -129,6 +153,11 @@ class VulnerabilityScanner {
                                 path: item.path,
                                 content: content
                             });
+
+                            // Increment progress
+                            if (this.config.onProgress) {
+                                this.config.onProgress.increment();
+                            }
                         } catch (error) {
                             console.error(`Error fetching content for ${item.path}:`, error.message);
                         }

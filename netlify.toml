@@ -7,20 +7,34 @@
   node_bundler = "esbuild"
   external_node_modules = ["@octokit/rest"]
 
+[dev]
+  framework = "#custom"
+  command = "npm run dev"
+  targetPort = 5173
+  port = 8888
+  publish = "dist"
+
 [[redirects]]
-  from = "/api/*"
+  from = "/.netlify/functions/scan-progress"
+  to = "/.netlify/functions/scan-progress"
+  status = 200
+  force = true
+  conditions = { Upgrade = "websocket" }
+
+[[redirects]]
+  from = "/.netlify/functions/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-[[headers]]
-  for = "/*.jsx"
-    [headers.values]
-    Content-Type = "application/javascript"
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
 [[headers]]
   for = "/*"
     [headers.values]
     X-Content-Type-Options = "nosniff"
-    Content-Security-Policy = "script-src 'self' 'unsafe-inline'; object-src 'none';"
+    Content-Security-Policy = "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://api.github.com wss://*.netlify.app; connect-src 'self' https://api.github.com wss://*.netlify.app; img-src 'self' data: https:; worker-src 'self' blob:;"
     X-Frame-Options = "DENY"
     X-XSS-Protection = "1; mode=block"
