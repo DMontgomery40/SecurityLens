@@ -1,5 +1,5 @@
 import React from 'react';
-import ScannerUI from './components/ScannerUI';
+import ScannerUI from './components/ui/ScannerUI';
 
 function App() {
   return (

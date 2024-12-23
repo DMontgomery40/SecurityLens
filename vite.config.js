@@ -8,8 +8,9 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     rollupOptions: {
+      external: ['/plugin-vulnerability-scanner/src/main.jsx'],
       output: {
-        manualChunks: undefined
+        manualChunks: undefined,
       }
     }
   }
