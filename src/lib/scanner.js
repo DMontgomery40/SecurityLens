@@ -24,19 +24,14 @@ class VulnerabilityScanner {
             enhancedPatterns: !!enhancedPatterns
         });
 
-        this.vulnerabilityPatterns = {};
+        this.vulnerabilityPatterns = { ...corePatterns };
         
-        if (corePatterns && typeof corePatterns === 'object') {
-            this.vulnerabilityPatterns = { ...corePatterns };
-            console.log('Loaded core patterns:', Object.keys(corePatterns));
-        }
-
-        if (this.config.enableNewPatterns && enhancedPatterns && typeof enhancedPatterns === 'object') {
+        // Only add enhanced patterns if they exist and are enabled
+        if (this.config.enableNewPatterns && enhancedPatterns) {
             this.vulnerabilityPatterns = {
                 ...this.vulnerabilityPatterns,
                 ...enhancedPatterns
             };
-            console.log('Loaded enhanced patterns:', Object.keys(enhancedPatterns));
         }
 
         // Validate patterns

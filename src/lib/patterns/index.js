@@ -95,6 +95,12 @@ export const corePatterns = {
     }
 };
 
+// Enhanced patterns (we were missing this export)
+export const enhancedPatterns = {
+    // For now, we can keep this empty or extend core patterns
+    ...corePatterns
+};
+
 // Enhance recommendations with CWE references
 export const recommendations = {
     evalExecution: {
