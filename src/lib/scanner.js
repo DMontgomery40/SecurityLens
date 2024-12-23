@@ -2,6 +2,8 @@ import _ from 'lodash';
 import { corePatterns, enhancedPatterns, recommendations } from './patterns';
 import { getScannerForFile, PACKAGE_FILE_PATTERNS } from './scanners';
 import { repoCache } from './cache';
+import { Octokit } from '@octokit/core';
+import { authManager } from './githubAuth';
 
 class VulnerabilityScanner {
     constructor(config = {}) {
@@ -344,6 +346,64 @@ class VulnerabilityScanner {
                 cwe: rec?.cwe || finding.cwe
             };
         })));
+    }
+}
+
+export async function scanRepositoryLocally(url) {
+    const scanner = new VulnerabilityScanner();
+    
+    try {
+        const token = authManager.getToken();
+        if (!token) {
+            throw new Error('GitHub token is required');
+        }
+
+        const octokit = new Octokit({
+            auth: token
+        });
+
+        // Test token validity
+        try {
+            await octokit.rest.users.getAuthenticated();
+        } catch (error) {
+            if (error.status === 401) {
+                authManager.clearToken(); // Clear invalid token
+                throw new Error('Invalid GitHub token. Please provide a new token.');
+            }
+            throw error;
+        }
+
+        const { owner, repo, path = '' } = parseGitHubUrl(url);
+        
+        // Get repository contents
+        const { data: contents } = await octokit.repos.getContent({
+            owner,
+            repo,
+            path
+        });
+
+        // Process files in chunks to avoid timeout
+        const files = Array.isArray(contents) ? contents : [contents];
+        const findings = [];
+        
+        for (const file of files) {
+            if (file.type === 'file') {
+                const { data: content } = await octokit.repos.getContent({
+                    owner,
+                    repo,
+                    path: file.path,
+                    mediaType: { format: 'raw' }
+                });
+                
+                const fileFindings = await scanner.scanFile(content, file.path);
+                findings.push(...fileFindings);
+            }
+        }
+
+        return scanner.generateReport(findings);
+    } catch (error) {
+        console.error('Local scan error:', error);
+        throw error;
     }
 }
 

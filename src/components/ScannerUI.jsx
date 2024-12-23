@@ -7,6 +7,8 @@ import { scanRepository } from '../lib/apiClient';
 import { Alert, AlertDescription } from './ui/alert';
 import VulnerabilityScanner from '../lib/scanner';
 import ScanResults from './ScanResults';
+import { authManager } from '../lib/githubAuth';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader } from './ui/alert-dialog';
 
 const ScannerUI = () => {
   const [scanning, setScanning] = useState(false);
@@ -17,6 +19,8 @@ const ScannerUI = () => {
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [scanResults, setScanResults] = useState(null);
   const [usedCache, setUsedCache] = useState(false);
+  const [githubToken, setGithubToken] = useState(localStorage.getItem('gh_token') || '');
+  const [showTokenDialog, setShowTokenDialog] = useState(false);
 
   const handleFileUpload = async (event) => {
     const files = Array.from(event.target.files);
@@ -62,6 +66,11 @@ const ScannerUI = () => {
   const handleUrlScan = useCallback(async () => {
     if (!urlInput) return;
     
+    if (!authManager.hasToken()) {
+      setShowTokenDialog(true);
+      return;
+    }
+    
     setScanning(true);
     setError(null);
     setScanResults(null);
@@ -100,6 +109,25 @@ const ScannerUI = () => {
       setScanning(false);
     }
   }, [urlInput]);
+
+  const handleTokenSubmit = (token) => {
+    if (!token) return;
+
+    if (!authManager.isValidTokenFormat(token)) {
+      setError('Invalid token format. Please ensure you\'ve copied the entire token.');
+      return;
+    }
+
+    try {
+      authManager.setToken(token);
+      setShowTokenDialog(false);
+      if (urlInput) {
+        handleUrlScan();
+      }
+    } catch (error) {
+      setError(error.message);
+    }
+  };
 
   return (
     <div className="p-8 bg-gray-100 min-h-screen">
@@ -219,7 +247,67 @@ const ScannerUI = () => {
             scanning={scanning}
           />
         )}
+
+        {!githubToken && (
+          <div className="bg-white p-6 rounded-lg shadow-sm mb-4">
+            <h2 className="text-lg font-semibold text-gray-700 mb-4">GitHub Access Token</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              To scan repositories, you'll need a GitHub personal access token. 
+              This stays in your browser and is never sent to any server.
+            </p>
+            <input 
+              type="password"
+              placeholder="GitHub token"
+              onChange={(e) => handleTokenSubmit(e.target.value)}
+              className="w-full px-4 py-2 border rounded"
+            />
+            <a 
+              href="https://github.com/settings/tokens/new" 
+              target="_blank"
+              className="text-sm text-blue-600 hover:underline mt-2 inline-block"
+            >
+              Generate a token
+            </a>
+          </div>
+        )}
       </div>
+
+      {/* Token Dialog */}
+      <AlertDialog open={showTokenDialog} onClose={() => setShowTokenDialog(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <h2 className="text-lg font-semibold">GitHub Token Required</h2>
+          </AlertDialogHeader>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
+              <strong>🔒 Security Note:</strong> Your token is stored only in your browser's local storage. 
+              It never leaves your device and is not sent to any external servers.
+            </div>
+            <p className="text-sm text-gray-600">
+              To scan GitHub repositories, you'll need a Personal Access Token. Here's how to get one:
+            </p>
+            <ol className="list-decimal list-inside space-y-2 text-sm">
+              <li>Go to <a 
+                href="https://github.com/settings/tokens/new" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                GitHub Token Settings
+              </a></li>
+              <li>Select either "Classic" or "Fine-grained" token</li>
+              <li>Enable "repo" access permissions</li>
+              <li>Generate and copy the token</li>
+            </ol>
+            <input
+              type="password"
+              placeholder="Paste your GitHub token here"
+              className="w-full px-4 py-2 border rounded"
+              onChange={(e) => handleTokenSubmit(e.target.value)}
+            />
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -17,29 +17,27 @@ export async function scanRepository(url) {
         });
 
         if (!response.ok) {
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('text/html')) {
+            console.error('Scan failed with status:', response.status);
+            const text = await response.text();
+            console.error('Response body:', text);
+            
+            try {
+                const errorData = JSON.parse(text);
+                throw new ApiError(errorData.error || 'Scan failed', response.status);
+            } catch (e) {
                 throw new ApiError(
-                    'Server error: The scanning service is not available. Please ensure Netlify functions are properly configured.',
-                    503
+                    `Server error (${response.status}): ${text.slice(0, 100)}...`,
+                    response.status
                 );
             }
-
-            const data = await response.json();
-            throw new ApiError(data.error || 'Scan failed', response.status);
         }
 
         const data = await response.json();
         return data;
     } catch (error) {
+        console.error('Scan error details:', error);
         if (error instanceof ApiError) {
             throw error;
-        }
-        if (error.name === 'SyntaxError') {
-            throw new ApiError(
-                'Server error: Invalid response from scanning service. Please check Netlify function logs.',
-                500
-            );
         }
         throw new ApiError('Scan failed: ' + error.message, 500);
     }
