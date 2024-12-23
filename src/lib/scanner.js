@@ -15,10 +15,25 @@ class VulnerabilityScanner {
             ...config
         };
 
-        this.vulnerabilityPatterns = {
-            ...corePatterns,
-            ...(this.config.enableNewPatterns ? enhancedPatterns : {})
-        };
+        this.vulnerabilityPatterns = {};
+        
+        if (corePatterns && typeof corePatterns === 'object') {
+            this.vulnerabilityPatterns = { ...corePatterns };
+        }
+
+        if (this.config.enableNewPatterns && enhancedPatterns && typeof enhancedPatterns === 'object') {
+            this.vulnerabilityPatterns = {
+                ...this.vulnerabilityPatterns,
+                ...enhancedPatterns
+            };
+        }
+
+        Object.entries(this.vulnerabilityPatterns).forEach(([key, pattern]) => {
+            if (!pattern.pattern || !pattern.severity || !pattern.description) {
+                console.error(`Invalid pattern configuration for ${key}`);
+                delete this.vulnerabilityPatterns[key];
+            }
+        });
 
         this.rateLimitInfo = null;
     }
@@ -141,41 +156,55 @@ class VulnerabilityScanner {
     }
 
     async scanFile(fileContent, filePath) {
-        let findings = [];
-
-        // Run package-specific scanners
-        if (this.config.enablePackageScanners) {
-            for (const patternInfo of PACKAGE_FILE_PATTERNS) {
-                if (filePath.endsWith(patternInfo.pattern)) {
-                    const scanner = getScannerForFile(patternInfo.type);
-                    if (scanner) {
-                        const packageFindings = await scanner(fileContent, filePath);
-                        findings.push(...packageFindings);
-                    }
-                    break; // Only one package scanner per file
-                }
-            }
+        if (!fileContent || typeof fileContent !== 'string') {
+            console.error('Invalid file content provided to scanner');
+            return [];
         }
 
-        // Run general vulnerability patterns
-        for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
-            try {
-                const matches = fileContent.matchAll(new RegExp(vulnInfo.pattern, 'g'));
-                for (const match of matches) {
-                    findings.push({
-                        type: vulnType,
-                        severity: vulnInfo.severity,
-                        description: vulnInfo.description,
-                        file: filePath,
-                        occurrences: matches.length,
-                        lineNumbers: this.findLineNumbers(fileContent, vulnInfo.pattern),
-                        recommendation: recommendations[vulnType] || 'Review and fix the identified issue',
-                        scannerType: 'general'
-                    });
+        const findings = [];
+        
+        if (!this.vulnerabilityPatterns || Object.keys(this.vulnerabilityPatterns).length === 0) {
+            console.error('No vulnerability patterns loaded');
+            return findings;
+        }
+
+        try {
+            if (this.config.enablePackageScanners) {
+                for (const [pattern, type] of Object.entries(PACKAGE_FILE_PATTERNS)) {
+                    if (filePath.toLowerCase().endsWith(pattern.toLowerCase())) {
+                        const scanner = getScannerForFile(type);
+                        if (scanner) {
+                            const packageFindings = await scanner.scan(filePath, fileContent);
+                            findings.push(...packageFindings);
+                        }
+                        break;
+                    }
                 }
-            } catch (error) {
-                console.error(`Error analyzing pattern ${vulnType}:`, error);
             }
+
+            for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
+                try {
+                    const regex = new RegExp(vulnInfo.pattern, 'g');
+                    const matches = fileContent.match(regex);
+                    
+                    if (matches && matches.length > 0) {
+                        findings.push({
+                            type: vulnType,
+                            severity: vulnInfo.severity,
+                            description: vulnInfo.description,
+                            file: filePath,
+                            occurrences: matches.length,
+                            lineNumbers: this.findLineNumbers(fileContent, vulnInfo.pattern),
+                            recommendation: recommendations[vulnType] || 'Review and fix the identified issue',
+                            scannerType: 'pattern'
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Error analyzing pattern ${vulnType}:`, error);
+                }
+            }
+        } catch (error) {
+            console.error(`Error scanning file ${filePath}:`, error);
         }
 
         return findings;

@@ -16,20 +16,20 @@ export async function scanRepository(url) {
             body: JSON.stringify({ url })
         });
 
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('text/html')) {
-            throw new ApiError(
-                'Server error: The scanning service is not available. This typically means the app needs to be deployed to Netlify to work properly.',
-                503
-            );
-        }
-
-        const data = await response.json();
-
         if (!response.ok) {
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('text/html')) {
+                throw new ApiError(
+                    'Server error: The scanning service is not available. Please ensure Netlify functions are properly configured.',
+                    503
+                );
+            }
+
+            const data = await response.json();
             throw new ApiError(data.error || 'Scan failed', response.status);
         }
 
+        const data = await response.json();
         return data;
     } catch (error) {
         if (error instanceof ApiError) {
@@ -37,7 +37,7 @@ export async function scanRepository(url) {
         }
         if (error.name === 'SyntaxError') {
             throw new ApiError(
-                'Server error: Received invalid response. The scanning service may not be properly configured.',
+                'Server error: Invalid response from scanning service. Please check Netlify function logs.',
                 500
             );
         }

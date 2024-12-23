@@ -169,12 +169,12 @@ const ScanResults = ({
                 </div>
                 <div className="text-sm space-y-2">
                   <div className="font-medium">Mitigation Steps:</div>
-                  <div className="text-gray-700">{fix.recommendation}</div>
-                  {fix.references && (
+                  <div className="text-gray-700">{fix.recommendation?.toString()}</div>
+                  {fix.references && fix.references.length > 0 && (
                     <div className="mt-2">
                       <div className="font-medium text-sm">Security References:</div>
                       <ul className="list-disc pl-4 text-sm text-gray-600 space-y-1">
-                        {fix.references.map((ref, i) => (
+                        {fix.references?.map((ref, i) => (
                           <li key={i}>
                             <a 
                               href={ref.url} 
@@ -201,14 +201,8 @@ const ScanResults = ({
                         rel="noopener noreferrer"
                         className="text-sm text-blue-600 hover:text-blue-800"
                       >
-                        CWE-{fix.cwe}
+                        CWE-{fix.cwe?.toString()}
                       </a>
-                    </div>
-                  )}
-                  {fix.severity && (
-                    <div className="mt-2 flex items-center">
-                      <div className="font-medium text-sm mr-2">CVSS Severity:</div>
-                      <SeverityBadge severity={fix.severity} count={fix.severity} />
                     </div>
                   )}
                 </div>
