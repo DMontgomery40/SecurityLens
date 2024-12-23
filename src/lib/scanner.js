@@ -15,10 +15,17 @@ class VulnerabilityScanner {
             ...config
         };
 
+        // Debug logging
+        console.log('Initializing scanner with patterns:', {
+            corePatterns: !!corePatterns,
+            enhancedPatterns: !!enhancedPatterns
+        });
+
         this.vulnerabilityPatterns = {};
         
         if (corePatterns && typeof corePatterns === 'object') {
             this.vulnerabilityPatterns = { ...corePatterns };
+            console.log('Loaded core patterns:', Object.keys(corePatterns));
         }
 
         if (this.config.enableNewPatterns && enhancedPatterns && typeof enhancedPatterns === 'object') {
@@ -26,14 +33,20 @@ class VulnerabilityScanner {
                 ...this.vulnerabilityPatterns,
                 ...enhancedPatterns
             };
+            console.log('Loaded enhanced patterns:', Object.keys(enhancedPatterns));
         }
 
+        // Validate patterns
+        let validPatterns = 0;
         Object.entries(this.vulnerabilityPatterns).forEach(([key, pattern]) => {
             if (!pattern.pattern || !pattern.severity || !pattern.description) {
-                console.error(`Invalid pattern configuration for ${key}`);
+                console.error(`Invalid pattern configuration for ${key}:`, pattern);
                 delete this.vulnerabilityPatterns[key];
+            } else {
+                validPatterns++;
             }
         });
+        console.log(`Scanner initialized with ${validPatterns} valid patterns`);
 
         this.rateLimitInfo = null;
     }
@@ -156,6 +169,8 @@ class VulnerabilityScanner {
     }
 
     async scanFile(fileContent, filePath) {
+        console.log(`Scanning file: ${filePath}`);
+        
         if (!fileContent || typeof fileContent !== 'string') {
             console.error('Invalid file content provided to scanner');
             return [];
@@ -168,13 +183,18 @@ class VulnerabilityScanner {
             return findings;
         }
 
+        console.log(`Active patterns: ${Object.keys(this.vulnerabilityPatterns).length}`);
+
         try {
+            // Package scanners
             if (this.config.enablePackageScanners) {
                 for (const [pattern, type] of Object.entries(PACKAGE_FILE_PATTERNS)) {
                     if (filePath.toLowerCase().endsWith(pattern.toLowerCase())) {
+                        console.log(`Found package file match: ${pattern} -> ${type}`);
                         const scanner = getScannerForFile(type);
                         if (scanner) {
                             const packageFindings = await scanner.scan(filePath, fileContent);
+                            console.log(`Package scanner found ${packageFindings.length} issues`);
                             findings.push(...packageFindings);
                         }
                         break;
@@ -182,12 +202,14 @@ class VulnerabilityScanner {
                 }
             }
 
+            // Pattern scanning
             for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
                 try {
                     const regex = new RegExp(vulnInfo.pattern, 'g');
                     const matches = fileContent.match(regex);
                     
                     if (matches && matches.length > 0) {
+                        console.log(`Found ${matches.length} matches for pattern: ${vulnType}`);
                         findings.push({
                             type: vulnType,
                             severity: vulnInfo.severity,
@@ -203,6 +225,8 @@ class VulnerabilityScanner {
                     console.error(`Error analyzing pattern ${vulnType}:`, error);
                 }
             }
+
+            console.log(`Total findings for ${filePath}: ${findings.length}`);
         } catch (error) {
             console.error(`Error scanning file ${filePath}:`, error);
         }
