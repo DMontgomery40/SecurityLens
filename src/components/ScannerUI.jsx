@@ -6,6 +6,7 @@ import {
 import { scanRepository } from '../lib/apiClient';
 import { Alert, AlertDescription } from './ui/alert';
 import VulnerabilityScanner from '../lib/scanner';
+import ScanResults from './ScanResults';
 
 const ScannerUI = () => {
   const [scanning, setScanning] = useState(false);
@@ -15,6 +16,7 @@ const ScannerUI = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [scanResults, setScanResults] = useState(null);
+  const [usedCache, setUsedCache] = useState(false);
 
   const handleFileUpload = async (event) => {
     const files = Array.from(event.target.files);
@@ -24,6 +26,7 @@ const ScannerUI = () => {
     setError(null);
     setProgress({ current: 0, total: files.length });
     setScanResults(null);
+    setUsedCache(false);
     
     try {
       const scanner = new VulnerabilityScanner({
@@ -62,6 +65,7 @@ const ScannerUI = () => {
     setScanning(true);
     setError(null);
     setScanResults(null);
+    setUsedCache(false);
     
     try {
       const results = await scanRepository(urlInput);
@@ -70,13 +74,15 @@ const ScannerUI = () => {
       if (results.findings && results.summary) {
         setScanResults({
           findings: results.findings,
-          summary: results.summary
+          summary: results.summary,
+          rateLimit: results.rateLimit
         });
         setSuccessMessage(
           `Scan complete! Found ${results.summary.totalIssues} potential vulnerabilities ` +
           `(${results.summary.criticalIssues} critical, ${results.summary.highIssues} high, ` +
           `${results.summary.mediumIssues} medium, ${results.summary.lowIssues} low)`
         );
+        setUsedCache(results.fromCache || false);
       } else {
         setSuccessMessage(`Found ${results.files.length} files in repository`);
       }
@@ -208,12 +214,12 @@ const ScannerUI = () => {
 
         {/* Scan Results */}
         {scanResults && (
-          <div className="bg-white p-6 rounded-lg shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-700 mb-4">Scan Results</h2>
-            <pre className="bg-gray-100 p-4 rounded-lg overflow-auto">
-              {JSON.stringify(scanResults, null, 2)}
-            </pre>
-          </div>
+          <ScanResults 
+            results={scanResults}
+            usedCache={usedCache}
+            onRefreshRequest={handleUrlScan}
+            scanning={scanning}
+          />
         )}
       </div>
     </div>
