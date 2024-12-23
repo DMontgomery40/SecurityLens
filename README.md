@@ -1,4 +1,4 @@
-# SecurityLens (or your chosen name)
+# SecurityLens 
 An open-source security analysis platform for education and vulnerability discovery.
 
 ## Current Features
