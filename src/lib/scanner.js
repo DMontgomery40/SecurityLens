@@ -31,7 +31,7 @@ class VulnerabilityScanner {
         try {
             const response = await this.config.octokit.rateLimit.get();
             const { limit, remaining, reset } = response.data.rate;
-            
+
             this.rateLimitInfo = { limit, remaining, reset };
             return this.rateLimitInfo;
         } catch (error) {
@@ -47,13 +47,13 @@ class VulnerabilityScanner {
 
         const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/([^/]+))?\/?(.*)/;
         const match = url.match(githubRegex);
-        
+
         if (!match) {
             throw new Error('Invalid GitHub URL format');
         }
 
         const [, owner, repo, branch = 'main', path = ''] = match;
-        
+
         // Check cache first
         const cacheKey = `${owner}/${repo}/${branch}/${path}`;
         const cachedData = repoCache.get(cacheKey);
@@ -65,140 +65,103 @@ class VulnerabilityScanner {
             }
             return {
                 files: cachedData.files,
-                rateLimit: await this.getRateLimitInfo(),
+                rateLimit: cachedData.rateLimit,
                 fromCache: true
             };
         }
 
         try {
-            const files = await this.fetchDirectoryContent(owner, repo, path, branch);
+            const rateLimitInfo = await this.getRateLimitInfo();
+            let fileList = [];
             
-            repoCache.set(cacheKey, { files });
-            
+            async function fetchContents(currentPath = '') {
+                try {
+                    const response = await this.config.octokit.rest.repos.getContent({
+                        owner,
+                        repo,
+                        ref: branch,
+                        path: currentPath,
+                    });
+
+                    if (Array.isArray(response.data)) {
+                        for (const item of response.data) {
+                            if (item.type === 'file') {
+                                fileList.push({ path: item.path, url: item.download_url });
+                            } else if (item.type === 'dir') {
+                                await fetchContents(item.path);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error fetching contents for path ${currentPath}:`, error);
+                    throw error;
+                }
+            }
+
+            await fetchContents(path);
+
+            const filesWithContent = [];
+            let totalFiles = fileList.length;
+            let processedFiles = 0;
+
+            if (this.config.onProgress) {
+                this.config.onProgress.setTotal(totalFiles);
+            }
+
+            for (const fileInfo of fileList) {
+                try {
+                    const response = await fetch(fileInfo.url);
+                    if (!response.ok) {
+                        console.error(`Failed to fetch ${fileInfo.path}: ${response.status} ${response.statusText}`);
+                        continue;
+                    }
+                    const content = await response.text();
+                    filesWithContent.push({ path: fileInfo.path, content });
+                } catch (error) {
+                    console.error(`Error fetching content for ${fileInfo.path}:`, error);
+                } finally {
+                    processedFiles++;
+                    if (this.config.onProgress) {
+                        this.config.onProgress.increment();
+                    }
+                }
+            }
+
             if (this.config.onProgress) {
                 this.config.onProgress.complete();
             }
-            
-            return {
-                files,
-                rateLimit: await this.getRateLimitInfo(),
-                fromCache: false
-            };
+
+            const result = { files: filesWithContent, rateLimit: rateLimitInfo, fromCache: false };
+            repoCache.set(cacheKey, result);
+            return result;
         } catch (error) {
-            if (error.status === 403) {
-                throw new Error('Rate limit exceeded or access denied. Please check your token.');
-            }
-            if (error.status === 404) {
-                throw new Error('Repository or path not found. Please check the URL.');
-            }
+            console.error('Error fetching repository files:', error);
             throw error;
         }
     }
 
-    async fetchDirectoryContent(owner, repo, path, branch, accumulator = []) {
-        if (!this.config.octokit) {
-            throw new Error('GitHub client not initialized');
-        }
-
-        try {
-            const response = await this.config.octokit.repos.getContent({
-                owner,
-                repo,
-                path: path || '',
-                ref: branch
-            });
-
-            const items = Array.isArray(response.data) ? response.data : [response.data];
-
-            // Update total count for progress
-            if (this.config.onProgress) {
-                const totalFiles = items.filter(item => 
-                    item.type === 'file' && 
-                    (PACKAGE_FILE_PATTERNS[item.name] || 
-                    ['.js', '.jsx', '.ts', '.tsx', '.py', '.yml', '.yaml', '.json']
-                        .includes('.' + item.name.split('.').pop()?.toLowerCase()))
-                ).length;
-                
-                this.config.onProgress.setTotal(
-                    (this.config.onProgress.total || 0) + totalFiles
-                );
-            }
-
-            for (const item of items) {
-                const rateLimit = await this.getRateLimitInfo();
-                if (rateLimit?.remaining < 10) {
-                    console.warn(`Warning: Rate limit running low (${rateLimit.remaining} remaining)`);
-                }
-
-                if (item.type === 'file') {
-                    const ext = item.name.split('.').pop()?.toLowerCase();
-                    const isSupported = PACKAGE_FILE_PATTERNS[item.name] || 
-                                      ['.js', '.jsx', '.ts', '.tsx', '.py', '.yml', '.yaml', '.json'].includes('.' + ext);
-
-                    if (isSupported) {
-                        try {
-                            const contentResponse = await this.config.octokit.repos.getContent({
-                                owner,
-                                repo,
-                                path: item.path,
-                                ref: branch,
-                                mediaType: {
-                                    format: 'raw'
-                                }
-                            });
-
-                            const content = Buffer.from(contentResponse.data, 'base64').toString('utf8');
-                            
-                            accumulator.push({
-                                path: item.path,
-                                content: content
-                            });
-
-                            // Increment progress
-                            if (this.config.onProgress) {
-                                this.config.onProgress.increment();
-                            }
-                        } catch (error) {
-                            console.error(`Error fetching content for ${item.path}:`, error.message);
-                        }
-                    }
-                } else if (item.type === 'dir') {
-                    await this.fetchDirectoryContent(owner, repo, item.path, branch, accumulator);
-                }
-            }
-
-            return accumulator;
-        } catch (error) {
-            throw new Error(`Failed to fetch directory content: ${error.message}`);
-        }
-    }
-
     async scanFile(fileContent, filePath) {
-        if (!fileContent || typeof fileContent !== 'string') {
-            throw new Error('Invalid file content provided');
-        }
+        let findings = [];
 
-        const findings = [];
-        
-        const packageScanner = this.config.enablePackageScanners ? getScannerForFile(filePath) : null;
-        
-        if (packageScanner) {
-            try {
-                const packageFindings = await packageScanner.scan(filePath, fileContent);
-                findings.push(...packageFindings.map(finding => ({
-                    ...finding,
-                    scannerType: 'package',
-                    file: filePath
-                })));
-            } catch (error) {
-                console.error(`Package scanner error for ${filePath}:`, error);
+        // Run package-specific scanners
+        if (this.config.enablePackageScanners) {
+            for (const patternInfo of PACKAGE_FILE_PATTERNS) {
+                if (filePath.endsWith(patternInfo.pattern)) {
+                    const scanner = getScannerForFile(patternInfo.type);
+                    if (scanner) {
+                        const packageFindings = await scanner(fileContent, filePath);
+                        findings.push(...packageFindings);
+                    }
+                    break; // Only one package scanner per file
+                }
             }
         }
 
+        // Run general vulnerability patterns
         for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
             try {
-                const matches = fileContent.match(new RegExp(vulnInfo.pattern, 'g')) || [];
-                if (matches.length > 0) {
+                const matches = fileContent.matchAll(new RegExp(vulnInfo.pattern, 'g'));
+                for (const match of matches) {
                     findings.push({
                         type: vulnType,
                         severity: vulnInfo.severity,
@@ -231,7 +194,7 @@ class VulnerabilityScanner {
 
     generateReport(findings) {
         const groupedBySeverity = _.groupBy(findings, 'severity');
-        
+
         const findingsWithArrays = {};
         Object.entries(groupedBySeverity).forEach(([severity, items]) => {
             findingsWithArrays[severity] = Array.isArray(items) ? items : [];
@@ -253,12 +216,17 @@ class VulnerabilityScanner {
 
     generateRecommendations(findings) {
         const findingsArray = Array.isArray(findings) ? findings : [];
-        
-        return Array.from(new Set(findingsArray.map(finding => ({
-            type: finding.type,
-            recommendation: recommendations[finding.type] || finding.recommendation || 'Review and fix the identified issue',
-            scannerType: finding.scannerType
-        }))));
+
+        return Array.from(new Set(findingsArray.map(finding => {
+            const rec = recommendations[finding.type];
+            return {
+                type: finding.type,
+                recommendation: typeof rec === 'string' ? rec :
+                              (rec?.recommendation || finding.recommendation || 'Review and fix the identified issue'),
+                references: rec?.references || [],
+                cwe: rec?.cwe || finding.cwe
+            };
+        })));
     }
 }
 

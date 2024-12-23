@@ -136,34 +136,32 @@ const ScannerUI = () => {
         </div>
 
         {/* File Upload Section */}
-        <div className="bg-white p-6 rounded-lg shadow-sm mb-4">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Upload Files</h2>
-          <div className="flex flex-col gap-4">
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-              <input
-                type="file"
-                onChange={handleFileUpload}
-                multiple
-                className="hidden"
-                id="file-upload"
-              />
-              <label
-                htmlFor="file-upload"
-                className="cursor-pointer flex flex-col items-center justify-center"
-              >
-                <div className="mb-2">
-                  <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                </div>
-                <p className="text-gray-600">
-                  Drag and drop files here, or click to select files
-                </p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Supported files: .js, .jsx, .ts, .tsx, .py, and more
-                </p>
-              </label>
-            </div>
+        <div className="bg-white p-6 rounded-lg shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Scan Local Files</h2>
+          <div className="flex justify-center">
+            <input
+              type="file"
+              id="fileInput"
+              multiple
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <label
+              htmlFor="fileInput"
+              className="inline-flex flex-col items-center justify-center px-4 py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 cursor-pointer hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <div className="mb-2">
+                <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <p className="text-gray-600">
+                Drag and drop files here, or click to select files
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Supported files: .js, .jsx, .ts, .tsx, .py, and more
+              </p>
+            </label>
           </div>
         </div>
 
