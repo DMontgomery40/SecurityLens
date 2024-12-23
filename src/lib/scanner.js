@@ -217,7 +217,9 @@ class VulnerabilityScanner {
                             file: filePath,
                             occurrences: matches.length,
                             lineNumbers: this.findLineNumbers(fileContent, vulnInfo.pattern),
-                            recommendation: recommendations[vulnType] || 'Review and fix the identified issue',
+                            recommendation: recommendations[vulnType]?.recommendation || 'Review and fix the identified issue',
+                            references: recommendations[vulnType]?.references || [],
+                            cwe: recommendations[vulnType]?.cwe,
                             scannerType: 'pattern'
                         });
                     }
