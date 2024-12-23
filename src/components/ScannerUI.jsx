@@ -135,7 +135,7 @@ const ScannerUI = () => {
       <div className="max-w-3xl mx-auto mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-4 flex items-center">
           <Shield className="h-8 w-8 mr-2" />
-          Plugin Vulnerability Scanner
+          SecurityLens
         </h1>
 
         {/* URL Input Section */}
