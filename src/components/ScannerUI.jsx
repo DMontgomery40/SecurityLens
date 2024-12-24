@@ -53,7 +53,7 @@ const ScannerUI = () => {
         }
       }
 
-      // Process findings to ensure proper structure
+      // Process findings to ensure proper structure and maintain array format
       const processedFindings = allFindings.map(finding => ({
         ...finding,
         severity: finding.severity || 'LOW',
@@ -61,10 +61,13 @@ const ScannerUI = () => {
         allLineNumbers: { [finding.file]: finding.lineNumbers || [] }
       }));
 
-      const results = scanner.generateReport(processedFindings);
-      setScanResults(results);
+      const report = scanner.generateReport(processedFindings);
+      setScanResults({
+        ...report,
+        findings: processedFindings // Keep findings as array for local scans
+      });
       
-      const { criticalIssues = 0, highIssues = 0, mediumIssues = 0, lowIssues = 0 } = results.summary || {};
+      const { criticalIssues = 0, highIssues = 0, mediumIssues = 0, lowIssues = 0 } = report.summary || {};
       setSuccessMessage(
         `Scan complete! Found ${processedFindings.length} potential vulnerabilities ` +
         `(${criticalIssues} critical, ${highIssues} high, ${mediumIssues} medium, ${lowIssues} low)`

@@ -21,7 +21,16 @@ export const patternCategories = {
 const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
   if (!results) return null;
 
-  const { findings = [], summary = {} } = results;
+  const { findings = {}, summary = {} } = results;
+  
+  // Handle both array and object formats of findings
+  const vulnerabilities = Array.isArray(findings) ? findings : 
+    Object.entries(findings).map(([type, data]) => ({
+      type,
+      ...data,
+      description: data.description || 'No description provided',
+      severity: data.severity || 'LOW'
+    }));
   
   return (
     <div className="mt-8">
@@ -69,9 +78,9 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
         )}
 
         {/* Findings List */}
-        {findings.length > 0 ? (
+        {vulnerabilities.length > 0 ? (
           <div className="space-y-4">
-            {findings.map((finding, index) => {
+            {vulnerabilities.map((finding, index) => {
               const recommendation = recommendations[finding.type];
               
               return (
