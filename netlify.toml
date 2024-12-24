@@ -2,6 +2,10 @@
   functions = "netlify/functions"
   publish = "dist"
 
+[build.environment]
+  NODE_VERSION = "18"
+  AWS_LAMBDA_JS_RUNTIME = "nodejs18.x"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -12,16 +16,14 @@
   included_files = ["src/lib/**"]
   external_node_modules = ["@octokit/rest"]
 
-[build.environment]
-  NODE_VERSION = "18"
-  
+[functions.scan-repository]
+  timeout = 30
+  memory = 1024
+  node_bundler = "esbuild"
+
 [dev]
   framework = "#custom"
   command = "npm run dev"
   targetPort = 5173
   port = 8888
   publish = "dist"
-  
-[functions.scan-repository]
-  timeout = 30 # Increase timeout to 30 seconds
-  memory = 1024 # Increase memory to 1GB
