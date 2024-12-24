@@ -1,3 +1,5 @@
+import React from 'react';
+
 // Add category structure
 export const patternCategories = {
   CRITICAL_EXECUTION: '94',    // Code injection/execution
@@ -15,6 +17,129 @@ export const patternCategories = {
   SSRF: '918',                 // Server-Side Request Forgery
   SESSION_MANAGEMENT: '384'    // Session management issues
 };
+
+const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
+  if (!results) return null;
+
+  const { findings = [], summary = {} } = results;
+  
+  return (
+    <div className="mt-8">
+      <div className="bg-white shadow rounded-lg p-6">
+        <h2 className="text-xl font-semibold mb-4">Scan Results</h2>
+        
+        {/* Summary Section */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-red-50 p-4 rounded-lg">
+            <div className="font-semibold text-red-700">Critical</div>
+            <div className="text-2xl">{summary.criticalIssues || 0}</div>
+          </div>
+          <div className="bg-orange-50 p-4 rounded-lg">
+            <div className="font-semibold text-orange-700">High</div>
+            <div className="text-2xl">{summary.highIssues || 0}</div>
+          </div>
+          <div className="bg-yellow-50 p-4 rounded-lg">
+            <div className="font-semibold text-yellow-700">Medium</div>
+            <div className="text-2xl">{summary.mediumIssues || 0}</div>
+          </div>
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="font-semibold text-blue-700">Low</div>
+            <div className="text-2xl">{summary.lowIssues || 0}</div>
+          </div>
+        </div>
+
+        {/* Cache Notice */}
+        {usedCache && (
+          <div className="mb-4 flex items-center justify-between bg-blue-50 p-4 rounded-lg">
+            <span className="text-blue-700">
+              ⚡ Results loaded from cache
+            </span>
+            <button
+              onClick={onRefreshRequest}
+              disabled={scanning}
+              className={`px-4 py-2 rounded text-sm ${
+                scanning
+                  ? 'bg-gray-300 cursor-not-allowed'
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              {scanning ? 'Refreshing...' : 'Refresh Scan'}
+            </button>
+          </div>
+        )}
+
+        {/* Findings List */}
+        {findings.length > 0 ? (
+          <div className="space-y-4">
+            {findings.map((finding, index) => {
+              const recommendation = recommendations[finding.type];
+              
+              return (
+                <div key={index} className="border rounded-lg p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-semibold text-lg">{finding.description}</h3>
+                      <div className="text-sm text-gray-500">
+                        Found in: {Object.keys(finding.allLineNumbers).join(', ')}
+                      </div>
+                    </div>
+                    <div className={`
+                      px-3 py-1 rounded-full text-sm font-medium
+                      ${finding.severity === 'CRITICAL' ? 'bg-red-100 text-red-800' :
+                        finding.severity === 'HIGH' ? 'bg-orange-100 text-orange-800' :
+                        finding.severity === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-blue-100 text-blue-800'}
+                    `}>
+                      {finding.severity}
+                    </div>
+                  </div>
+                  
+                  {recommendation && (
+                    <div className="mt-4">
+                      <div className="prose prose-sm max-w-none">
+                        <div dangerouslySetInnerHTML={{ 
+                          __html: recommendation.recommendation
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                            .replace(/\n/g, '<br />') 
+                        }} />
+                      </div>
+                      
+                      {recommendation.references && (
+                        <div className="mt-4">
+                          <h4 className="font-medium text-sm mb-2">References:</h4>
+                          <ul className="list-disc pl-5 space-y-1">
+                            {recommendation.references.map((ref, idx) => (
+                              <li key={idx}>
+                                <a 
+                                  href={ref.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-600 hover:underline"
+                                >
+                                  {ref.title}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No vulnerabilities found
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ScanResults;
 
 // Modify core patterns structure
 export const corePatterns = {
