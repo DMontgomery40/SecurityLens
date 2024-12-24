@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AlertTriangle, 
   Shield, 
@@ -8,9 +8,87 @@ import {
   Clock,
   ExternalLink,
   Book,
-  X,
-  Filter
+  Sun,
+  Moon
 } from 'lucide-react';
+
+// Dark mode hook
+const useDarkMode = () => {
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (darkMode) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [darkMode]);
+
+  return [darkMode, setDarkMode];
+};
+
+const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
+  const [selectedSeverity, setSelectedSeverity] = useState(null);
+  const [darkMode, setDarkMode] = useDarkMode();
+
+  if (!results) return null;
+
+  const { summary, findings, recommendedFixes, rateLimit } = results;
+
+  // Rest of your safety checks...
+
+  return (
+    <div className="space-y-6 transition-colors duration-200 dark:bg-gray-900">
+      {/* Top Bar with Dark Mode Toggle and Cache/API Status */}
+      <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+        <div className="flex items-center space-x-6">
+          {/* Cache Notice */}
+          {usedCache && (
+            <div className="flex items-center text-blue-600 dark:text-blue-400">
+              <Info className="h-4 w-4 mr-2" />
+              <span className="text-sm">Using cached results</span>
+              {!scanning && (
+                <button
+                  onClick={onRefreshRequest}
+                  className="ml-3 text-sm hover:underline"
+                  disabled={rateLimit?.remaining === 0}
+                >
+                  Refresh
+                </button>
+              )}
+            </div>
+          )}
+          
+          {/* API Limits */}
+          {rateLimit && (
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                API: {rateLimit.remaining}/{rateLimit.limit}
+              </div>
+              <TimeToReset resetTimestamp={rateLimit.reset} />
+            </div>
+          )}
+        </div>
+
+        {/* Dark Mode Toggle */}
+        <button
+          onClick={() => setDarkMode(!darkMode)}
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          aria-label="Toggle dark mode"
+        >
+          {darkMode ? (
+            <Sun className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+          ) : (
+            <Moon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+          )}
+        </button>
+      </div>
+
+      {/* Rest of your component with dark mode classes added... */}
 
 const severityConfig = {
   CRITICAL: {
@@ -186,8 +264,33 @@ const FindingCard = ({ finding, type }) => {
   );
 };
 
-const ReferencesSection = ({ fixes }) => {
+const ReferencesSection = ({ fixes, findings }) => {
   const [expandedSection, setExpandedSection] = useState(null);
+
+  // Consolidate fixes and associate with affected files
+  const consolidatedFixes = React.useMemo(() => {
+    const fixMap = new Map();
+    
+    fixes.forEach(fix => {
+      if (!fixMap.has(fix.type)) {
+        fixMap.set(fix.type, {
+          ...fix,
+          affectedFiles: new Set()
+        });
+      }
+    });
+
+    // Associate files with each fix type
+    Object.entries(findings || {}).forEach(([type, finding]) => {
+      const fix = fixes.find(f => f.type === type);
+      if (fix && finding.files) {
+        const consolidated = fixMap.get(fix.type);
+        finding.files.forEach(file => consolidated.affectedFiles.add(file));
+      }
+    });
+
+    return Array.from(fixMap.values());
+  }, [fixes, findings]);
 
   const toggleSection = (type) => {
     setExpandedSection(expandedSection === type ? null : type);
@@ -195,58 +298,102 @@ const ReferencesSection = ({ fixes }) => {
 
   return (
     <div className="space-y-6">
-      {fixes.map((fix) => {
+      {consolidatedFixes.map((fix) => {
         const isExpanded = expandedSection === fix.type;
+        const fileCount = fix.affectedFiles.size;
+        
         return (
           <div key={fix.type} className="overflow-hidden transition-all duration-200">
             <button
               onClick={() => toggleSection(fix.type)}
-              className="w-full text-left p-6 bg-white rounded-lg shadow-sm hover:bg-gray-50 transition-colors duration-200"
+              className="w-full text-left p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
             >
               <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <h3 className="text-lg font-semibold">{fix.type}</h3>
-                    {fix.cwe && (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        CWE-{fix.cwe}
-                      </span>
-                    )}
+                <div className="space-y-1 flex-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{fix.type}</h3>
+                      {fix.cwe && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100">
+                          CWE-{fix.cwe}
+                        </span>
+                      )}
+                      {fileCount > 0 && (
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {fileCount} affected {fileCount === 1 ? 'file' : 'files'}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-gray-600 pr-8">{fix.recommendation}</p>
+                  <p className="text-gray-600 dark:text-gray-300 pr-8">{fix.recommendation}</p>
                 </div>
                 <div className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                  <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
               </div>
+
+              {/* Show affected files in a compact way when collapsed */}
+              {!isExpanded && fileCount > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {Array.from(fix.affectedFiles).slice(0, 3).map(file => (
+                    <span key={file} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                      {file.split('/').pop()}
+                    </span>
+                  ))}
+                  {fileCount > 3 && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                      +{fileCount - 3} more
+                    </span>
+                  )}
+                </div>
+              )}
             </button>
 
-            {isExpanded && fix.references?.length > 0 && (
-              <div className="mt-2 space-y-2 px-2">
-                {fix.references.map((ref, i) => (
-                  <a
-                    key={i}
-                    href={ref.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
-                  >
-                    <div className="flex items-start space-x-3">
-                      <Book className="h-5 w-5 text-blue-500 mt-0.5" />
-                      <div className="flex-1">
-                        <div className="font-medium text-blue-600 flex items-center">
-                          {ref.title}
-                          <ExternalLink className="h-3 w-3 ml-1" />
+            {isExpanded && (
+              <div className="mt-2 space-y-4">
+                {/* Show full file list when expanded */}
+                {fileCount > 0 && (
+                  <div className="px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Affected Files:</h4>
+                    <div className="space-y-1">
+                      {Array.from(fix.affectedFiles).map(file => (
+                        <div key={file} className="text-sm text-gray-600 dark:text-gray-300 font-mono">
+                          {file}
                         </div>
-                        {ref.description && (
-                          <p className="mt-1 text-sm text-gray-600">{ref.description}</p>
-                        )}
-                      </div>
+                      ))}
                     </div>
-                  </a>
-                ))}
+                  </div>
+                )}
+
+                {/* References */}
+                {fix.references?.length > 0 && (
+                  <div className="space-y-2 px-2">
+                    {fix.references.map((ref, i) => (
+                      <a
+                        key={i}
+                        href={ref.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+                      >
+                        <div className="flex items-start space-x-3">
+                          <Book className="h-5 w-5 text-blue-500 dark:text-blue-400 mt-0.5" />
+                          <div className="flex-1">
+                            <div className="font-medium text-blue-600 dark:text-blue-400 flex items-center">
+                              {ref.title}
+                              <ExternalLink className="h-3 w-3 ml-1" />
+                            </div>
+                            {ref.description && (
+                              <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{ref.description}</p>
+                            )}
+                          </div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -254,6 +401,7 @@ const ReferencesSection = ({ fixes }) => {
       })}
     </div>
   );
+};
 };
 
 const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
@@ -357,11 +505,11 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
       {/* Summary Grid */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Issues Summary</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Issues Summary</h2>
           {selectedSeverity && (
             <button
               onClick={() => setSelectedSeverity(null)}
-              className="flex items-center space-x-2 text-sm text-gray-500 hover:text-gray-700"
+              className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
               <Filter className="h-4 w-4" />
               <span>Clear Filter</span>
@@ -369,37 +517,143 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
           )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(severity => (
-            <SeverityCard
-              key={severity}
-              severity={severity}
-              count={summary[`${severity.toLowerCase()}Issues`] || 0}
-              isSelected={selectedSeverity === severity}
-              onClick={() => setSelectedSeverity(selectedSeverity === severity ? null : severity)}
-            />
-          ))}
+          {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(severity => {
+            const count = summary[`${severity.toLowerCase()}Issues`] || 0;
+            const config = severityConfig[severity];
+            const Icon = config.icon;
+            
+            return (
+              <button
+                key={severity}
+                onClick={() => setSelectedSeverity(selectedSeverity === severity ? null : severity)}
+                className={`
+                  relative w-full rounded-xl p-6 transition-all duration-200
+                  ${selectedSeverity === severity ? 
+                    `${config.bg} dark:bg-gray-800 ring-2 ${config.color.replace('text', 'ring')}` : 
+                    'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'}
+                  group
+                `}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="text-3xl font-bold dark:text-white">
+                      {count}
+                    </div>
+                    <div className="text-sm font-medium flex items-center space-x-2">
+                      <Icon className={`h-4 w-4 ${config.color}`} />
+                      <span className="dark:text-gray-300">{severity}</span>
+                    </div>
+                  </div>
+                  {count > 0 && (
+                    <div className={`
+                      opacity-0 group-hover:opacity-100 transition-opacity
+                      text-sm font-medium ${config.color}
+                    `}>
+                      {selectedSeverity === severity ? 'Clear Filter' : 'Show Only'}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Findings Section */}
       {filteredFindings.length > 0 ? (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             {selectedSeverity ? `${selectedSeverity} Issues` : 'All Issues'}
           </h2>
           <div className="space-y-4">
-            {filteredFindings.map(([type, finding]) => (
-              <FindingCard key={type} type={type} finding={finding} />
-            ))}
+            {filteredFindings.map(([type, finding]) => {
+              const config = severityConfig[finding.severity];
+              const Icon = config.icon;
+
+              return (
+                <div 
+                  key={type} 
+                  className={`
+                    rounded-lg overflow-hidden 
+                    ${config.lightBg} dark:bg-gray-800
+                    ${config.hoverBg} dark:hover:bg-gray-700 
+                    transition-colors duration-200
+                  `}
+                >
+                  <div className="p-6">
+                    <div className="flex items-start space-x-4">
+                      <div className="bg-white/50 dark:bg-gray-700 p-2 rounded-lg">
+                        <Icon className={`h-5 w-5 ${config.color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-4">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                              {type}
+                            </h3>
+                            {finding.subcategory && (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                                CWE-{finding.subcategory}
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-gray-600 dark:text-gray-300">
+                            {finding.description}
+                          </p>
+                        </div>
+
+                        {/* Affected Files */}
+                        {Object.entries(finding.allLineNumbers).length > 0 && (
+                          <div className="space-y-3">
+                            <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                              <Info className="h-4 w-4" />
+                              <span>Affected Files</span>
+                            </div>
+                            <div className="space-y-2">
+                              {Object.entries(finding.allLineNumbers).map(([file, lines]) => (
+                                <div key={file} className="rounded-md bg-white/50 dark:bg-gray-700/50 p-3 font-mono text-sm">
+                                  <div className="flex items-start justify-between">
+                                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                                      {file}
+                                    </div>
+                                    {lines?.length > 0 && (
+                                      <div className="text-gray-500 dark:text-gray-400 ml-4">
+                                        Line{lines.length > 1 ? 's' : ''}: {lines.join(', ')}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recommendation */}
+                        {finding.recommendation && (
+                          <div className="bg-white/80 dark:bg-gray-700/50 rounded-lg p-4 text-gray-800 dark:text-gray-200">
+                            <div className="flex space-x-2">
+                              <Info className="h-4 w-4 mt-1 flex-shrink-0" />
+                              <p>{finding.recommendation}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
+        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
           <div className="space-y-3">
-            <div className="text-gray-400">
+            <div className="text-gray-400 dark:text-gray-500">
               <Filter className="h-12 w-12 mx-auto" />
             </div>
-            <div className="text-gray-500">No issues found{selectedSeverity ? ` with ${selectedSeverity} severity` : ''}</div>
+            <div className="text-gray-500 dark:text-gray-400">
+              No issues found{selectedSeverity ? ` with ${selectedSeverity} severity` : ''}
+            </div>
           </div>
         </div>
       )}
@@ -408,14 +662,14 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
       {safeRecommendedFixes.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <Shield className="h-5 w-5 text-blue-500" />
+            <div className="p-2 bg-blue-50 dark:bg-blue-900 rounded-lg">
+              <Shield className="h-5 w-5 text-blue-500 dark:text-blue-400" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Security References & Mitigation
             </h2>
           </div>
-          <ReferencesSection fixes={safeRecommendedFixes} />
+          <ReferencesSection fixes={safeRecommendedFixes} findings={consolidatedFindings} />
         </div>
       )}
 
