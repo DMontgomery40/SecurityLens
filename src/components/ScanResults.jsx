@@ -1,412 +1,798 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  AlertTriangle, 
-  Shield, 
-  Info, 
-  AlertCircle, 
-  RefreshCw, 
-  Clock,
-  ExternalLink,
-  Book
-} from 'lucide-react';
+// Add category structure
+export const patternCategories = {
+  CRITICAL_EXECUTION: '94',    // Code injection/execution
+  AUTHENTICATION: '287',       // Auth bypass/missing auth
+  INJECTION: '74',             // Various injection types (SQL, Command, etc)
+  CRYPTO_ISSUES: '310',        // Cryptographic/encryption issues
+  MEMORY_BUFFER: '119',        // Buffer/memory issues
+  DATA_PROTECTION: '200',      // Sensitive data exposure
+  INPUT_VALIDATION: '20',      // Input validation issues
+  ERROR_HANDLING: '389',       // Error handling & logging
+  ACCESS_CONTROL: '264',       // Permission & privilege issues
+  RESOURCE_MGMT: '399',        // Resource management & leaks
 
-const severityConfig = {
-  CRITICAL: {
-    icon: AlertTriangle,
-    color: 'text-red-600',
-    bg: 'bg-red-50',
-    border: 'border-red-100',
-    badge: 'danger',
-    lightBg: 'bg-red-50/50',
-    hoverBg: 'hover:bg-red-100/50'
+  // New Categories
+  SSRF: '918',                 // Server-Side Request Forgery
+  SESSION_MANAGEMENT: '384'    // Session management issues
+};
+
+// Modify core patterns structure
+export const corePatterns = {
+  // CRITICAL EXECUTION VULNERABILITIES
+  evalExecution: {
+    pattern: /eval\s*\([^)]*\)|new\s+Function\s*\(/,
+    description: 'Dangerous code execution via eval() or Function constructor',
+    severity: 'CRITICAL',
+    category: patternCategories.CRITICAL_EXECUTION,
+    subcategory: '95'  // Eval injection
   },
-  HIGH: {
-    icon: AlertCircle,
-    color: 'text-orange-600',
-    bg: 'bg-orange-50',
-    border: 'border-orange-100',
-    badge: 'warning',
-    lightBg: 'bg-orange-50/50',
-    hoverBg: 'hover:bg-orange-100/50'
+  commandInjection: {
+    pattern: /child_process\.exec\s*\(|\.exec\s*\(|\.spawn\s*\(/,
+    description: 'Potential command injection vulnerability',
+    severity: 'CRITICAL',
+    category: patternCategories.CRITICAL_EXECUTION,
+    subcategory: '77'  // Command injection
   },
-  MEDIUM: {
-    icon: AlertCircle,
-    color: 'text-yellow-600',
-    bg: 'bg-yellow-50',
-    border: 'border-yellow-100',
-    badge: 'warning',
-    lightBg: 'bg-yellow-50/50',
-    hoverBg: 'hover:bg-yellow-100/50'
+
+  // AUTHENTICATION VULNERABILITIES
+  missingAuth: {
+    pattern: /authentication:\s*false|auth:\s*false|noAuth:\s*true|skipAuth/i,
+    description: 'Authentication bypass or missing authentication',
+    severity: 'CRITICAL',
+    category: patternCategories.AUTHENTICATION,
+    subcategory: '306'  // Missing authentication
   },
-  LOW: {
-    icon: Info,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50',
-    border: 'border-blue-100',
-    badge: 'info',
-    lightBg: 'bg-blue-50/50',
-    hoverBg: 'hover:bg-blue-100/50'
+  hardcodedCreds: {
+    pattern: /(password|secret|key|token|credential)s?\s*[:=]\s*['"`][^'"`]+['"`]/i,
+    description: 'Hardcoded credentials detected',
+    severity: 'CRITICAL',
+    category: patternCategories.AUTHENTICATION,
+    subcategory: '798'  // Use of hard-coded credentials
+  },
+
+  // INJECTION VULNERABILITIES
+  sqlInjection: {
+    pattern: /(SELECT|INSERT|UPDATE|DELETE).*(\bFROM\b|\bINTO\b|\bWHERE\b).*(\?|'|")/i,
+    description: 'Potential SQL injection vulnerability',
+    severity: 'CRITICAL',
+    category: patternCategories.INJECTION,
+    subcategory: '89'  // SQL injection
+  },
+  xssVulnerability: {
+    pattern: /innerHTML\s*=|outerHTML\s*=|document\.write\s*\(|\$\(.*\)\.html\s*\(/,
+    description: 'Cross-site scripting vulnerability',
+    severity: 'HIGH',
+    category: patternCategories.INJECTION,
+    subcategory: '79'  // XSS
+  },
+
+  // MEMORY & BUFFER VULNERABILITIES
+  bufferIssue: {
+    pattern: /Buffer\.allocUnsafe\s*\(|new\s+Buffer\s*\(/,
+    description: 'Unsafe buffer allocation',
+    severity: 'HIGH',
+    category: patternCategories.MEMORY_BUFFER,
+    subcategory: '119'  // Buffer overflow
+  },
+  memoryLeak: {
+    pattern: /(setInterval|setTimeout)\s*\([^,]+,[^)]+\)/,
+    description: 'Potential memory leak in timer/interval',
+    severity: 'MEDIUM',
+    category: patternCategories.MEMORY_BUFFER,
+    subcategory: '401'  // Memory leak
+  },
+
+  // DATA PROTECTION VULNERABILITIES
+  sensitiveData: {
+    pattern: /(password|token|secret|key|credential)s?\s*=\s*[^;]+/i,
+    description: 'Sensitive data exposure',
+    severity: 'HIGH',
+    category: patternCategories.DATA_PROTECTION,
+    subcategory: '200'  // Information exposure
+  },
+  insecureTransmission: {
+    pattern: /https?:\/\/(?!localhost|127\.0\.0\.1)/,
+    description: 'Potential insecure data transmission',
+    severity: 'MEDIUM',
+    category: patternCategories.DATA_PROTECTION,
+    subcategory: '319'  // Cleartext transmission
   }
 };
 
-const TimeToReset = ({ resetTimestamp }) => {
-  const [timeLeft, setTimeLeft] = React.useState('');
-
-  React.useEffect(() => {
-    const updateTime = () => {
-      const now = new Date().getTime();
-      const reset = new Date(resetTimestamp * 1000).getTime();
-      const diff = reset - now;
-
-      if (diff <= 0) {
-        setTimeLeft('Reset now');
-        return;
-      }
-
-      const minutes = Math.floor(diff / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-      setTimeLeft(`${minutes}m ${seconds}s`);
-    };
-
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, [resetTimestamp]);
-
-  return (
-    <div className="flex items-center text-sm font-medium text-gray-500">
-      <Clock className="h-4 w-4 mr-1.5 text-gray-400" />
-      {timeLeft}
-    </div>
-  );
-};
-
-const SeverityCard = ({ severity, count, isSelected, onClick }) => {
-  const config = severityConfig[severity];
-  const Icon = config.icon;
-  
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        relative w-full rounded-xl p-6 transition-all duration-200
-        ${isSelected ? `${config.bg} ring-2 ring-${severity.toLowerCase()}-500 ring-opacity-50` : 'bg-white hover:bg-gray-50'}
-        group
-      `}
-    >
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <div className="text-3xl font-bold">{count}</div>
-          <div className="text-sm font-medium flex items-center space-x-2">
-            <Icon className={`h-4 w-4 ${config.color}`} />
-            <span>{severity}</span>
-          </div>
-        </div>
-        {count > 0 && (
-          <div className={`
-            opacity-0 group-hover:opacity-100 transition-opacity
-            text-sm font-medium ${config.color}
-          `}>
-            {isSelected ? 'Clear Filter' : 'Show Only'}
-          </div>
-        )}
-      </div>
-    </button>
-  );
-};
-
-const FindingCard = ({ finding, type }) => {
-  const config = severityConfig[finding.severity] || severityConfig.LOW; // Fallback to LOW if severity not found
-  const Icon = config.icon;
-
-  return (
-    <div className={`rounded-lg overflow-hidden ${config.lightBg || ''} ${config.hoverBg || ''} transition-colors duration-200`}>
-      <div className="p-6">
-        <div className="flex items-start space-x-4">
-          <div className="bg-white/50 p-2 rounded-lg">
-            <Icon className={`h-5 w-5 ${config.color}`} />
-          </div>
-          <div className="flex-1 min-w-0 space-y-4">
-            <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {type}
-                </h3>
-                {finding.subcategory && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100">
-                    CWE-{finding.subcategory}
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 text-gray-600">
-                {finding.description}
-              </p>
-            </div>
-
-            {/* Affected Files */}
-            {Object.entries(finding.allLineNumbers).length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2 text-sm text-gray-500">
-                  <Info className="h-4 w-4" />
-                  <span>Affected Files</span>
-                </div>
-                <div className="space-y-2">
-                  {Object.entries(finding.allLineNumbers).map(([file, lines]) => (
-                    <div key={file} className="rounded-md bg-white/50 p-3 font-mono text-sm">
-                      <div className="flex items-start justify-between">
-                        <div className="font-medium text-gray-900">
-                          {file}
-                        </div>
-                        {lines?.length > 0 && (
-                          <div className="text-gray-500 ml-4">
-                            Line{lines.length > 1 ? 's' : ''}: {lines.join(', ')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {finding.recommendation && (
-              <div className="bg-white/80 rounded-lg p-4 text-gray-800">
-                <div className="flex space-x-2">
-                  <Info className="h-4 w-4 mt-1 flex-shrink-0" />
-                  <p>{finding.recommendation}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ReferencesSection = ({ fixes, findings }) => {
-  const [expandedSection, setExpandedSection] = useState(null);
-
-  // Consolidate fixes and associate with affected files
-  const consolidatedFixes = React.useMemo(() => {
-    const fixMap = new Map();
+// Enhanced patterns with additional security checks
+export const enhancedPatterns = {
+  // CRITICAL EXECUTION VULNERABILITIES
+  deserializationVuln: {
+    pattern: /JSON\.parse\s*\((?![^)]*JSON\.stringify)|unserialize\s*\(/,
+    description: 'Unsafe deserialization of user input',
+    severity: 'CRITICAL',
+    category: patternCategories.CRITICAL_EXECUTION,
+    subcategory: '502'  // Deserialization of Untrusted Data
+  },
     
-    fixes.forEach(fix => {
-      if (!fixMap.has(fix.type)) {
-        fixMap.set(fix.type, {
-          ...fix,
-          affectedFiles: new Set()
+  // ACCESS CONTROL VULNERABILITIES
+  insecureDirectObjectRef: {
+    pattern: /\b(?:user|account|file|document)Id\s*=\s*(?:params|query|body|req)\.[a-zA-Z_][a-zA-Z0-9_]*/,
+    description: 'Potential Insecure Direct Object Reference (IDOR)',
+    severity: 'HIGH',
+    category: patternCategories.ACCESS_CONTROL,
+    subcategory: '639'  // Authorization Bypass Through User-Controlled Key
+  },
+    
+  // INJECTION VULNERABILITIES
+  noSqlInjection: {
+    pattern: /\$where\s*:\s*['"`]|\.find\s*\(\s*{[^}]*\$regex/,
+    description: 'Potential NoSQL injection vulnerability',
+    severity: 'CRITICAL',
+    category: patternCategories.INJECTION,
+    subcategory: '943'  // NoSQL Injection
+  },
+    
+  // CRYPTO ISSUES
+  weakCrypto: {
+    pattern: /crypto\.createHash\s*\(\s*['"`]md5['"`]\)|crypto\.createHash\s*\(\s*['"`]sha1['"`]\)/,
+    description: 'Use of weak cryptographic hash function',
+    severity: 'HIGH',
+    category: patternCategories.CRYPTO_ISSUES,
+    subcategory: '326'  // Inadequate Encryption Strength
+  },
+    
+  // ERROR HANDLING
+  sensitiveErrorInfo: {
+    pattern: /catch\s*\([^)]*\)\s*{\s*(?:console\.(?:log|error)|res\.(?:json|send))\s*\([^)]*(?:err|error)/,
+    description: 'Potential sensitive information in error messages',
+    severity: 'MEDIUM',
+    category: patternCategories.ERROR_HANDLING,
+    subcategory: '209'  // Information Exposure Through Error Message
+  },
+    
+  // INPUT VALIDATION
+  pathTraversal: {
+    pattern: /(?:\.\.\/|\.\.\\|\.\.[/\\])[^/\\]*/,
+    description: 'Potential path traversal vulnerability',
+    severity: 'HIGH',
+    category: patternCategories.INPUT_VALIDATION,
+    subcategory: '23'  // Path Traversal
+  },
+    
+  // RESOURCE MANAGEMENT
+  openRedirect: {
+    pattern: /(?:res\.redirect|window\.location|location\.href)\s*=\s*(?:req\.(?:query|params|body)|['"`]\s*\+)/,
+    description: 'Potential open redirect vulnerability',
+    severity: 'MEDIUM',
+    category: patternCategories.RESOURCE_MGMT,
+    subcategory: '601'  // URL Redirection to Untrusted Site
+  },
+    
+  // AUTHENTICATION
+  weakPasswordHash: {
+    pattern: /\.hash\s*\(\s*['"`](?:md5|sha1)['"`]\)|bcrypt\.hash\s*\([^,]*,\s*(?:[1-9]|10)\s*\)/,
+    description: 'Weak password hashing detected',
+    severity: 'HIGH',
+    category: patternCategories.AUTHENTICATION,
+    subcategory: '916'  // Use of Password Hash With Insufficient Computational Effort
+  },
+
+  // New Patterns
+
+  // SERVER-SIDE REQUEST FORGERY (SSRF)
+  ssrfVulnerability: {
+    pattern: /((axios|fetch|request)\s*\().*(req\.query|req\.params|req\.body)/,
+    description: 'Potential SSRF vulnerability from user-supplied input in request calls',
+    severity: 'CRITICAL',
+    category: patternCategories.SSRF,
+    subcategory: '918'  // Server-Side Request Forgery
+  },
+
+  // SESSION MANAGEMENT
+  sessionFixation: {
+    pattern: /req\.session\.id\s*=\s*req\.(query|params|body)|session\.id\s*=\s*req\.(query|params|body)/,
+    description: 'Potential session fixation vulnerability allowing attacker to set session id',
+    severity: 'HIGH',
+    category: patternCategories.SESSION_MANAGEMENT,
+    subcategory: '384'  // Session Fixation
+  }
+};
+
+// Thorough & visually enhanced recommendations
+export const recommendations = {
+  // CRITICAL EXECUTION
+
+  evalExecution: {
+    recommendation: `
+      **Why it Matters**: Using eval() or the Function constructor can allow malicious 
+      code to run in your application, leading to data theft or system compromise.
+
+      **What to Do**:
+      1. **Avoid Dynamic Code**: Use safer alternatives (e.g., JSON.parse for JSON data).
+      2. **Sanitize Input**: If dynamic evaluation is unavoidable, carefully whitelist 
+         valid inputs and reject anything unexpected.
+
+      **Example**: 
+      Instead of:
+        eval(userInput);
+      Do:
+        const parsed = JSON.parse(userInput); // with validation
+    `,
+    references: [
+      {
+        title: 'CWE-95: Eval Injection',
+        url: 'https://cwe.mitre.org/data/definitions/95.html',
+        description: 'Comprehensive guide on eval injection vulnerabilities'
+      }
+    ],
+    cwe: '95'
+  },
+
+  commandInjection: {
+    recommendation: `
+      **Why it Matters**: Command injection vulnerabilities let attackers run arbitrary
+      system commands, possibly taking full control of the server.
+
+      **What to Do**:
+      1. **Use execFile**: Prefer child_process.execFile() or spawn() with arguments, 
+         instead of exec().
+      2. **Validate User Input**: Reject or escape special characters (like ";", "&", "|").
+
+      **Example**:
+      Instead of:
+        exec('ls -la ' + userInput);
+      Do:
+        execFile('ls', ['-la', userInput], callback);
+    `,
+    references: [
+      {
+        title: 'CWE-77: Command Injection',
+        url: 'https://cwe.mitre.org/data/definitions/77.html',
+        description: 'Details on preventing command injection attacks'
+      }
+    ],
+    cwe: '77'
+  },
+
+  deserializationVuln: {
+    recommendation: `
+      **Why it Matters**: Deserializing untrusted data can allow attackers to instantiate 
+      malicious objects or execute arbitrary code.
+
+      **What to Do**:
+      1. **Validate and Sanitize**: Check all incoming data before parsing or deserializing.
+      2. **Use Safe Formats**: Prefer well-defined data structures like protocol buffers, 
+         or use JSON with strict schema validation.
+
+      **Example**: 
+      Instead of:
+        unserialize(userInput);
+      Do:
+        // Validate userInput, then parse safe JSON
+        const safeData = JSON.parse(userInput);
+    `,
+    references: [
+      {
+        title: 'CWE-502: Deserialization of Untrusted Data',
+        url: 'https://cwe.mitre.org/data/definitions/502.html',
+        description: 'Understanding deserialization vulnerabilities'
+      }
+    ],
+    cwe: '502'
+  },
+
+  // ACCESS CONTROL
+
+  insecureDirectObjectRef: {
+    recommendation: `
+      **Why it Matters**: Attackers can manipulate object IDs (e.g., userId, fileId) to 
+      gain unauthorized access to sensitive resources.
+
+      **What to Do**:
+      1. **Enforce Access Checks**: Use server-side verification to confirm the requesting 
+         user has permission to the requested resource.
+      2. **Use Opaque References**: Avoid exposing direct IDs in URLs or user-visible areas.
+
+      **Example**:
+      Instead of:
+        const document = Documents.find(req.query.docId);
+      Do:
+        const doc = Documents.find(req.query.docId);
+        if (doc.owner !== currentUser.id) throw 'Unauthorized';
+    `,
+    references: [
+      {
+        title: 'CWE-639: Authorization Bypass Through User-Controlled Key',
+        url: 'https://cwe.mitre.org/data/definitions/639.html',
+        description: 'Understanding IDOR vulnerabilities'
+      }
+    ],
+    cwe: '639'
+  },
+
+  // INJECTION
+
+  noSqlInjection: {
+    recommendation: `
+      **Why it Matters**: NoSQL databases can still be compromised by malicious queries 
+      if user input is not properly sanitized.
+
+      **What to Do**:
+      1. **Use Parameterized Queries**: Use query builders or parameter bindings 
+         that separate query structure from data.
+      2. **Validate User Input**: Check for suspicious patterns like "$where" 
+         or "$regex" when building dynamic queries.
+
+      **Example**:
+      Instead of:
+        db.users.find({ $where: "this.password === '" + userInput + "'" });
+      Do:
+        db.users.find({ password: userSuppliedPassword });
+    `,
+    references: [
+      {
+        title: 'CWE-943: Improper Neutralization of Special Elements in Data Query Logic',
+        url: 'https://cwe.mitre.org/data/definitions/943.html',
+        description: 'Understanding NoSQL injection'
+      }
+    ],
+    cwe: '943'
+  },
+
+  sqlInjection: {
+    recommendation: `
+      **Why it Matters**: SQL injection can lead to database breaches, data loss, or 
+      complete system compromise.
+
+      **What to Do**:
+      1. **Use Parameterized Statements**: Rely on prepared statements or ORM methods.
+      2. **Never String-Concatenate**: Do not inline user input directly into SQL queries.
+
+      **Example**:
+      Instead of:
+        db.query("SELECT * FROM users WHERE id = " + userId);
+      Do:
+        db.query("SELECT * FROM users WHERE id = ?", [userId]);
+    `,
+    references: [
+      {
+        title: 'CWE-89: SQL Injection',
+        url: 'https://cwe.mitre.org/data/definitions/89.html',
+        description: 'Understanding SQL injection vulnerabilities'
+      },
+      {
+        title: 'OWASP SQL Injection Prevention',
+        url: 'https://owasp.org/www-community/attacks/SQL_Injection',
+        description: 'Comprehensive guide to preventing SQL injection'
+      }
+    ],
+    cwe: '89'
+  },
+
+  xssVulnerability: {
+    recommendation: `
+      **Why it Matters**: XSS (Cross-Site Scripting) allows attackers to run arbitrary 
+      scripts in the victim’s browser, stealing data or credentials.
+
+      **What to Do**:
+      1. **Escape/Encode Output**: Use proper output encoding or templating frameworks.
+      2. **Avoid Direct DOM Manipulation**: Use frameworks with built-in XSS protection 
+         (e.g., Angular, React).
+      3. **Enable CSP**: Content Security Policy can help limit script injection.
+
+      **Example**:
+      Instead of:
+        element.innerHTML = userInput;
+      Do:
+        element.textContent = userInput;
+        // or use a safe templating library
+    `,
+    references: [
+      {
+        title: 'CWE-79: Cross-site Scripting',
+        url: 'https://cwe.mitre.org/data/definitions/79.html',
+        description: 'Understanding XSS vulnerabilities'
+      },
+      {
+        title: 'OWASP XSS Prevention Cheat Sheet',
+        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html',
+        description: 'Detailed XSS prevention techniques'
+      }
+    ],
+    cwe: '79'
+  },
+
+  // CRYPTO ISSUES
+
+  weakCrypto: {
+    recommendation: `
+      **Why it Matters**: MD5 and SHA-1 are considered cryptographically weak, making it 
+      easier for attackers to generate collisions or brute force hashed data.
+
+      **What to Do**:
+      1. **Use Strong Hashes**: Upgrade to SHA-256 or better, along with salt and pepper 
+         if appropriate.
+      2. **Implement Key Management**: Rotate keys frequently and store them securely.
+
+      **Example**:
+      Instead of:
+        crypto.createHash('md5').update(data).digest('hex');
+      Do:
+        crypto.createHash('sha256').update(data).digest('hex');
+    `,
+    references: [
+      {
+        title: 'CWE-326: Inadequate Encryption Strength',
+        url: 'https://cwe.mitre.org/data/definitions/326.html',
+        description: 'Understanding cryptographic weaknesses'
+      }
+    ],
+    cwe: '326'
+  },
+
+  // ERROR HANDLING
+
+  sensitiveErrorInfo: {
+    recommendation: `
+      **Why it Matters**: Exposing full error messages or stack traces can reveal 
+      sensitive details (file paths, server configs, tokens) to attackers.
+
+      **What to Do**:
+      1. **Log Privately**: Keep detailed errors in server logs, not user-facing responses.
+      2. **Sanitize Outputs**: Return only a simple error message or code to the client.
+
+      **Example**:
+      Instead of:
+        res.send({ stack: err.stack });
+      Do:
+        console.error(err);
+        res.status(500).send({ error: "An unexpected error occurred." });
+    `,
+    references: [
+      {
+        title: 'CWE-209: Information Exposure Through an Error Message',
+        url: 'https://cwe.mitre.org/data/definitions/209.html',
+        description: 'Proper error handling practices'
+      }
+    ],
+    cwe: '209'
+  },
+
+  // INPUT VALIDATION
+
+  pathTraversal: {
+    recommendation: `
+      **Why it Matters**: Attackers can manipulate file paths to access system files 
+      outside intended directories, leading to sensitive data exposure or code execution.
+
+      **What to Do**:
+      1. **Canonicalize Paths**: Use path.resolve() or similar to ensure final paths 
+         remain within allowed directories.
+      2. **Filter Dangerous Patterns**: Block sequences like "../" in user-supplied filenames.
+
+      **Example**:
+      Instead of:
+        fs.readFileSync("../" + userInput);
+      Do:
+        const safePath = path.resolve(BASE_PATH, userInput);
+        fs.readFileSync(safePath);
+    `,
+    references: [
+      {
+        title: 'CWE-23: Relative Path Traversal',
+        url: 'https://cwe.mitre.org/data/definitions/23.html',
+        description: 'Understanding path traversal attacks'
+      }
+    ],
+    cwe: '23'
+  },
+
+  // RESOURCE MANAGEMENT
+
+  openRedirect: {
+    recommendation: `
+      **Why it Matters**: Open redirects can trick users into visiting malicious websites 
+      and facilitate phishing attacks.
+
+      **What to Do**:
+      1. **Use a Whitelist**: Only allow redirects to known/trusted URLs.
+      2. **Confirm Intent**: Show the user a confirmation page or message before redirecting.
+
+      **Example**:
+      Instead of:
+        res.redirect(req.query.returnUrl);
+      Do:
+        const allowed = ["https://trusteddomain.com"];
+        if (allowed.includes(req.query.returnUrl)) {
+          res.redirect(req.query.returnUrl);
+        } else {
+          res.redirect("/error");
+        }
+    `,
+    references: [
+      {
+        title: 'CWE-601: URL Redirection to Untrusted Site',
+        url: 'https://cwe.mitre.org/data/definitions/601.html',
+        description: 'Understanding open redirect vulnerabilities'
+      }
+    ],
+    cwe: '601'
+  },
+
+  // AUTHENTICATION
+
+  weakPasswordHash: {
+    recommendation: `
+      **Why it Matters**: Using weak or insufficiently costly hash functions makes it easier 
+      for attackers to brute-force passwords.
+
+      **What to Do**:
+      1. **Use Strong Password Hashing**: bcrypt (with a work factor ≥ 12), scrypt, PBKDF2, 
+         or Argon2.
+      2. **Salt & Pepper**: Ensure unique salts per password, and consider an application-wide 
+         pepper stored securely.
+
+      **Example**:
+      Instead of:
+        bcrypt.hash(password, 10);
+      Do:
+        bcrypt.hash(password, 12); // or more
+    `,
+    references: [
+      {
+        title: 'CWE-916: Use of Password Hash With Insufficient Computational Effort',
+        url: 'https://cwe.mitre.org/data/definitions/916.html',
+        description: 'Understanding password hashing security'
+      }
+    ],
+    cwe: '916'
+  },
+
+  missingAuth: {
+    recommendation: `
+      **Why it Matters**: Skipping or disabling authentication can open your app 
+      to unauthorized access.
+
+      **What to Do**:
+      1. **Always Require Auth**: Secure all endpoints handling sensitive data 
+         with authentication.
+      2. **Use Robust Frameworks**: Leverage libraries or frameworks that handle 
+         auth out of the box.
+
+      **Example**:
+      Instead of:
+        app.get("/admin", (req, res) => {...}); 
+      Do:
+        app.get("/admin", requireAuth, (req, res) => {...});
+    `,
+    references: [
+      {
+        title: 'CWE-306: Missing Authentication',
+        url: 'https://cwe.mitre.org/data/definitions/306.html',
+        description: 'Understanding missing authentication vulnerabilities'
+      }
+    ],
+    cwe: '306'
+  },
+
+  hardcodedCreds: {
+    recommendation: `
+      **Why it Matters**: Hardcoded credentials in source code can be found by 
+      attackers, giving direct access to privileged resources.
+
+      **What to Do**:
+      1. **Use Environment Variables**: Store secrets in env files or secret management 
+         systems (e.g., Vault, AWS Secrets Manager).
+      2. **Rotate Credentials**: If credentials leak, rotate them immediately 
+         and remove from code history.
+
+      **Example**:
+      Instead of:
+        const password = "supersecret123";
+      Do:
+        const password = process.env.DB_PASSWORD;
+    `,
+    references: [
+      {
+        title: 'CWE-798: Use of Hard-coded Credentials',
+        url: 'https://cwe.mitre.org/data/definitions/798.html',
+        description: 'Risks of hardcoded credentials'
+      },
+      {
+        title: 'OWASP Secure Configuration Guide',
+        url: 'https://owasp.org/www-project-secure-configuration-guide/',
+        description: 'Best practices for credential management'
+      }
+    ],
+    cwe: '798'
+  },
+
+  // MEMORY/BUFFER
+
+  bufferIssue: {
+    recommendation: `
+      **Why it Matters**: Using Buffer.allocUnsafe() or new Buffer() without length checks 
+      can lead to uninitialized memory exposure or buffer overflows.
+
+      **What to Do**:
+      1. **Use Secure Methods**: Use Buffer.alloc() instead of Buffer.allocUnsafe().
+      2. **Initialize & Validate**: Zero out or sanitize newly allocated buffers 
+         and validate input lengths.
+
+      **Example**:
+      Instead of:
+        let buff = new Buffer(size);
+      Do:
+        let buff = Buffer.alloc(size);
+    `,
+    references: [
+      {
+        title: 'CWE-119: Buffer Overflow',
+        url: 'https://cwe.mitre.org/data/definitions/119.html',
+        description: 'Understanding buffer overflow vulnerabilities'
+      },
+      {
+        title: 'Node.js Buffer API Security',
+        url: 'https://nodejs.org/api/buffer.html#buffer_buffer_alloc_size_fill_encoding',
+        description: 'Official Node.js documentation on secure buffer usage'
+      }
+    ],
+    cwe: '119'
+  },
+
+  memoryLeak: {
+    recommendation: `
+      **Why it Matters**: Memory leaks degrade application performance over time, 
+      possibly causing crashes or excessive resource consumption.
+
+      **What to Do**:
+      1. **Clean Up**: Track and clear intervals/timeouts when they're no longer needed.
+      2. **Use Lifecycle Hooks**: In front-end frameworks, unmount or remove event 
+         listeners, intervals, or timeouts properly.
+
+      **Example**:
+      Instead of:
+        setInterval(() => doSomething(), 1000);
+      Do:
+        const intervalId = setInterval(() => doSomething(), 1000);
+        // later
+        clearInterval(intervalId);
+    `,
+    references: [
+      {
+        title: 'CWE-401: Memory Leak',
+        url: 'https://cwe.mitre.org/data/definitions/401.html',
+        description: 'Understanding memory leak vulnerabilities'
+      }
+    ],
+    cwe: '401'
+  },
+
+  // DATA PROTECTION
+
+  sensitiveData: {
+    recommendation: `
+      **Why it Matters**: Logging or exposing credentials or other sensitive data 
+      can lead to account compromise if logs or code are leaked.
+
+      **What to Do**:
+      1. **Mask or Omit**: Never log full passwords, tokens, or keys. 
+         Store only hashed or partial data as needed.
+      2. **Encrypt at Rest**: If storing credentials, use strong encryption 
+         and secure key management.
+
+      **Example**:
+      Instead of:
+        console.log("Password:", password);
+      Do:
+        // Only log that a password was used, or hide it entirely
+        console.log("User password received.");
+    `,
+    references: [
+      {
+        title: 'CWE-200: Information Exposure',
+        url: 'https://cwe.mitre.org/data/definitions/200.html',
+        description: 'Understanding information exposure risks'
+      },
+      {
+        title: 'OWASP Sensitive Data Exposure',
+        url: 'https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure',
+        description: 'OWASP guide on protecting sensitive data'
+      }
+    ],
+    cwe: '200'
+  },
+
+  insecureTransmission: {
+    recommendation: `
+      **Why it Matters**: Sending data (passwords, tokens) over HTTP can be intercepted 
+      by attackers, leading to credential theft or session hijacking.
+
+      **What to Do**:
+      1. **Use HTTPS/TLS**: Secure all endpoints with TLS certificates.
+      2. **Enforce HSTS**: Implement HTTP Strict Transport Security to prevent 
+         downgrade attacks.
+
+      **Example**:
+      Instead of:
+        fetch('http://payment.example.com');
+      Do:
+        fetch('https://payment.example.com');
+    `,
+    references: [
+      {
+        title: 'CWE-319: Cleartext Transmission',
+        url: 'https://cwe.mitre.org/data/definitions/319.html',
+        description: 'Risks of cleartext data transmission'
+      },
+      {
+        title: 'OWASP Transport Layer Protection',
+        url: 'https://owasp.org/www-project-cheat-sheets/cheatsheets/Transport_Layer_Protection_Cheat_Sheet',
+        description: 'Best practices for secure data transmission'
+      }
+    ],
+    cwe: '319'
+  },
+
+  // NEW VULNERABILITIES
+
+  ssrfVulnerability: {
+    recommendation: `
+      **Why it Matters**: SSRF can let an attacker make internal network calls, 
+      access sensitive internal resources, or exploit internal services.
+
+      **What to Do**:
+      1. **Use URL Validation**: Check the domain against an allowlist. 
+         Block internal IP ranges, link-local addresses, etc.
+      2. **Limit HTTP Methods**: Restrict requests to GET if possible, 
+         and disallow redirects to internal networks.
+
+      **Example**:
+      Instead of:
+        axios.get(req.query.url);
+      Do:
+        // Validate or parse the provided URL, ensure it's whitelisted
+        if (isAllowedDomain(req.query.url)) {
+          axios.get(req.query.url);
+        }
+    `,
+    references: [
+      {
+        title: 'CWE-918: Server-Side Request Forgery',
+        url: 'https://cwe.mitre.org/data/definitions/918.html',
+        description: 'Details on SSRF vulnerabilities and best practices'
+      },
+      {
+        title: 'OWASP SSRF Prevention Cheat Sheet',
+        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html',
+        description: 'Guidelines to mitigate SSRF attacks'
+      }
+    ],
+    cwe: '918'
+  },
+
+  sessionFixation: {
+    recommendation: `
+      **Why it Matters**: Session fixation allows attackers to set a session ID 
+      for the victim, hijacking the session after authentication.
+
+      **What to Do**:
+      1. **Regenerate Session**: Upon login, create a new session ID.
+      2. **Avoid Session IDs in URLs**: Use secure cookies and do not accept session IDs 
+         from query parameters.
+
+      **Example**:
+      Instead of:
+        req.session.id = req.query.sessionId;
+      Do:
+        // In your login flow:
+        req.session.regenerate(() => {
+          // safe new session
         });
+    `,
+    references: [
+      {
+        title: 'CWE-384: Session Fixation',
+        url: 'https://cwe.mitre.org/data/definitions/384.html',
+        description: 'Understanding session fixation vulnerabilities'
       }
-    });
-
-    // Associate files with each fix type
-    Object.entries(findings || {}).forEach(([type, finding]) => {
-      const fix = fixes.find(f => f.type === type);
-      if (fix && finding.files) {
-        const consolidated = fixMap.get(fix.type);
-        finding.files.forEach(file => consolidated.affectedFiles.add(file));
-      }
-    });
-
-    return Array.from(fixMap.values());
-  }, [fixes, findings]);
-
-  const toggleSection = (type) => {
-    setExpandedSection(expandedSection === type ? null : type);
-  };
-
-  return (
-    <div className="space-y-6">
-      {consolidatedFixes.map((fix) => {
-        const isExpanded = expandedSection === fix.type;
-        const fileCount = fix.affectedFiles.size;
-        
-        return (
-          <div key={fix.type} className="overflow-hidden transition-all duration-200">
-            <button
-              onClick={() => toggleSection(fix.type)}
-              className="w-full text-left p-6 bg-white rounded-lg shadow-sm hover:bg-gray-50 transition-colors duration-200"
-            >
-              <div className="flex items-center justify-between">
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <h3 className="text-lg font-semibold text-gray-900">{fix.type}</h3>
-                      {fix.cwe && (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          CWE-{fix.cwe}
-                        </span>
-                      )}
-                      {fileCount > 0 && (
-                        <span className="text-sm text-gray-500">
-                          {fileCount} affected {fileCount === 1 ? 'file' : 'files'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-gray-600 pr-8">{fix.recommendation}</p>
-                </div>
-                <div className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                  <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Show affected files in a compact way when collapsed */}
-              {!isExpanded && fileCount > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {Array.from(fix.affectedFiles).slice(0, 3).map(file => (
-                    <span key={file} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
-                      {file.split('/').pop()}
-                    </span>
-                  ))}
-                  {fileCount > 3 && (
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
-                      +{fileCount - 3} more
-                    </span>
-                  )}
-                </div>
-              )}
-            </button>
-
-            {isExpanded && (
-              <div className="mt-2 space-y-4">
-                {/* Show full file list when expanded */}
-                {fileCount > 0 && (
-                  <div className="px-6 py-3 bg-gray-50 rounded-lg">
-                    <h4 className="text-sm font-medium text-gray-900 mb-2">Affected Files:</h4>
-                    <div className="space-y-1">
-                      {Array.from(fix.affectedFiles).map(file => (
-                        <div key={file} className="text-sm text-gray-600 font-mono">
-                          {file}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* References */}
-                {fix.references?.length > 0 && (
-                  <div className="space-y-2 px-2">
-                    {fix.references.map((ref, i) => (
-                      <a
-                        key={i}
-                        href={ref.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
-                      >
-                        <div className="flex items-start space-x-3">
-                          <Book className="h-5 w-5 text-blue-500 mt-0.5" />
-                          <div className="flex-1">
-                            <div className="font-medium text-blue-600 flex items-center">
-                              {ref.title}
-                              <ExternalLink className="h-3 w-3 ml-1" />
-                            </div>
-                            {ref.description && (
-                              <p className="mt-1 text-sm text-gray-600">{ref.description}</p>
-                            )}
-                          </div>
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+    ],
+    cwe: '384'
+  }
 };
-
-const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
-  const [selectedSeverity, setSelectedSeverity] = useState(null);
-
-  if (!results) return null;
-
-  const { summary, findings, recommendedFixes, rateLimit } = results;
-
-  return (
-    <div className="space-y-6">
-      {/* Rate Limit Info */}
-      {rateLimit && (
-        <div className="flex items-center justify-between p-4 bg-white rounded-lg">
-          <div className="flex items-center space-x-4">
-            <div className="text-sm text-gray-600">
-              API Calls Remaining: {rateLimit.remaining}/{rateLimit.limit}
-            </div>
-            <TimeToReset resetTimestamp={rateLimit.reset} />
-          </div>
-          {usedCache && !scanning && (
-            <button
-              onClick={onRefreshRequest}
-              className="flex items-center text-sm text-blue-600 hover:text-blue-800"
-              disabled={rateLimit.remaining === 0}
-            >
-              <RefreshCw className="h-4 w-4 mr-1" />
-              Refresh Scan
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Summary Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {Object.entries(severityConfig).map(([severity]) => (
-          <SeverityCard
-            key={severity}
-            severity={severity}
-            count={summary[`${severity.toLowerCase()}Issues`] || 0}
-            isSelected={selectedSeverity === severity}
-            onClick={() => setSelectedSeverity(selectedSeverity === severity ? null : severity)}
-          />
-        ))}
-      </div>
-
-      {/* Findings */}
-      <div className="space-y-4">
-        {Object.entries(findings).map(([type, finding]) => {
-          if (selectedSeverity && finding.severity !== selectedSeverity) {
-            return null;
-          }
-          return <FindingCard key={type} finding={finding} type={type} />;
-        })}
-      </div>
-
-      {/* References Section */}
-      {recommendedFixes?.length > 0 && (
-        <div className="bg-white rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            Security References & Mitigation
-          </h2>
-          <ReferencesSection fixes={recommendedFixes} findings={findings} />
-        </div>
-      )}
-
-      {/* Cache Notice */}
-      {usedCache && (
-        <div className="flex items-center justify-between p-4 bg-blue-50 text-blue-700 rounded-lg">
-          <div className="flex items-center">
-            <Info className="h-5 w-5 mr-2" />
-            Results are from cached data
-          </div>
-          {!scanning && (
-            <button
-              onClick={onRefreshRequest}
-              className="text-blue-600 hover:text-blue-800"
-              disabled={rateLimit?.remaining === 0}
-            >
-              Perform fresh scan
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default ScanResults;
