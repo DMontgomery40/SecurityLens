@@ -1,7 +1,7 @@
-const { Octokit } = require('@octokit/rest');
-const VulnerabilityScanner = require('../../src/lib/scanner').default;
+import { Octokit } from '@octokit/rest';
+import VulnerabilityScanner from '../../src/lib/scanner.js';
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return {
@@ -20,13 +20,24 @@ exports.handler = async (event) => {
       };
     }
 
-    // Initialize GitHub client (without token for now)
+    // Extract GitHub token from headers
+    const token = event.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ error: 'GitHub token is required' })
+      };
+    }
+
+    // Initialize GitHub client with token
     const octokit = new Octokit({
-      userAgent: 'plugin-vulnerability-scanner'
+      auth: token,
+      userAgent: 'security-lens-scanner'
     });
 
-    // Parse GitHub URL
-    const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/([^/]+))?\/?(.*)/;
+    // Parse GitHub URL - handle both /blob/ and /tree/ paths
+    const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/(?:blob|tree)\/([^/]+))?\/?(.*)/;
     const match = url.match(githubRegex);
     
     if (!match) {
@@ -85,7 +96,7 @@ exports.handler = async (event) => {
               }
             });
 
-            const fileContent = Buffer.from(content, 'base64').toString('utf8');
+            const fileContent = typeof content === 'string' ? content : Buffer.from(content).toString('utf8');
             const findings = await scanner.scanFile(fileContent, file.path);
             allFindings.push(...findings);
           } catch (error) {
@@ -113,6 +124,16 @@ exports.handler = async (event) => {
       };
 
     } catch (error) {
+      console.error('GitHub API error:', error);
+      
+      if (error.status === 401) {
+        return {
+          statusCode: 401,
+          body: JSON.stringify({
+            error: 'Invalid GitHub token. Please check your token and try again.'
+          })
+        };
+      }
       if (error.status === 403) {
         return {
           statusCode: 403,

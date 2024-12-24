@@ -6,12 +6,20 @@ class ApiError extends Error {
     }
 }
 
+import { authManager } from './githubAuth';
+
 export async function scanRepository(url) {
     try {
+        const token = authManager.getToken();
+        if (!token) {
+            throw new ApiError('GitHub token is required', 401);
+        }
+
         const response = await fetch('/.netlify/functions/scan-repository', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({ url })
         });
