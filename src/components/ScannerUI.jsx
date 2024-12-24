@@ -19,7 +19,7 @@ const ScannerUI = () => {
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [scanResults, setScanResults] = useState(null);
   const [usedCache, setUsedCache] = useState(false);
-  const [githubToken, setGithubToken] = useState(localStorage.getItem('gh_token') || '');
+  const [githubToken, setGithubToken] = useState(authManager.getToken() || '');
   const [showTokenDialog, setShowTokenDialog] = useState(false);
 
   const handleFileUpload = async (event) => {
@@ -123,8 +123,10 @@ const ScannerUI = () => {
     }
   }, [urlInput]);
 
-  const handleTokenSubmit = (token) => {
+  const handleTokenSubmit = async (token) => {
     if (!token) return;
+
+    setError(null);
 
     if (!authManager.isValidTokenFormat(token)) {
       setError('Invalid token format. Please ensure you\'ve copied the entire token.');
@@ -133,12 +135,18 @@ const ScannerUI = () => {
 
     try {
       authManager.setToken(token);
+      setGithubToken(token);
       setShowTokenDialog(false);
+      
+      // Only trigger scan if we have a URL
       if (urlInput) {
-        handleUrlScan();
+        await handleUrlScan();
       }
     } catch (error) {
+      console.error('Token submission error:', error);
       setError(error.message);
+      authManager.clearToken();
+      setGithubToken('');
     }
   };
 

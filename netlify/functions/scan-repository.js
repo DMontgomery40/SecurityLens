@@ -1,11 +1,27 @@
 import { Octokit } from '@octokit/rest';
 import VulnerabilityScanner from '../../src/lib/scanner.js';
 
-export const handler = async (event) => {
+export const handler = async (event, context) => {
+  // Enable CORS
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+
+  // Handle preflight requests
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 204,
+      headers
+    };
+  }
+
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers,
       body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
@@ -16,6 +32,7 @@ export const handler = async (event) => {
     if (!url) {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({ error: 'Repository URL is required' })
       };
     }
@@ -26,6 +43,7 @@ export const handler = async (event) => {
     if (!token) {
       return {
         statusCode: 401,
+        headers,
         body: JSON.stringify({ error: 'GitHub token is required' })
       };
     }
@@ -43,6 +61,7 @@ export const handler = async (event) => {
     if (!match) {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({ error: 'Invalid GitHub URL format' })
       };
     }
@@ -51,12 +70,13 @@ export const handler = async (event) => {
 
     try {
       // First check rate limit
-      const rateLimit = await octokit.rateLimit.get();
+      const rateLimit = await octokit.rest.rateLimit.get();
       console.log('Rate limit:', rateLimit.data.rate);
 
       if (rateLimit.data.rate.remaining === 0) {
         return {
           statusCode: 429,
+          headers,
           body: JSON.stringify({
             error: 'Rate limit exceeded',
             resetAt: new Date(rateLimit.data.rate.reset * 1000).toISOString()
@@ -72,7 +92,7 @@ export const handler = async (event) => {
       });
 
       // Get repository contents and scan them
-      const { data: contents } = await octokit.repos.getContent({
+      const { data: contents } = await octokit.rest.repos.getContent({
         owner,
         repo,
         path,
@@ -86,7 +106,7 @@ export const handler = async (event) => {
       for (const file of files) {
         if (file.type === 'file') {
           try {
-            const { data: content } = await octokit.repos.getContent({
+            const { data: content } = await octokit.rest.repos.getContent({
               owner,
               repo,
               path: file.path,
@@ -110,6 +130,7 @@ export const handler = async (event) => {
 
       return {
         statusCode: 200,
+        headers,
         body: JSON.stringify({
           files: files.map(f => ({
             name: f.name,
@@ -129,6 +150,7 @@ export const handler = async (event) => {
       if (error.status === 401) {
         return {
           statusCode: 401,
+          headers,
           body: JSON.stringify({
             error: 'Invalid GitHub token. Please check your token and try again.'
           })
@@ -137,6 +159,7 @@ export const handler = async (event) => {
       if (error.status === 403) {
         return {
           statusCode: 403,
+          headers,
           body: JSON.stringify({
             error: 'Access denied or rate limit exceeded. Try again later.'
           })
@@ -145,6 +168,7 @@ export const handler = async (event) => {
       if (error.status === 404) {
         return {
           statusCode: 404,
+          headers,
           body: JSON.stringify({
             error: 'Repository or path not found. Please check the URL.'
           })
@@ -156,6 +180,7 @@ export const handler = async (event) => {
     console.error('Scan error:', error);
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({
         error: 'Internal server error',
         details: error.message

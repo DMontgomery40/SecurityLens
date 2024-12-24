@@ -11,6 +11,16 @@
   node_bundler = "esbuild"
   included_files = ["src/lib/**"]
   external_node_modules = ["@octokit/rest"]
+
+[build.environment]
+  NODE_VERSION = "18"
+  
+[dev]
+  framework = "#custom"
+  command = "npm run dev"
+  targetPort = 5173
+  port = 8888
+  publish = "dist"
   
 [functions.scan-repository]
   timeout = 30 # Increase timeout to 30 seconds
