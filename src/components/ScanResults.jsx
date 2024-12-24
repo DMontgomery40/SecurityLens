@@ -12,83 +12,15 @@ import {
   Moon
 } from 'lucide-react';
 
-// Dark mode hook
+// Helper components
 const useDarkMode = () => {
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
-
+  const [darkMode, setDarkMode] = useState(false);
   useEffect(() => {
     const root = window.document.documentElement;
-    if (darkMode) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    darkMode ? root.classList.add('dark') : root.classList.remove('dark');
   }, [darkMode]);
-
   return [darkMode, setDarkMode];
 };
-
-const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
-  const [selectedSeverity, setSelectedSeverity] = useState(null);
-  const [darkMode, setDarkMode] = useDarkMode();
-
-  if (!results) return null;
-
-  const { summary, findings, recommendedFixes, rateLimit } = results;
-
-  // Rest of your safety checks...
-
-  return (
-    <div className="space-y-6 transition-colors duration-200 dark:bg-gray-900">
-      {/* Top Bar with Dark Mode Toggle and Cache/API Status */}
-      <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-        <div className="flex items-center space-x-6">
-          {/* Cache Notice */}
-          {usedCache && (
-            <div className="flex items-center text-blue-600 dark:text-blue-400">
-              <Info className="h-4 w-4 mr-2" />
-              <span className="text-sm">Using cached results</span>
-              {!scanning && (
-                <button
-                  onClick={onRefreshRequest}
-                  className="ml-3 text-sm hover:underline"
-                  disabled={rateLimit?.remaining === 0}
-                >
-                  Refresh
-                </button>
-              )}
-            </div>
-          )}
-          
-          {/* API Limits */}
-          {rateLimit && (
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600 dark:text-gray-300">
-                API: {rateLimit.remaining}/{rateLimit.limit}
-              </div>
-              <TimeToReset resetTimestamp={rateLimit.reset} />
-            </div>
-          )}
-        </div>
-
-        {/* Dark Mode Toggle */}
-        <button
-          onClick={() => setDarkMode(!darkMode)}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          aria-label="Toggle dark mode"
-        >
-          {darkMode ? (
-            <Sun className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-          ) : (
-            <Moon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-          )}
-        </button>
-      </div>
-
-      {/* Rest of your component with dark mode classes added... */}
 
 const severityConfig = {
   CRITICAL: {
@@ -402,301 +334,98 @@ const ReferencesSection = ({ fixes, findings }) => {
     </div>
   );
 };
-};
 
 const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
   const [selectedSeverity, setSelectedSeverity] = useState(null);
+  const [darkMode, setDarkMode] = useDarkMode();
 
   if (!results) return null;
 
   const { summary, findings, recommendedFixes, rateLimit } = results;
 
-  // Safety checks
-  if (!findings || typeof findings !== 'object') {
-    console.error('Invalid findings structure');
-    return (
-      <div className="p-4 bg-red-50 text-red-800 rounded-lg">
-        <div className="flex items-center space-x-2">
-          <AlertTriangle className="h-5 w-5" />
-          <span>Invalid scan results structure. Please try again.</span>
-        </div>
-      </div>
-    );
-  }
-
-  const safeRecommendedFixes = recommendedFixes && Array.isArray(recommendedFixes) 
-    ? recommendedFixes 
-    : [];
-
-  const consolidateFindings = (findings) => {
-    if (!findings || typeof findings !== 'object') return {};
-    
-    const consolidated = {};
-    
-    try {
-      Object.entries(findings).forEach(([category, subcategories]) => {
-        if (!subcategories || typeof subcategories !== 'object') return;
-        
-        Object.entries(subcategories).forEach(([subcategory, issues]) => {
-          if (!Array.isArray(issues)) return;
-          
-          issues.forEach(issue => {
-            if (!issue || !issue.type) return;
-            
-            const key = issue.type;
-            if (!consolidated[key]) {
-              consolidated[key] = {
-                ...issue,
-                files: [],
-                allLineNumbers: {}
-              };
-            }
-            consolidated[key].files.push(issue.file);
-            consolidated[key].allLineNumbers[issue.file] = issue.lineNumbers;
-          });
-        });
-      });
-    } catch (error) {
-      console.error('Error consolidating findings:', error);
-    }
-    
-    return consolidated;
-  };
-
-  const consolidatedFindings = consolidateFindings(findings);
-  const filteredFindings = selectedSeverity
-    ? Object.entries(consolidatedFindings).filter(([_, finding]) => finding.severity === selectedSeverity)
-    : Object.entries(consolidatedFindings);
-
   return (
-    <div className="space-y-8">
-      {/* Status Bar */}
+    <div className="space-y-6 transition-colors duration-200 dark:bg-gray-900">
+      {/* Rate Limit Info */}
       {rateLimit && (
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-6">
-              <div className="flex items-center space-x-2">
-                <Info className="h-4 w-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-600">
-                  API Calls: {rateLimit.remaining}/{rateLimit.limit}
-                </span>
-              </div>
-              <TimeToReset resetTimestamp={rateLimit.reset} />
+        <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg">
+          <div className="flex items-center space-x-4">
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              API Calls Remaining: {rateLimit.remaining}/{rateLimit.limit}
             </div>
-            {usedCache && !scanning && (
-              <button
-                onClick={onRefreshRequest}
-                disabled={rateLimit.remaining === 0}
-                className="
-                  flex items-center px-3 py-1.5 text-sm font-medium
-                  text-blue-600 hover:text-blue-700
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                  transition-colors duration-150
-                "
-              >
-                <RefreshCw className={`h-4 w-4 mr-1.5 ${scanning ? 'animate-spin' : ''}`} />
-                Refresh Scan
-              </button>
-            )}
+            <TimeToReset resetTimestamp={rateLimit.reset} />
           </div>
+          {usedCache && !scanning && (
+            <button
+              onClick={onRefreshRequest}
+              className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+              disabled={rateLimit.remaining === 0}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Refresh Scan
+            </button>
+          )}
         </div>
       )}
 
       {/* Summary Grid */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Issues Summary</h2>
-          {selectedSeverity && (
-            <button
-              onClick={() => setSelectedSeverity(null)}
-              className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              <Filter className="h-4 w-4" />
-              <span>Clear Filter</span>
-            </button>
-          )}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(severity => {
-            const count = summary[`${severity.toLowerCase()}Issues`] || 0;
-            const config = severityConfig[severity];
-            const Icon = config.icon;
-            
-            return (
-              <button
-                key={severity}
-                onClick={() => setSelectedSeverity(selectedSeverity === severity ? null : severity)}
-                className={`
-                  relative w-full rounded-xl p-6 transition-all duration-200
-                  ${selectedSeverity === severity ? 
-                    `${config.bg} dark:bg-gray-800 ring-2 ${config.color.replace('text', 'ring')}` : 
-                    'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'}
-                  group
-                `}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <div className="text-3xl font-bold dark:text-white">
-                      {count}
-                    </div>
-                    <div className="text-sm font-medium flex items-center space-x-2">
-                      <Icon className={`h-4 w-4 ${config.color}`} />
-                      <span className="dark:text-gray-300">{severity}</span>
-                    </div>
-                  </div>
-                  {count > 0 && (
-                    <div className={`
-                      opacity-0 group-hover:opacity-100 transition-opacity
-                      text-sm font-medium ${config.color}
-                    `}>
-                      {selectedSeverity === severity ? 'Clear Filter' : 'Show Only'}
-                    </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {Object.entries(severityConfig).map(([severity]) => (
+          <SeverityCard
+            key={severity}
+            severity={severity}
+            count={summary[`${severity.toLowerCase()}Issues`] || 0}
+            isSelected={selectedSeverity === severity}
+            onClick={() => setSelectedSeverity(selectedSeverity === severity ? null : severity)}
+          />
+        ))}
       </div>
 
-      {/* Findings Section */}
-      {filteredFindings.length > 0 ? (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {selectedSeverity ? `${selectedSeverity} Issues` : 'All Issues'}
-          </h2>
-          <div className="space-y-4">
-            {filteredFindings.map(([type, finding]) => {
-              const config = severityConfig[finding.severity];
-              const Icon = config.icon;
-
-              return (
-                <div 
-                  key={type} 
-                  className={`
-                    rounded-lg overflow-hidden 
-                    ${config.lightBg} dark:bg-gray-800
-                    ${config.hoverBg} dark:hover:bg-gray-700 
-                    transition-colors duration-200
-                  `}
-                >
-                  <div className="p-6">
-                    <div className="flex items-start space-x-4">
-                      <div className="bg-white/50 dark:bg-gray-700 p-2 rounded-lg">
-                        <Icon className={`h-5 w-5 ${config.color}`} />
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-4">
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                              {type}
-                            </h3>
-                            {finding.subcategory && (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                                CWE-{finding.subcategory}
-                              </span>
-                            )}
-                          </div>
-                          <p className="mt-1 text-gray-600 dark:text-gray-300">
-                            {finding.description}
-                          </p>
-                        </div>
-
-                        {/* Affected Files */}
-                        {Object.entries(finding.allLineNumbers).length > 0 && (
-                          <div className="space-y-3">
-                            <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                              <Info className="h-4 w-4" />
-                              <span>Affected Files</span>
-                            </div>
-                            <div className="space-y-2">
-                              {Object.entries(finding.allLineNumbers).map(([file, lines]) => (
-                                <div key={file} className="rounded-md bg-white/50 dark:bg-gray-700/50 p-3 font-mono text-sm">
-                                  <div className="flex items-start justify-between">
-                                    <div className="font-medium text-gray-900 dark:text-gray-100">
-                                      {file}
-                                    </div>
-                                    {lines?.length > 0 && (
-                                      <div className="text-gray-500 dark:text-gray-400 ml-4">
-                                        Line{lines.length > 1 ? 's' : ''}: {lines.join(', ')}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Recommendation */}
-                        {finding.recommendation && (
-                          <div className="bg-white/80 dark:bg-gray-700/50 rounded-lg p-4 text-gray-800 dark:text-gray-200">
-                            <div className="flex space-x-2">
-                              <Info className="h-4 w-4 mt-1 flex-shrink-0" />
-                              <p>{finding.recommendation}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <div className="space-y-3">
-            <div className="text-gray-400 dark:text-gray-500">
-              <Filter className="h-12 w-12 mx-auto" />
-            </div>
-            <div className="text-gray-500 dark:text-gray-400">
-              No issues found{selectedSeverity ? ` with ${selectedSeverity} severity` : ''}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Findings */}
+      <div className="space-y-4">
+        {Object.entries(findings).map(([type, finding]) => {
+          if (selectedSeverity && finding.severity !== selectedSeverity) {
+            return null;
+          }
+          return <FindingCard key={type} finding={finding} type={type} />;
+        })}
+      </div>
 
       {/* References Section */}
-      {safeRecommendedFixes.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-50 dark:bg-blue-900 rounded-lg">
-              <Shield className="h-5 w-5 text-blue-500 dark:text-blue-400" />
-            </div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Security References & Mitigation
-            </h2>
-          </div>
-          <ReferencesSection fixes={safeRecommendedFixes} findings={consolidatedFindings} />
+      {recommendedFixes?.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+          <h2 className="text-xl font-semibold mb-4 dark:text-white">
+            Security References & Mitigation
+          </h2>
+          <ReferencesSection fixes={recommendedFixes} findings={findings} />
         </div>
       )}
 
       {/* Cache Notice */}
       {usedCache && (
-        <div className="bg-blue-50 text-blue-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Info className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span>Results are from cached data</span>
-            </div>
-            {!scanning && (
-              <button
-                onClick={onRefreshRequest}
-                className="
-                  ml-4 px-3 py-1.5 text-sm font-medium bg-blue-100 
-                  hover:bg-blue-200 rounded-md transition-colors
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                "
-                disabled={rateLimit?.remaining === 0}
-              >
-                Perform fresh scan
-              </button>
-            )}
+        <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-200 rounded-lg">
+          <div className="flex items-center">
+            <Info className="h-5 w-5 mr-2" />
+            Results are from cached data
           </div>
+          {!scanning && (
+            <button
+              onClick={onRefreshRequest}
+              className="text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-100"
+              disabled={rateLimit?.remaining === 0}
+            >
+              Perform fresh scan
+            </button>
+          )}
         </div>
       )}
+
+      {/* Dark Mode Toggle */}
+      <button
+        onClick={() => setDarkMode(!darkMode)}
+        className="fixed bottom-4 right-4 p-3 bg-white dark:bg-gray-800 rounded-full shadow-lg"
+      >
+        {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+      </button>
     </div>
   );
 };
