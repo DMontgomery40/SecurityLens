@@ -143,7 +143,7 @@ const ScannerUI = () => {
   };
 
   return (
-    <div className="p-8 bg-gray-100 min-h-screen">
+    <div className="p-8 bg-white min-h-screen">
       {/* Main Input Section */}
       <div className="max-w-3xl mx-auto mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-4 flex items-center">
@@ -152,7 +152,7 @@ const ScannerUI = () => {
         </h1>
 
         {/* URL Input Section */}
-        <div className="bg-white p-6 rounded-lg shadow-sm mb-4">
+        <div className="bg-gray-50 p-6 rounded-lg shadow-sm mb-4">
           <h2 className="text-lg font-semibold text-gray-700 mb-4">Scan Repository</h2>
           <div className="flex gap-4">
             <input
@@ -177,7 +177,7 @@ const ScannerUI = () => {
         </div>
 
         {/* File Upload Section */}
-        <div className="bg-white p-6 rounded-lg shadow-sm">
+        <div className="bg-gray-50 p-6 rounded-lg shadow-sm">
           <h2 className="text-lg font-semibold text-gray-700 mb-4">Scan Local Files</h2>
           <div className="flex justify-center">
             <input
@@ -262,7 +262,7 @@ const ScannerUI = () => {
         )}
 
         {!githubToken && (
-          <div className="bg-white p-6 rounded-lg shadow-sm mb-4">
+          <div className="bg-gray-50 p-6 rounded-lg shadow-sm mb-4">
             <h2 className="text-lg font-semibold text-gray-700 mb-4">GitHub Access Token</h2>
             <p className="text-sm text-gray-600 mb-4">
               To scan repositories, you'll need a GitHub personal access token. 
