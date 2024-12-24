@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import VulnerabilityScanner from '../../src/lib/scanner.js';
 
+
 export const handler = async (event, context) => {
   // Enable CORS
   const headers = {
@@ -51,7 +52,11 @@ export const handler = async (event, context) => {
     // Initialize GitHub client with token
     const octokit = new Octokit({
       auth: token,
-      userAgent: 'security-lens-scanner'
+      userAgent: 'security-lens-scanner',
+      baseUrl: 'https://api.github.com',
+      request: {
+        timeout: 25000
+      }
     });
 
     // Parse GitHub URL - handle both /blob/ and /tree/ paths
@@ -69,7 +74,10 @@ export const handler = async (event, context) => {
     const [, owner, repo, branch = 'main', path = ''] = match;
 
     try {
-      // First check rate limit
+      // First verify the token works by getting the authenticated user
+      await octokit.rest.users.getAuthenticated();
+
+      // Then check rate limit
       const rateLimit = await octokit.rest.rateLimit.get();
       console.log('Rate limit:', rateLimit.data.rate);
 
@@ -85,7 +93,7 @@ export const handler = async (event, context) => {
       }
 
       // Initialize scanner
-      const scanner = new VulnerabilityScanner({
+      const scannerInstance = new VulnerabilityScanner({
         enableNewPatterns: true,
         enablePackageScanners: true,
         octokit
@@ -117,7 +125,7 @@ export const handler = async (event, context) => {
             });
 
             const fileContent = typeof content === 'string' ? content : Buffer.from(content).toString('utf8');
-            const findings = await scanner.scanFile(fileContent, file.path);
+            const findings = await scannerInstance.scanFile(fileContent, file.path);
             allFindings.push(...findings);
           } catch (error) {
             console.error(`Error scanning file ${file.path}:`, error);
@@ -126,7 +134,7 @@ export const handler = async (event, context) => {
       }
 
       // Generate report
-      const report = scanner.generateReport(allFindings);
+      const report = scannerInstance.generateReport(allFindings);
 
       return {
         statusCode: 200,
