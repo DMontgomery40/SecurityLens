@@ -7,20 +7,8 @@ import {
   RefreshCw, 
   Clock,
   ExternalLink,
-  Book,
-  Sun,
-  Moon
+  Book
 } from 'lucide-react';
-
-// Helper components
-const useDarkMode = () => {
-  const [darkMode, setDarkMode] = useState(false);
-  useEffect(() => {
-    const root = window.document.documentElement;
-    darkMode ? root.classList.add('dark') : root.classList.remove('dark');
-  }, [darkMode]);
-  return [darkMode, setDarkMode];
-};
 
 const severityConfig = {
   CRITICAL: {
@@ -238,29 +226,29 @@ const ReferencesSection = ({ fixes, findings }) => {
           <div key={fix.type} className="overflow-hidden transition-all duration-200">
             <button
               onClick={() => toggleSection(fix.type)}
-              className="w-full text-left p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+              className="w-full text-left p-6 bg-white rounded-lg shadow-sm hover:bg-gray-50 transition-colors duration-200"
             >
               <div className="flex items-center justify-between">
                 <div className="space-y-1 flex-1">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{fix.type}</h3>
+                      <h3 className="text-lg font-semibold text-gray-900">{fix.type}</h3>
                       {fix.cwe && (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           CWE-{fix.cwe}
                         </span>
                       )}
                       {fileCount > 0 && (
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                        <span className="text-sm text-gray-500">
                           {fileCount} affected {fileCount === 1 ? 'file' : 'files'}
                         </span>
                       )}
                     </div>
                   </div>
-                  <p className="text-gray-600 dark:text-gray-300 pr-8">{fix.recommendation}</p>
+                  <p className="text-gray-600 pr-8">{fix.recommendation}</p>
                 </div>
                 <div className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                  <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
@@ -270,12 +258,12 @@ const ReferencesSection = ({ fixes, findings }) => {
               {!isExpanded && fileCount > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {Array.from(fix.affectedFiles).slice(0, 3).map(file => (
-                    <span key={file} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                    <span key={file} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
                       {file.split('/').pop()}
                     </span>
                   ))}
                   {fileCount > 3 && (
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
                       +{fileCount - 3} more
                     </span>
                   )}
@@ -287,11 +275,11 @@ const ReferencesSection = ({ fixes, findings }) => {
               <div className="mt-2 space-y-4">
                 {/* Show full file list when expanded */}
                 {fileCount > 0 && (
-                  <div className="px-6 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Affected Files:</h4>
+                  <div className="px-6 py-3 bg-gray-50 rounded-lg">
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">Affected Files:</h4>
                     <div className="space-y-1">
                       {Array.from(fix.affectedFiles).map(file => (
-                        <div key={file} className="text-sm text-gray-600 dark:text-gray-300 font-mono">
+                        <div key={file} className="text-sm text-gray-600 font-mono">
                           {file}
                         </div>
                       ))}
@@ -308,17 +296,17 @@ const ReferencesSection = ({ fixes, findings }) => {
                         href={ref.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+                        className="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
                       >
                         <div className="flex items-start space-x-3">
-                          <Book className="h-5 w-5 text-blue-500 dark:text-blue-400 mt-0.5" />
+                          <Book className="h-5 w-5 text-blue-500 mt-0.5" />
                           <div className="flex-1">
-                            <div className="font-medium text-blue-600 dark:text-blue-400 flex items-center">
+                            <div className="font-medium text-blue-600 flex items-center">
                               {ref.title}
                               <ExternalLink className="h-3 w-3 ml-1" />
                             </div>
                             {ref.description && (
-                              <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{ref.description}</p>
+                              <p className="mt-1 text-sm text-gray-600">{ref.description}</p>
                             )}
                           </div>
                         </div>
@@ -337,19 +325,18 @@ const ReferencesSection = ({ fixes, findings }) => {
 
 const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
   const [selectedSeverity, setSelectedSeverity] = useState(null);
-  const [darkMode, setDarkMode] = useDarkMode();
 
   if (!results) return null;
 
   const { summary, findings, recommendedFixes, rateLimit } = results;
 
   return (
-    <div className="space-y-6 transition-colors duration-200 dark:bg-gray-900">
+    <div className="space-y-6">
       {/* Rate Limit Info */}
       {rateLimit && (
-        <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg">
+        <div className="flex items-center justify-between p-4 bg-white rounded-lg">
           <div className="flex items-center space-x-4">
-            <div className="text-sm text-gray-600 dark:text-gray-300">
+            <div className="text-sm text-gray-600">
               API Calls Remaining: {rateLimit.remaining}/{rateLimit.limit}
             </div>
             <TimeToReset resetTimestamp={rateLimit.reset} />
@@ -392,8 +379,8 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
 
       {/* References Section */}
       {recommendedFixes?.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4 dark:text-white">
+        <div className="bg-white rounded-lg p-6">
+          <h2 className="text-xl font-semibold mb-4">
             Security References & Mitigation
           </h2>
           <ReferencesSection fixes={recommendedFixes} findings={findings} />
@@ -402,7 +389,7 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
 
       {/* Cache Notice */}
       {usedCache && (
-        <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-200 rounded-lg">
+        <div className="flex items-center justify-between p-4 bg-blue-50 text-blue-700 rounded-lg">
           <div className="flex items-center">
             <Info className="h-5 w-5 mr-2" />
             Results are from cached data
@@ -410,7 +397,7 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
           {!scanning && (
             <button
               onClick={onRefreshRequest}
-              className="text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-100"
+              className="text-blue-600 hover:text-blue-800"
               disabled={rateLimit?.remaining === 0}
             >
               Perform fresh scan
@@ -418,14 +405,6 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
           )}
         </div>
       )}
-
-      {/* Dark Mode Toggle */}
-      <button
-        onClick={() => setDarkMode(!darkMode)}
-        className="fixed bottom-4 right-4 p-3 bg-white dark:bg-gray-800 rounded-full shadow-lg"
-      >
-        {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-      </button>
     </div>
   );
 };
