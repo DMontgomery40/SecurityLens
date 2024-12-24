@@ -128,11 +128,11 @@ const SeverityCard = ({ severity, count, isSelected, onClick }) => {
 };
 
 const FindingCard = ({ finding, type }) => {
-  const config = severityConfig[finding.severity];
+  const config = severityConfig[finding.severity] || severityConfig.LOW; // Fallback to LOW if severity not found
   const Icon = config.icon;
 
   return (
-    <div className={`rounded-lg overflow-hidden ${config.lightBg} ${config.hoverBg} transition-colors duration-200`}>
+    <div className={`rounded-lg overflow-hidden ${config.lightBg || ''} ${config.hoverBg || ''} transition-colors duration-200`}>
       <div className="p-6">
         <div className="flex items-start space-x-4">
           <div className="bg-white/50 p-2 rounded-lg">

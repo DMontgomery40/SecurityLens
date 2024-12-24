@@ -190,90 +190,81 @@ class VulnerabilityScanner {
 
         console.log(`Active patterns: ${Object.keys(this.vulnerabilityPatterns).length}`);
 
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Pattern matching timeout')), this.config.patternTimeout);
-        });
-
         try {
-            await Promise.race([
-                (async () => {
-                    // Package scanners
-                    if (this.config.enablePackageScanners) {
-                        for (const [pattern, type] of Object.entries(PACKAGE_FILE_PATTERNS)) {
-                            if (filePath.toLowerCase().endsWith(pattern.toLowerCase())) {
-                                console.log(`Found package file match: ${pattern} -> ${type}`);
-                                const scanner = getScannerForFile(type);
-                                if (scanner) {
-                                    const packageFindings = await scanner.scan(filePath, fileContent);
-                                    console.log(`Package scanner found ${packageFindings.length} issues`);
-                                    findings.push(...packageFindings);
-                                }
-                                break;
+            // Package scanners
+            if (this.config.enablePackageScanners) {
+                for (const [pattern, type] of Object.entries(PACKAGE_FILE_PATTERNS)) {
+                    if (filePath.toLowerCase().endsWith(pattern.toLowerCase())) {
+                        console.log(`Found package file match: ${pattern} -> ${type}`);
+                        const scanner = getScannerForFile(type);
+                        if (scanner) {
+                            const packageFindings = await scanner.scan(filePath, fileContent);
+                            console.log(`Package scanner found ${packageFindings.length} issues`);
+                            findings.push(...packageFindings);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Pattern scanning with chunking for large files
+            const chunkSize = 100000; // 100KB chunks
+            const totalChunks = Math.ceil(fileContent.length / chunkSize);
+            let processedChunks = 0;
+
+            if (this.config.onProgress) {
+                this.config.onProgress.setTotal(totalChunks);
+            }
+
+            for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
+                try {
+                    const regex = new RegExp(vulnInfo.pattern, 'g');
+                    let matches = [];
+                    
+                    // Process large files in chunks
+                    if (fileContent.length > chunkSize) {
+                        for (let i = 0; i < fileContent.length; i += chunkSize) {
+                            const chunk = fileContent.slice(i, i + chunkSize);
+                            const chunkMatches = chunk.match(regex) || [];
+                            matches.push(...chunkMatches);
+                            
+                            // Increment and update progress
+                            processedChunks++;
+                            if (this.config.onProgress) {
+                                this.config.onProgress.increment();
                             }
                         }
-                    }
-
-                    // Pattern scanning with chunking for large files
-                    const chunkSize = 100000; // 100KB chunks
-                    const totalChunks = Math.ceil(fileContent.length / chunkSize);
-                    let processedChunks = 0;
-
-                    if (this.config.onProgress) {
-                        this.config.onProgress.setTotal(totalChunks);
-                    }
-
-                    for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
-                        try {
-                            const regex = new RegExp(vulnInfo.pattern, 'g');
-                            let matches = [];
-                            
-                            // Process large files in chunks
-                            if (fileContent.length > chunkSize) {
-                                for (let i = 0; i < fileContent.length; i += chunkSize) {
-                                    const chunk = fileContent.slice(i, i + chunkSize);
-                                    const chunkMatches = chunk.match(regex) || [];
-                                    matches.push(...chunkMatches);
-                                    
-                                    // Increment and update progress
-                                    processedChunks++;
-                                    if (this.config.onProgress) {
-                                        this.config.onProgress.increment();
-                                    }
-                                }
-                            } else {
-                                matches = fileContent.match(regex) || [];
-                                // Single chunk for small files
-                                processedChunks++;
-                                if (this.config.onProgress) {
-                                    this.config.onProgress.increment();
-                                }
-                            }
-                            
-                            if (matches.length > 0) {
-                                console.log(`Found ${matches.length} matches for pattern: ${vulnType}`);
-                                findings.push({
-                                    ...vulnInfo,
-                                    type: vulnType,
-                                    file: filePath,
-                                    occurrences: matches.length,
-                                    lineNumbers: this.findLineNumbers(fileContent, vulnInfo.pattern),
-                                    recommendation: recommendations[vulnType]?.recommendation || 'Review and fix the identified issue',
-                                    references: recommendations[vulnType]?.references || [],
-                                    cwe: recommendations[vulnType]?.cwe,
-                                    scannerType: 'pattern'
-                                });
-                            }
-                        } catch (error) {
-                            console.error(`Error analyzing pattern ${vulnType}:`, error);
+                    } else {
+                        matches = fileContent.match(regex) || [];
+                        // Single chunk for small files
+                        processedChunks++;
+                        if (this.config.onProgress) {
+                            this.config.onProgress.increment();
                         }
                     }
-
-                    if (this.config.onProgress) {
-                        this.config.onProgress.complete();
+                    
+                    if (matches.length > 0) {
+                        console.log(`Found ${matches.length} matches for pattern: ${vulnType}`);
+                        findings.push({
+                            ...vulnInfo,
+                            type: vulnType,
+                            file: filePath,
+                            occurrences: matches.length,
+                            lineNumbers: this.findLineNumbers(fileContent, vulnInfo.pattern),
+                            recommendation: recommendations[vulnType]?.recommendation || 'Review and fix the identified issue',
+                            references: recommendations[vulnType]?.references || [],
+                            cwe: recommendations[vulnType]?.cwe,
+                            scannerType: 'pattern'
+                        });
                     }
-                })(),
-                timeoutPromise
-            ]);
+                } catch (error) {
+                    console.error(`Error analyzing pattern ${vulnType}:`, error);
+                }
+            }
+
+            if (this.config.onProgress) {
+                this.config.onProgress.complete();
+            }
         } catch (error) {
             if (error.message === 'Pattern matching timeout') {
                 console.warn(`Pattern matching timeout for ${filePath} after ${this.config.patternTimeout}ms`);
@@ -317,8 +308,24 @@ class VulnerabilityScanner {
     }
 
     generateReport(findings) {
-        const categorizedFindings = this.findingsByCategory(findings);
-        
+        // Group findings by type
+        const groupedFindings = findings.reduce((acc, finding) => {
+            if (!acc[finding.type]) {
+                acc[finding.type] = {
+                    severity: finding.severity,
+                    description: finding.description,
+                    category: finding.category,
+                    subcategory: finding.subcategory,
+                    allLineNumbers: {},
+                };
+            }
+            // Aggregate line numbers by file
+            if (finding.file && finding.lineNumbers) {
+                acc[finding.type].allLineNumbers[finding.file] = finding.lineNumbers;
+            }
+            return acc;
+        }, {});
+
         return {
             summary: {
                 totalIssues: findings.length,
@@ -327,7 +334,7 @@ class VulnerabilityScanner {
                 mediumIssues: findings.filter(f => f.severity === 'MEDIUM').length,
                 lowIssues: findings.filter(f => f.severity === 'LOW').length
             },
-            findings: categorizedFindings,
+            findings: groupedFindings,
             recommendedFixes: this.generateRecommendations(findings),
             rateLimit: this.rateLimitInfo
         };

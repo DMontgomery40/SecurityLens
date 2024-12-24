@@ -53,9 +53,22 @@ const ScannerUI = () => {
         }
       }
 
-      const results = scanner.generateReport(allFindings);
+      // Process findings to ensure proper structure
+      const processedFindings = allFindings.map(finding => ({
+        ...finding,
+        severity: finding.severity || 'LOW',
+        description: finding.description || 'No description provided',
+        allLineNumbers: { [finding.file]: finding.lineNumbers || [] }
+      }));
+
+      const results = scanner.generateReport(processedFindings);
       setScanResults(results);
-      setSuccessMessage(`Scan complete! Found ${allFindings.length} potential vulnerabilities.`);
+      
+      const { criticalIssues = 0, highIssues = 0, mediumIssues = 0, lowIssues = 0 } = results.summary || {};
+      setSuccessMessage(
+        `Scan complete! Found ${processedFindings.length} potential vulnerabilities ` +
+        `(${criticalIssues} critical, ${highIssues} high, ${mediumIssues} medium, ${lowIssues} low)`
+      );
     } catch (err) {
       setError(err.message);
     } finally {
