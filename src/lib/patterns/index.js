@@ -1,19 +1,19 @@
 // Add category structure
 export const patternCategories = {
-    CRITICAL_EXECUTION: '94',  // Code injection/execution
-    AUTHENTICATION: '287',     // Auth bypass/missing auth
-    INJECTION: '74',           // Various injection types (SQL, Command, etc)
-    CRYPTO_ISSUES: '310',      // Cryptographic/encryption issues
-    MEMORY_BUFFER: '119',      // Buffer/memory issues
-    DATA_PROTECTION: '200',    // Sensitive data exposure
-    INPUT_VALIDATION: '20',    // Input validation issues
-    ERROR_HANDLING: '389',     // Error handling & logging
-    ACCESS_CONTROL: '264',     // Permission & privilege issues
-    RESOURCE_MGMT: '399',      // Resource management & leaks
+  CRITICAL_EXECUTION: '94',    // Code injection/execution
+  AUTHENTICATION: '287',       // Auth bypass/missing auth
+  INJECTION: '74',             // Various injection types (SQL, Command, etc)
+  CRYPTO_ISSUES: '310',        // Cryptographic/encryption issues
+  MEMORY_BUFFER: '119',        // Buffer/memory issues
+  DATA_PROTECTION: '200',      // Sensitive data exposure
+  INPUT_VALIDATION: '20',      // Input validation issues
+  ERROR_HANDLING: '389',       // Error handling & logging
+  ACCESS_CONTROL: '264',       // Permission & privilege issues
+  RESOURCE_MGMT: '399',        // Resource management & leaks
 
-    // New Categories
-    SSRF: '918',               // Server-Side Request Forgery
-    SESSION_MANAGEMENT: '384'  // Session management issues
+  // New Categories
+  SSRF: '918',                 // Server-Side Request Forgery
+  SESSION_MANAGEMENT: '384'    // Session management issues
 };
 
 // Modify core patterns structure
@@ -198,7 +198,22 @@ export const enhancedPatterns = {
 export const recommendations = {
     // New recommendations for enhanced patterns
     deserializationVuln: {
-        recommendation: 'Validate and sanitize data before deserialization. Use safe alternatives like JSON.parse with input validation.',
+        recommendation: `
+      **Why it Matters**: Deserializing untrusted data can allow attackers to instantiate 
+      malicious objects or execute arbitrary code.
+
+      **What to Do**:
+      1. **Validate and Sanitize**: Check all incoming data before parsing or deserializing.
+      2. **Use Safe Formats**: Prefer well-defined data structures like protocol buffers, 
+         or use JSON with strict schema validation.
+
+      **Example**: 
+      Instead of:
+        unserialize(userInput);
+      Do:
+        // Validate userInput, then parse safe JSON
+        const safeData = JSON.parse(userInput);
+    `,
         references: [
             {
                 title: 'CWE-502: Deserialization of Untrusted Data',
@@ -209,7 +224,22 @@ export const recommendations = {
         cwe: '502'
     },
     insecureDirectObjectRef: {
-        recommendation: 'Implement proper access controls and validate user permissions before accessing objects.',
+        recommendation: `
+      **Why it Matters**: Attackers can manipulate object IDs (e.g., userId, fileId) to 
+      gain unauthorized access to sensitive resources.
+
+      **What to Do**:
+      1. **Enforce Access Checks**: Use server-side verification to confirm the requesting 
+         user has permission to the requested resource.
+      2. **Use Opaque References**: Avoid exposing direct IDs in URLs or user-visible areas.
+
+      **Example**:
+      Instead of:
+        const document = Documents.find(req.query.docId);
+      Do:
+        const doc = Documents.find(req.query.docId);
+        if (doc.owner !== currentUser.id) throw 'Unauthorized';
+    `,
         references: [
             {
                 title: 'CWE-639: Authorization Bypass Through User-Controlled Key',
@@ -220,7 +250,22 @@ export const recommendations = {
         cwe: '639'
     },
     noSqlInjection: {
-        recommendation: 'Use parameterized queries and validate user input before using it in NoSQL operations.',
+        recommendation: `
+      **Why it Matters**: NoSQL databases can still be compromised by malicious queries 
+      if user input is not properly sanitized.
+
+      **What to Do**:
+      1. **Use Parameterized Queries**: Use query builders or parameter bindings 
+         that separate query structure from data.
+      2. **Validate User Input**: Check for suspicious patterns like "$where" 
+         or "$regex" when building dynamic queries.
+
+      **Example**:
+      Instead of:
+        db.users.find({ $where: "this.password === '" + userInput + "'" });
+      Do:
+        db.users.find({ password: userSuppliedPassword });
+    `,
         references: [
             {
                 title: 'CWE-943: Improper Neutralization of Special Elements in Data Query Logic',
@@ -231,7 +276,21 @@ export const recommendations = {
         cwe: '943'
     },
     weakCrypto: {
-        recommendation: 'Use strong cryptographic functions (SHA-256 or better) and proper key management.',
+        recommendation: `
+      **Why it Matters**: MD5 and SHA-1 are considered cryptographically weak, making it 
+      easier for attackers to generate collisions or brute force hashed data.
+
+      **What to Do**:
+      1. **Use Strong Hashes**: Upgrade to SHA-256 or better, along with salt and pepper 
+         if appropriate.
+      2. **Implement Key Management**: Rotate keys frequently and store them securely.
+
+      **Example**:
+      Instead of:
+        crypto.createHash('md5').update(data).digest('hex');
+      Do:
+        crypto.createHash('sha256').update(data).digest('hex');
+    `,
         references: [
             {
                 title: 'CWE-326: Inadequate Encryption Strength',
@@ -242,7 +301,21 @@ export const recommendations = {
         cwe: '326'
     },
     sensitiveErrorInfo: {
-        recommendation: 'Implement proper error handling. Log detailed errors server-side but return sanitized messages to users.',
+        recommendation: `
+      **Why it Matters**: Exposing full error messages or stack traces can reveal 
+      sensitive details (file paths, server configs, tokens) to attackers.
+
+      **What to Do**:
+      1. **Log Privately**: Keep detailed errors in server logs, not user-facing responses.
+      2. **Sanitize Outputs**: Return only a simple error message or code to the client.
+
+      **Example**:
+      Instead of:
+        res.send({ stack: err.stack });
+      Do:
+        console.error(err);
+        res.status(500).send({ error: "An unexpected error occurred." });
+    `,
         references: [
             {
                 title: 'CWE-209: Information Exposure Through an Error Message',
@@ -253,7 +326,22 @@ export const recommendations = {
         cwe: '209'
     },
     pathTraversal: {
-        recommendation: 'Validate and sanitize file paths. Use path.resolve() and restrict to allowed directories.',
+        recommendation: `
+      **Why it Matters**: Attackers can manipulate file paths to access system files 
+      outside intended directories, leading to sensitive data exposure or code execution.
+
+      **What to Do**:
+      1. **Canonicalize Paths**: Use path.resolve() or similar to ensure final paths 
+         remain within allowed directories.
+      2. **Filter Dangerous Patterns**: Block sequences like "../" in user-supplied filenames.
+
+      **Example**:
+      Instead of:
+        fs.readFileSync("../" + userInput);
+      Do:
+        const safePath = path.resolve(BASE_PATH, userInput);
+        fs.readFileSync(safePath);
+    `,
         references: [
             {
                 title: 'CWE-23: Relative Path Traversal',
@@ -264,7 +352,25 @@ export const recommendations = {
         cwe: '23'
     },
     openRedirect: {
-        recommendation: 'Validate redirect URLs against a whitelist of allowed destinations.',
+        recommendation: `
+      **Why it Matters**: Open redirects can trick users into visiting malicious websites 
+      and facilitate phishing attacks.
+
+      **What to Do**:
+      1. **Use a Whitelist**: Only allow redirects to known/trusted URLs.
+      2. **Confirm Intent**: Show the user a confirmation page or message before redirecting.
+
+      **Example**:
+      Instead of:
+        res.redirect(req.query.returnUrl);
+      Do:
+        const allowed = ["https://trusteddomain.com"];
+        if (allowed.includes(req.query.returnUrl)) {
+          res.redirect(req.query.returnUrl);
+        } else {
+          res.redirect("/error");
+        }
+    `,
         references: [
             {
                 title: 'CWE-601: URL Redirection to Untrusted Site',
@@ -275,7 +381,22 @@ export const recommendations = {
         cwe: '601'
     },
     weakPasswordHash: {
-        recommendation: 'Use strong password hashing algorithms like bcrypt with a work factor of ≥12, Argon2, or PBKDF2.',
+        recommendation: `
+      **Why it Matters**: Using weak or insufficiently costly hash functions makes it easier 
+      for attackers to brute-force passwords.
+
+      **What to Do**:
+      1. **Use Strong Password Hashing**: bcrypt (with a work factor ≥ 12), scrypt, PBKDF2, 
+         or Argon2.
+      2. **Salt & Pepper**: Ensure unique salts per password, and consider an application-wide 
+         pepper stored securely.
+
+      **Example**:
+      Instead of:
+        bcrypt.hash(password, 10);
+      Do:
+        bcrypt.hash(password, 12); // or more
+    `,
         references: [
             {
                 title: 'CWE-916: Use of Password Hash With Insufficient Computational Effort',
@@ -286,7 +407,21 @@ export const recommendations = {
         cwe: '916'
     },
     evalExecution: {
-        recommendation: 'Avoid using eval() or new Function(). Use safer alternatives like JSON.parse() for JSON data, or implement specific functionality without dynamic code execution.',
+        recommendation: `
+      **Why it Matters**: Using eval() or the Function constructor can allow malicious 
+      code to run in your application, leading to data theft or system compromise.
+
+      **What to Do**:
+      1. **Avoid Dynamic Code**: Use safer alternatives (e.g., JSON.parse for JSON data).
+      2. **Sanitize Input**: If dynamic evaluation is unavoidable, carefully whitelist 
+         valid inputs and reject anything unexpected.
+
+      **Example**: 
+      Instead of:
+        eval(userInput);
+      Do:
+        const parsed = JSON.parse(userInput); // with validation
+    `,
         references: [
             {
                 title: 'CWE-95: Eval Injection',
@@ -297,7 +432,21 @@ export const recommendations = {
         cwe: '95'
     },
     commandInjection: {
-        recommendation: 'Use child_process.execFile() instead of exec(), and always sanitize user input. Implement proper input validation and use parameterized commands.',
+        recommendation: `
+      **Why it Matters**: Command injection vulnerabilities let attackers run arbitrary
+      system commands, possibly taking full control of the server.
+
+      **What to Do**:
+      1. **Use execFile**: Prefer child_process.execFile() or spawn() with arguments, 
+         instead of exec().
+      2. **Validate User Input**: Reject or escape special characters (like ";", "&", "|").
+
+      **Example**:
+      Instead of:
+        exec('ls -la ' + userInput);
+      Do:
+        execFile('ls', ['-la', userInput], callback);
+    `,
         references: [
             {
                 title: 'CWE-77: Command Injection',
@@ -308,7 +457,22 @@ export const recommendations = {
         cwe: '77'
     },
     missingAuth: {
-        recommendation: 'Implement proper authentication for all sensitive operations. Never disable authentication in production code.',
+        recommendation: `
+      **Why it Matters**: Skipping or disabling authentication can open your app 
+      to unauthorized access.
+
+      **What to Do**:
+      1. **Always Require Auth**: Secure all endpoints handling sensitive data 
+         with authentication.
+      2. **Use Robust Frameworks**: Leverage libraries or frameworks that handle 
+         auth out of the box.
+
+      **Example**:
+      Instead of:
+        app.get("/admin", (req, res) => {...}); 
+      Do:
+        app.get("/admin", requireAuth, (req, res) => {...});
+    `,
         references: [
             {
                 title: 'CWE-306: Missing Authentication',
@@ -319,7 +483,22 @@ export const recommendations = {
         cwe: '306'
     },
     hardcodedCreds: {
-        recommendation: 'Never hardcode credentials in source code. Use environment variables or secure credential management systems.',
+        recommendation: `
+      **Why it Matters**: Hardcoded credentials in source code can be found by 
+      attackers, giving direct access to privileged resources.
+
+      **What to Do**:
+      1. **Use Environment Variables**: Store secrets in env files or secret management 
+         systems (e.g., Vault, AWS Secrets Manager).
+      2. **Rotate Credentials**: If credentials leak, rotate them immediately 
+         and remove from code history.
+
+      **Example**:
+      Instead of:
+        const password = "supersecret123";
+      Do:
+        const password = process.env.DB_PASSWORD;
+    `,
         references: [
             {
                 title: 'CWE-798: Use of Hard-coded Credentials',
@@ -335,7 +514,20 @@ export const recommendations = {
         cwe: '798'
     },
     sqlInjection: {
-        recommendation: 'Use parameterized queries or an ORM. Never concatenate user input directly into SQL queries.',
+        recommendation: `
+      **Why it Matters**: SQL injection can lead to database breaches, data loss, or 
+      complete system compromise.
+
+      **What to Do**:
+      1. **Use Parameterized Statements**: Rely on prepared statements or ORM methods.
+      2. **Never String-Concatenate**: Do not inline user input directly into SQL queries.
+
+      **Example**:
+      Instead of:
+        db.query("SELECT * FROM users WHERE id = " + userId);
+      Do:
+        db.query("SELECT * FROM users WHERE id = ?", [userId]);
+    `,
         references: [
             {
                 title: 'CWE-89: SQL Injection',
@@ -351,7 +543,23 @@ export const recommendations = {
         cwe: '89'
     },
     xssVulnerability: {
-        recommendation: 'Use proper content encoding and avoid direct DOM manipulation with user input. Implement Content Security Policy (CSP).',
+        recommendation: `
+      **Why it Matters**: XSS (Cross-Site Scripting) allows attackers to run arbitrary 
+      scripts in the victim's browser, stealing data or credentials.
+
+      **What to Do**:
+      1. **Escape/Encode Output**: Use proper output encoding or templating frameworks.
+      2. **Avoid Direct DOM Manipulation**: Use frameworks with built-in XSS protection 
+         (e.g., Angular, React).
+      3. **Enable CSP**: Content Security Policy can help limit script injection.
+
+      **Example**:
+      Instead of:
+        element.innerHTML = userInput;
+      Do:
+        element.textContent = userInput;
+        // or use a safe templating library
+    `,
         references: [
             {
                 title: 'CWE-79: Cross-site Scripting',
@@ -367,7 +575,21 @@ export const recommendations = {
         cwe: '79'
     },
     bufferIssue: {
-        recommendation: 'Use Buffer.alloc() instead of Buffer.allocUnsafe() or new Buffer(). Always initialize buffers safely.',
+        recommendation: `
+      **Why it Matters**: Using Buffer.allocUnsafe() or new Buffer() without length checks 
+      can lead to uninitialized memory exposure or buffer overflows.
+
+      **What to Do**:
+      1. **Use Secure Methods**: Use Buffer.alloc() instead of Buffer.allocUnsafe().
+      2. **Initialize & Validate**: Zero out or sanitize newly allocated buffers 
+         and validate input lengths.
+
+      **Example**:
+      Instead of:
+        let buff = new Buffer(size);
+      Do:
+        let buff = Buffer.alloc(size);
+    `,
         references: [
             {
                 title: 'CWE-119: Buffer Overflow',
@@ -383,7 +605,23 @@ export const recommendations = {
         cwe: '119'
     },
     memoryLeak: {
-        recommendation: 'Always clear intervals and timeouts when they are no longer needed. Use cleanup functions in component unmount.',
+        recommendation: `
+      **Why it Matters**: Memory leaks degrade application performance over time, 
+      possibly causing crashes or excessive resource consumption.
+
+      **What to Do**:
+      1. **Clean Up**: Track and clear intervals/timeouts when they're no longer needed.
+      2. **Use Lifecycle Hooks**: In front-end frameworks, unmount or remove event 
+         listeners, intervals, or timeouts properly.
+
+      **Example**:
+      Instead of:
+        setInterval(() => doSomething(), 1000);
+      Do:
+        const intervalId = setInterval(() => doSomething(), 1000);
+        // later
+        clearInterval(intervalId);
+    `,
         references: [
             {
                 title: 'CWE-401: Memory Leak',
@@ -394,7 +632,23 @@ export const recommendations = {
         cwe: '401'
     },
     sensitiveData: {
-        recommendation: 'Never expose sensitive data in code. Use secure storage and proper encryption for sensitive information.',
+        recommendation: `
+      **Why it Matters**: Logging or exposing credentials or other sensitive data 
+      can lead to account compromise if logs or code are leaked.
+
+      **What to Do**:
+      1. **Mask or Omit**: Never log full passwords, tokens, or keys. 
+         Store only hashed or partial data as needed.
+      2. **Encrypt at Rest**: If storing credentials, use strong encryption 
+         and secure key management.
+
+      **Example**:
+      Instead of:
+        console.log("Password:", password);
+      Do:
+        // Only log that a password was used, or hide it entirely
+        console.log("User password received.");
+    `,
         references: [
             {
                 title: 'CWE-200: Information Exposure',
@@ -410,7 +664,21 @@ export const recommendations = {
         cwe: '200'
     },
     insecureTransmission: {
-        recommendation: 'Use HTTPS for all data transmission. Implement proper SSL/TLS configuration.',
+        recommendation: `
+      **Why it Matters**: Sending data (passwords, tokens) over HTTP can be intercepted 
+      by attackers, leading to credential theft or session hijacking.
+
+      **What to Do**:
+      1. **Use HTTPS/TLS**: Secure all endpoints with TLS certificates.
+      2. **Enforce HSTS**: Implement HTTP Strict Transport Security to prevent 
+         downgrade attacks.
+
+      **Example**:
+      Instead of:
+        fetch('http://payment.example.com');
+      Do:
+        fetch('https://payment.example.com');
+    `,
         references: [
             {
                 title: 'CWE-319: Cleartext Transmission',
@@ -428,7 +696,25 @@ export const recommendations = {
 
     // New Recommendations
     ssrfVulnerability: {
-        recommendation: 'Validate and sanitize any user-supplied URLs. Avoid making server-side calls to arbitrary domains. Use allowlists instead of blocklists.',
+        recommendation: `
+      **Why it Matters**: SSRF can let an attacker make internal network calls, 
+      access sensitive internal resources, or exploit internal services.
+
+      **What to Do**:
+      1. **Use URL Validation**: Check the domain against an allowlist. 
+         Block internal IP ranges, link-local addresses, etc.
+      2. **Limit HTTP Methods**: Restrict requests to GET if possible, 
+         and disallow redirects to internal networks.
+
+      **Example**:
+      Instead of:
+        axios.get(req.query.url);
+      Do:
+        // Validate or parse the provided URL, ensure it's whitelisted
+        if (isAllowedDomain(req.query.url)) {
+          axios.get(req.query.url);
+        }
+    `,
         references: [
             {
                 title: 'CWE-918: Server-Side Request Forgery',
@@ -444,7 +730,24 @@ export const recommendations = {
         cwe: '918'
     },
     sessionFixation: {
-        recommendation: 'Regenerate session IDs on user authentication. Avoid using session IDs passed in URLs or user input fields.',
+        recommendation: `
+      **Why it Matters**: Session fixation allows attackers to set a session ID 
+      for the victim, hijacking the session after authentication.
+
+      **What to Do**:
+      1. **Regenerate Session**: Upon login, create a new session ID.
+      2. **Avoid Session IDs in URLs**: Use secure cookies and do not accept session IDs 
+         from query parameters.
+
+      **Example**:
+      Instead of:
+        req.session.id = req.query.sessionId;
+      Do:
+        // In your login flow:
+        req.session.regenerate(() => {
+          // safe new session
+        });
+    `,
         references: [
             {
                 title: 'CWE-384: Session Fixation',
