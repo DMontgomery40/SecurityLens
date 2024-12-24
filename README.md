@@ -1,6 +1,8 @@
 # SecurityLens 
 An open-source security analysis platform for education and vulnerability discovery.
 
+https://securitylens.netlify.app/
+
 ## Current Features
 - Static code analysis for common security vulnerabilities
 - Pattern-based vulnerability detection
