@@ -1,6 +1,6 @@
 [dev]
   port = 9999
-  targetPort = 5173
+  targetPort = 5175
   framework = "vite"
   autoLaunch = true
 
