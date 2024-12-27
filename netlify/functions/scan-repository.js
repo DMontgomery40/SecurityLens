@@ -99,39 +99,61 @@ export const handler = async (event, context) => {
         octokit
       });
 
-      // Get repository contents and scan them
-      const { data: contents } = await octokit.rest.repos.getContent({
-        owner,
-        repo,
-        path,
-        ref: branch
-      });
+      // Recursive function to scan directory contents
+      async function scanDirectory(currentPath) {
+        const { data: contents } = await octokit.rest.repos.getContent({
+          owner,
+          repo,
+          path: currentPath,
+          ref: branch
+        });
 
-      // Process files
-      const files = Array.isArray(contents) ? contents : [contents];
-      let allFindings = [];
+        const files = Array.isArray(contents) ? contents : [contents];
+        let findings = [];
 
-      for (const file of files) {
-        if (file.type === 'file') {
+        for (const item of files) {
           try {
-            const { data: content } = await octokit.rest.repos.getContent({
-              owner,
-              repo,
-              path: file.path,
-              ref: branch,
-              mediaType: {
-                format: 'raw'
+            if (item.type === 'dir') {
+              // Recursively scan subdirectories
+              const subFindings = await scanDirectory(item.path);
+              findings.push(...subFindings);
+            } else if (item.type === 'file') {
+              // Skip large files and binary files
+              if (item.size > 1024 * 1024) { // Skip files larger than 1MB
+                console.log(`Skipping large file: ${item.path} (${item.size} bytes)`);
+                continue;
               }
-            });
 
-            const fileContent = typeof content === 'string' ? content : Buffer.from(content).toString('utf8');
-            const findings = await scannerInstance.scanFile(fileContent, file.path);
-            allFindings.push(...findings);
+              // Check if file is likely binary based on path
+              const binaryExtensions = /\.(jpg|jpeg|png|gif|ico|pdf|zip|tar|gz|bin|exe|dll)$/i;
+              if (binaryExtensions.test(item.path)) {
+                console.log(`Skipping binary file: ${item.path}`);
+                continue;
+              }
+
+              const { data: content } = await octokit.rest.repos.getContent({
+                owner,
+                repo,
+                path: item.path,
+                ref: branch,
+                mediaType: {
+                  format: 'raw'
+                }
+              });
+
+              const fileContent = typeof content === 'string' ? content : Buffer.from(content).toString('utf8');
+              const fileFindings = await scannerInstance.scanFile(fileContent, item.path);
+              findings.push(...fileFindings);
+            }
           } catch (error) {
-            console.error(`Error scanning file ${file.path}:`, error);
+            console.error(`Error processing ${item.path}:`, error);
           }
         }
+        return findings;
       }
+
+      // Start recursive scan from the initial path
+      const allFindings = await scanDirectory(path);
 
       // Generate report
       const report = scannerInstance.generateReport(allFindings);

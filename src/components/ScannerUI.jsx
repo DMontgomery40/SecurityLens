@@ -161,6 +161,9 @@ const ScannerUI = () => {
           <Shield className="h-8 w-8 mr-2" />
           SecurityLens
         </h1>
+        <p className="text-gray-600 mb-6 max-w-2xl">
+          Scans code for security vulnerabilities including code injection, authentication bypass, SQL injection, XSS, buffer issues, sensitive data exposure, and more. Supports JavaScript, TypeScript, Python, and other languages.
+        </p>
 
         {/* URL Input Section */}
         <div className="bg-gray-50 p-6 rounded-lg shadow-sm mb-4">
