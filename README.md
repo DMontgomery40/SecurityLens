@@ -11,7 +11,7 @@ https://securitylens.netlify.app/
 ## Roadmap
 ### Phase 1 (Current)
 - [x] Basic vulnerability scanning
-- [ ] CVE database integration
+- [x] CVE database integration
 - [ ] Dependency vulnerability checking
 
 ### Phase 2 (Future)
@@ -23,3 +23,6 @@ https://securitylens.netlify.app/
 - [ ] Collaborative analysis features
 - [ ] Integration with additional security tools
 - [ ] Advanced binary analysis
+
+## Current Results Page Example: 
+![Screenshot 2024-12-27 at 2.00.56 PM](assets/Screenshot%202024-12-27%20at%202.00.56%E2%80%AFPM.png)
