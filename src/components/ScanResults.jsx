@@ -23,19 +23,45 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
 
   const { findings = {}, summary = {} } = results;
   
-  // Handle both array and object formats of findings
-  // Convert findings object to array and sort by severity
-  const vulnerabilities = Object.entries(findings).map(([type, data]) => ({
-    type,
-    ...data,
-    description: data.description || 'No description provided',
-    severity: data.severity || 'LOW',
-    // Extract all file paths from allLineNumbers
-    files: Object.keys(data.allLineNumbers || {}).sort()
-  })).sort((a, b) => {
-    const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-    return severityOrder[a.severity] - severityOrder[b.severity];
-  });
+  // Group findings by description and severity
+  const groupedFindings = Object.entries(findings).reduce((acc, [type, data]) => {
+    const description = data.description || 'No description provided';
+    const severity = data.severity || 'LOW';
+    const key = `${description}_${severity}`;
+
+    if (!acc[key]) {
+      acc[key] = {
+        type,
+        description,
+        severity,
+        files: [],
+        allLineNumbers: {},
+        ...data,
+      };
+    } else {
+      // Merge file information
+      Object.entries(data.allLineNumbers || {}).forEach(([file, lines]) => {
+        if (!acc[key].allLineNumbers[file]) {
+          acc[key].allLineNumbers[file] = lines;
+        } else {
+          acc[key].allLineNumbers[file] = [...new Set([...acc[key].allLineNumbers[file], ...lines])].sort((a, b) => a - b);
+        }
+      });
+    }
+
+    return acc;
+  }, {});
+
+  // Convert grouped findings to array and sort by severity
+  const vulnerabilities = Object.values(groupedFindings)
+    .map(data => ({
+      ...data,
+      files: Object.keys(data.allLineNumbers || {}).sort()
+    }))
+    .sort((a, b) => {
+      const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+      return severityOrder[a.severity] - severityOrder[b.severity];
+    });
 
   // State for filtering
   const [severityFilter, setSeverityFilter] = React.useState('ALL');
