@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react'; 
 import { 
   AlertTriangle, 
   Shield 
@@ -162,7 +162,9 @@ const ScannerUI = () => {
           SecurityLens
         </h1>
         <p className="text-gray-600 mb-6 max-w-2xl">
-          Scans code for security vulnerabilities including code injection, authentication bypass, SQL injection, XSS, buffer issues, sensitive data exposure, and more. Supports JavaScript, TypeScript, Python, and other languages.
+          Scans code for security vulnerabilities including code injection, authentication bypass, 
+          SQL injection, XSS, buffer issues, sensitive data exposure, and more. Supports JavaScript, 
+          TypeScript, Python, and other languages.
         </p>
 
         {/* URL Input Section */}
@@ -207,7 +209,9 @@ const ScannerUI = () => {
             >
               <div className="mb-2">
                 <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
+                  />
                 </svg>
               </div>
               <p className="text-gray-600">
@@ -230,9 +234,9 @@ const ScannerUI = () => {
               ></div>
             </div>
             <div className="text-sm text-gray-700 mt-2 text-center">
-              {progress.current === progress.total ? 
-                'Processing results...' : 
-                `Scanning file ${progress.current} of ${progress.total}`
+              {progress.current === progress.total 
+                ? 'Processing results...' 
+                : `Scanning file ${progress.current} of ${progress.total}`
               }
             </div>
           </div>
@@ -275,6 +279,7 @@ const ScannerUI = () => {
           />
         )}
 
+        {/* If user has no token, show a quick form to set one */}
         {!githubToken && (
           <div className="bg-gray-50 p-6 rounded-lg shadow-sm mb-4">
             <h2 className="text-lg font-semibold text-gray-700 mb-4">GitHub Access Token</h2>
@@ -314,14 +319,16 @@ const ScannerUI = () => {
               To scan GitHub repositories, you'll need a Personal Access Token. Here's how to get one:
             </p>
             <ol className="list-decimal list-inside space-y-2 text-sm">
-              <li>Go to <a 
-                href="https://github.com/settings/tokens/new" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                GitHub Token Settings
-              </a></li>
+              <li>
+                Go to <a 
+                  href="https://github.com/settings/tokens/new" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  GitHub Token Settings
+                </a>
+              </li>
               <li>Select either "Classic" or "Fine-grained" token</li>
               <li>Enable "repo" access permissions</li>
               <li>Generate and copy the token</li>
