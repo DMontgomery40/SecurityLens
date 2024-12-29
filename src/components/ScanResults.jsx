@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 // Add category structure
 export const patternCategories = {
@@ -17,213 +17,6 @@ export const patternCategories = {
   SSRF: '918',                 // Server-Side Request Forgery
   SESSION_MANAGEMENT: '384'    // Session management issues
 };
-
-const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
-  if (!results) return null;
-
-  const { findings = {}, summary = {} } = results;
-  
-  // Group findings by description and severity
-  const groupedFindings = Object.entries(findings).reduce((acc, [type, data]) => {
-    const description = data.description || 'No description provided';
-    const severity = data.severity || 'LOW';
-    const key = `${description}_${severity}`;
-
-    if (!acc[key]) {
-      acc[key] = {
-        type,
-        description,
-        severity,
-        files: [],
-        allLineNumbers: {},
-        ...data,
-      };
-    } else {
-      // Merge file information
-      Object.entries(data.allLineNumbers || {}).forEach(([file, lines]) => {
-        if (!acc[key].allLineNumbers[file]) {
-          acc[key].allLineNumbers[file] = lines;
-        } else {
-          acc[key].allLineNumbers[file] = [...new Set([...acc[key].allLineNumbers[file], ...lines])].sort((a, b) => a - b);
-        }
-      });
-    }
-
-    return acc;
-  }, {});
-
-  // Convert grouped findings to array and sort by severity
-  const vulnerabilities = Object.values(groupedFindings)
-    .map(data => ({
-      ...data,
-      files: Object.keys(data.allLineNumbers || {}).sort()
-    }))
-    .sort((a, b) => {
-      const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-      return severityOrder[a.severity] - severityOrder[b.severity];
-    });
-
-  // State for filtering
-  const [severityFilter, setSeverityFilter] = React.useState('ALL');
-  const [searchQuery, setSearchQuery] = React.useState('');
-
-  // Filter vulnerabilities based on severity and search query
-  const filteredVulnerabilities = vulnerabilities.filter(vuln => {
-    const matchesSeverity = severityFilter === 'ALL' || vuln.severity === severityFilter;
-    const matchesSearch = searchQuery === '' || 
-      vuln.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vuln.files.some(file => file.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesSeverity && matchesSearch;
-  });
-  
-  return (
-    <div className="mt-8">
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Scan Results</h2>
-        
-        {/* Summary Section */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-red-50 p-4 rounded-lg">
-            <div className="font-semibold text-red-700">Critical</div>
-            <div className="text-2xl">{summary.criticalIssues || 0}</div>
-          </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <div className="font-semibold text-orange-700">High</div>
-            <div className="text-2xl">{summary.highIssues || 0}</div>
-          </div>
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <div className="font-semibold text-yellow-700">Medium</div>
-            <div className="text-2xl">{summary.mediumIssues || 0}</div>
-          </div>
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="font-semibold text-blue-700">Low</div>
-            <div className="text-2xl">{summary.lowIssues || 0}</div>
-          </div>
-        </div>
-
-        {/* Cache Notice */}
-        {usedCache && (
-          <div className="mb-4 flex items-center justify-between bg-blue-50 p-4 rounded-lg">
-            <span className="text-blue-700">
-              ⚡ Results loaded from cache
-            </span>
-            <button
-              onClick={onRefreshRequest}
-              disabled={scanning}
-              className={`px-4 py-2 rounded text-sm ${
-                scanning
-                  ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
-              }`}
-            >
-              {scanning ? 'Refreshing...' : 'Refresh Scan'}
-            </button>
-          </div>
-        )}
-
-        {/* Filtering Controls */}
-        <div className="mb-6 flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Search by description or file path..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <select
-            value={severityFilter}
-            onChange={(e) => setSeverityFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="ALL">All Severities</option>
-            <option value="CRITICAL">Critical</option>
-            <option value="HIGH">High</option>
-            <option value="MEDIUM">Medium</option>
-            <option value="LOW">Low</option>
-          </select>
-        </div>
-
-        {/* Findings List */}
-        {filteredVulnerabilities.length > 0 ? (
-          <div className="space-y-4">
-            {filteredVulnerabilities.map((finding, index) => {
-              const recommendation = recommendations[finding.type];
-              
-              return (
-                <div key={index} className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{finding.description}</h3>
-                      <div className="mt-2">
-                        <h4 className="font-medium text-sm text-gray-700 mb-1">Found in:</h4>
-                        <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                          {finding.files.map((file, fileIndex) => (
-                            <li key={fileIndex} className="truncate">
-                              {file} (Lines: {finding.allLineNumbers[file].join(', ')})
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                    <div className={`
-                      ml-4 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap
-                      ${finding.severity === 'CRITICAL' ? 'bg-red-100 text-red-800' :
-                        finding.severity === 'HIGH' ? 'bg-orange-100 text-orange-800' :
-                        finding.severity === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-blue-100 text-blue-800'}
-                    `}>
-                      {finding.severity}
-                    </div>
-                  </div>
-                  
-                  {recommendation && (
-                    <div className="mt-4">
-                      <div className="prose prose-sm max-w-none">
-                        <div dangerouslySetInnerHTML={{ 
-                          __html: recommendation.recommendation
-                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                            .replace(/\n/g, '<br />') 
-                        }} />
-                      </div>
-                      
-                      {recommendation.references && (
-                        <div className="mt-4">
-                          <h4 className="font-medium text-sm mb-2">References:</h4>
-                          <ul className="list-disc pl-5 space-y-1">
-                            {recommendation.references.map((ref, idx) => (
-                              <li key={idx}>
-                                <a 
-                                  href={ref.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-sm text-blue-600 hover:underline"
-                                >
-                                  {ref.title}
-                                </a>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            No vulnerabilities found
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default ScanResults;
 
 // Modify core patterns structure
 export const corePatterns = {
@@ -318,7 +111,7 @@ export const enhancedPatterns = {
     category: patternCategories.CRITICAL_EXECUTION,
     subcategory: '502'  // Deserialization of Untrusted Data
   },
-    
+
   // ACCESS CONTROL VULNERABILITIES
   insecureDirectObjectRef: {
     pattern: /\b(?:user|account|file|document)Id\s*=\s*(?:params|query|body|req)\.[a-zA-Z_][a-zA-Z0-9_]*/,
@@ -327,7 +120,7 @@ export const enhancedPatterns = {
     category: patternCategories.ACCESS_CONTROL,
     subcategory: '639'  // Authorization Bypass Through User-Controlled Key
   },
-    
+
   // INJECTION VULNERABILITIES
   noSqlInjection: {
     pattern: /\$where\s*:\s*['"`]|\.find\s*\(\s*{[^}]*\$regex/,
@@ -336,7 +129,7 @@ export const enhancedPatterns = {
     category: patternCategories.INJECTION,
     subcategory: '943'  // NoSQL Injection
   },
-    
+
   // CRYPTO ISSUES
   weakCrypto: {
     pattern: /crypto\.createHash\s*\(\s*['"`]md5['"`]\)|crypto\.createHash\s*\(\s*['"`]sha1['"`]\)/,
@@ -345,7 +138,7 @@ export const enhancedPatterns = {
     category: patternCategories.CRYPTO_ISSUES,
     subcategory: '326'  // Inadequate Encryption Strength
   },
-    
+
   // ERROR HANDLING
   sensitiveErrorInfo: {
     pattern: /catch\s*\([^)]*\)\s*{\s*(?:console\.(?:log|error)|res\.(?:json|send))\s*\([^)]*(?:err|error)/,
@@ -354,7 +147,7 @@ export const enhancedPatterns = {
     category: patternCategories.ERROR_HANDLING,
     subcategory: '209'  // Information Exposure Through Error Message
   },
-    
+
   // INPUT VALIDATION
   pathTraversal: {
     pattern: /(?:\.\.\/|\.\.\\|\.\.[/\\])[^/\\]*/,
@@ -363,7 +156,7 @@ export const enhancedPatterns = {
     category: patternCategories.INPUT_VALIDATION,
     subcategory: '23'  // Path Traversal
   },
-    
+
   // RESOURCE MANAGEMENT
   openRedirect: {
     pattern: /(?:res\.redirect|window\.location|location\.href)\s*=\s*(?:req\.(?:query|params|body)|['"`]\s*\+)/,
@@ -372,7 +165,7 @@ export const enhancedPatterns = {
     category: patternCategories.RESOURCE_MGMT,
     subcategory: '601'  // URL Redirection to Untrusted Site
   },
-    
+
   // AUTHENTICATION
   weakPasswordHash: {
     pattern: /\.hash\s*\(\s*['"`](?:md5|sha1)['"`]\)|bcrypt\.hash\s*\([^,]*,\s*(?:[1-9]|10)\s*\)/,
@@ -381,8 +174,6 @@ export const enhancedPatterns = {
     category: patternCategories.AUTHENTICATION,
     subcategory: '916'  // Use of Password Hash With Insufficient Computational Effort
   },
-
-  // New Patterns
 
   // SERVER-SIDE REQUEST FORGERY (SSRF)
   ssrfVulnerability: {
@@ -406,7 +197,6 @@ export const enhancedPatterns = {
 // Thorough & visually enhanced recommendations
 export const recommendations = {
   // CRITICAL EXECUTION
-
   evalExecution: {
     recommendation: `
       **Why it Matters**: Using eval() or the Function constructor can allow malicious 
@@ -426,8 +216,7 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-95: Eval Injection',
-        url: 'https://cwe.mitre.org/data/definitions/95.html',
-        description: 'Comprehensive guide on eval injection vulnerabilities'
+        url: 'https://cwe.mitre.org/data/definitions/95.html'
       }
     ],
     cwe: '95'
@@ -452,8 +241,7 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-77: Command Injection',
-        url: 'https://cwe.mitre.org/data/definitions/77.html',
-        description: 'Details on preventing command injection attacks'
+        url: 'https://cwe.mitre.org/data/definitions/77.html'
       }
     ],
     cwe: '77'
@@ -479,15 +267,13 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-502: Deserialization of Untrusted Data',
-        url: 'https://cwe.mitre.org/data/definitions/502.html',
-        description: 'Understanding deserialization vulnerabilities'
+        url: 'https://cwe.mitre.org/data/definitions/502.html'
       }
     ],
     cwe: '502'
   },
 
   // ACCESS CONTROL
-
   insecureDirectObjectRef: {
     recommendation: `
       **Why it Matters**: Attackers can manipulate object IDs (e.g., userId, fileId) to 
@@ -508,15 +294,13 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-639: Authorization Bypass Through User-Controlled Key',
-        url: 'https://cwe.mitre.org/data/definitions/639.html',
-        description: 'Understanding IDOR vulnerabilities'
+        url: 'https://cwe.mitre.org/data/definitions/639.html'
       }
     ],
     cwe: '639'
   },
 
   // INJECTION
-
   noSqlInjection: {
     recommendation: `
       **Why it Matters**: NoSQL databases can still be compromised by malicious queries 
@@ -537,8 +321,7 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-943: Improper Neutralization of Special Elements in Data Query Logic',
-        url: 'https://cwe.mitre.org/data/definitions/943.html',
-        description: 'Understanding NoSQL injection'
+        url: 'https://cwe.mitre.org/data/definitions/943.html'
       }
     ],
     cwe: '943'
@@ -562,13 +345,11 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-89: SQL Injection',
-        url: 'https://cwe.mitre.org/data/definitions/89.html',
-        description: 'Understanding SQL injection vulnerabilities'
+        url: 'https://cwe.mitre.org/data/definitions/89.html'
       },
       {
         title: 'OWASP SQL Injection Prevention',
-        url: 'https://owasp.org/www-community/attacks/SQL_Injection',
-        description: 'Comprehensive guide to preventing SQL injection'
+        url: 'https://owasp.org/www-community/attacks/SQL_Injection'
       }
     ],
     cwe: '89'
@@ -590,25 +371,21 @@ export const recommendations = {
         element.innerHTML = userInput;
       Do:
         element.textContent = userInput;
-        // or use a safe templating library
     `,
     references: [
       {
         title: 'CWE-79: Cross-site Scripting',
-        url: 'https://cwe.mitre.org/data/definitions/79.html',
-        description: 'Understanding XSS vulnerabilities'
+        url: 'https://cwe.mitre.org/data/definitions/79.html'
       },
       {
         title: 'OWASP XSS Prevention Cheat Sheet',
-        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html',
-        description: 'Detailed XSS prevention techniques'
+        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html'
       }
     ],
     cwe: '79'
   },
 
   // CRYPTO ISSUES
-
   weakCrypto: {
     recommendation: `
       **Why it Matters**: MD5 and SHA-1 are considered cryptographically weak, making it 
@@ -628,15 +405,13 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-326: Inadequate Encryption Strength',
-        url: 'https://cwe.mitre.org/data/definitions/326.html',
-        description: 'Understanding cryptographic weaknesses'
+        url: 'https://cwe.mitre.org/data/definitions/326.html'
       }
     ],
     cwe: '326'
   },
 
   // ERROR HANDLING
-
   sensitiveErrorInfo: {
     recommendation: `
       **Why it Matters**: Exposing full error messages or stack traces can reveal 
@@ -656,15 +431,13 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-209: Information Exposure Through an Error Message',
-        url: 'https://cwe.mitre.org/data/definitions/209.html',
-        description: 'Proper error handling practices'
+        url: 'https://cwe.mitre.org/data/definitions/209.html'
       }
     ],
     cwe: '209'
   },
 
   // INPUT VALIDATION
-
   pathTraversal: {
     recommendation: `
       **Why it Matters**: Attackers can manipulate file paths to access system files 
@@ -685,15 +458,13 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-23: Relative Path Traversal',
-        url: 'https://cwe.mitre.org/data/definitions/23.html',
-        description: 'Understanding path traversal attacks'
+        url: 'https://cwe.mitre.org/data/definitions/23.html'
       }
     ],
     cwe: '23'
   },
 
   // RESOURCE MANAGEMENT
-
   openRedirect: {
     recommendation: `
       **Why it Matters**: Open redirects can trick users into visiting malicious websites 
@@ -717,15 +488,13 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-601: URL Redirection to Untrusted Site',
-        url: 'https://cwe.mitre.org/data/definitions/601.html',
-        description: 'Understanding open redirect vulnerabilities'
+        url: 'https://cwe.mitre.org/data/definitions/601.html'
       }
     ],
     cwe: '601'
   },
 
   // AUTHENTICATION
-
   weakPasswordHash: {
     recommendation: `
       **Why it Matters**: Using weak or insufficiently costly hash functions makes it easier 
@@ -746,8 +515,7 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-916: Use of Password Hash With Insufficient Computational Effort',
-        url: 'https://cwe.mitre.org/data/definitions/916.html',
-        description: 'Understanding password hashing security'
+        url: 'https://cwe.mitre.org/data/definitions/916.html'
       }
     ],
     cwe: '916'
@@ -773,8 +541,7 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-306: Missing Authentication',
-        url: 'https://cwe.mitre.org/data/definitions/306.html',
-        description: 'Understanding missing authentication vulnerabilities'
+        url: 'https://cwe.mitre.org/data/definitions/306.html'
       }
     ],
     cwe: '306'
@@ -800,20 +567,17 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-798: Use of Hard-coded Credentials',
-        url: 'https://cwe.mitre.org/data/definitions/798.html',
-        description: 'Risks of hardcoded credentials'
+        url: 'https://cwe.mitre.org/data/definitions/798.html'
       },
       {
         title: 'OWASP Secure Configuration Guide',
-        url: 'https://owasp.org/www-project-secure-configuration-guide/',
-        description: 'Best practices for credential management'
+        url: 'https://owasp.org/www-project-secure-configuration-guide/'
       }
     ],
     cwe: '798'
   },
 
   // MEMORY/BUFFER
-
   bufferIssue: {
     recommendation: `
       **Why it Matters**: Using Buffer.allocUnsafe() or new Buffer() without length checks 
@@ -833,13 +597,11 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-119: Buffer Overflow',
-        url: 'https://cwe.mitre.org/data/definitions/119.html',
-        description: 'Understanding buffer overflow vulnerabilities'
+        url: 'https://cwe.mitre.org/data/definitions/119.html'
       },
       {
         title: 'Node.js Buffer API Security',
-        url: 'https://nodejs.org/api/buffer.html#buffer_buffer_alloc_size_fill_encoding',
-        description: 'Official Node.js documentation on secure buffer usage'
+        url: 'https://nodejs.org/api/buffer.html#buffer_buffer_alloc_size_fill_encoding'
       }
     ],
     cwe: '119'
@@ -866,15 +628,13 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-401: Memory Leak',
-        url: 'https://cwe.mitre.org/data/definitions/401.html',
-        description: 'Understanding memory leak vulnerabilities'
+        url: 'https://cwe.mitre.org/data/definitions/401.html'
       }
     ],
     cwe: '401'
   },
 
   // DATA PROTECTION
-
   sensitiveData: {
     recommendation: `
       **Why it Matters**: Logging or exposing credentials or other sensitive data 
@@ -890,19 +650,16 @@ export const recommendations = {
       Instead of:
         console.log("Password:", password);
       Do:
-        // Only log that a password was used, or hide it entirely
         console.log("User password received.");
     `,
     references: [
       {
         title: 'CWE-200: Information Exposure',
-        url: 'https://cwe.mitre.org/data/definitions/200.html',
-        description: 'Understanding information exposure risks'
+        url: 'https://cwe.mitre.org/data/definitions/200.html'
       },
       {
         title: 'OWASP Sensitive Data Exposure',
-        url: 'https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure',
-        description: 'OWASP guide on protecting sensitive data'
+        url: 'https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure'
       }
     ],
     cwe: '200'
@@ -927,20 +684,17 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-319: Cleartext Transmission',
-        url: 'https://cwe.mitre.org/data/definitions/319.html',
-        description: 'Risks of cleartext data transmission'
+        url: 'https://cwe.mitre.org/data/definitions/319.html'
       },
       {
         title: 'OWASP Transport Layer Protection',
-        url: 'https://owasp.org/www-project-cheat-sheets/cheatsheets/Transport_Layer_Protection_Cheat_Sheet',
-        description: 'Best practices for secure data transmission'
+        url: 'https://owasp.org/www-project-cheat-sheets/cheatsheets/Transport_Layer_Protection_Cheat_Sheet'
       }
     ],
     cwe: '319'
   },
 
   // NEW VULNERABILITIES
-
   ssrfVulnerability: {
     recommendation: `
       **Why it Matters**: SSRF can let an attacker make internal network calls, 
@@ -964,13 +718,11 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-918: Server-Side Request Forgery',
-        url: 'https://cwe.mitre.org/data/definitions/918.html',
-        description: 'Details on SSRF vulnerabilities and best practices'
+        url: 'https://cwe.mitre.org/data/definitions/918.html'
       },
       {
         title: 'OWASP SSRF Prevention Cheat Sheet',
-        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html',
-        description: 'Guidelines to mitigate SSRF attacks'
+        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html'
       }
     ],
     cwe: '918'
@@ -998,10 +750,397 @@ export const recommendations = {
     references: [
       {
         title: 'CWE-384: Session Fixation',
-        url: 'https://cwe.mitre.org/data/definitions/384.html',
-        description: 'Understanding session fixation vulnerabilities'
+        url: 'https://cwe.mitre.org/data/definitions/384.html'
       }
     ],
     cwe: '384'
   }
 };
+
+// A helper object for severity ordering
+const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+
+/**
+ * Full ScanResults Component
+ * (Updated with new UI: clickable summary cards, "view by type" / "view by file", etc.)
+ */
+const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
+  if (!results) return null;
+
+  const { findings = {}, summary = {} } = results;
+
+  // --- GROUP FINDINGS BY DESCRIPTION + SEVERITY ---
+  const groupedFindings = Object.entries(findings).reduce((acc, [type, data]) => {
+    const description = data.description || 'No description provided';
+    const severity = data.severity || 'LOW';
+    const key = `${description}_${severity}`;
+
+    if (!acc[key]) {
+      acc[key] = {
+        type,
+        description,
+        severity,
+        files: [],
+        allLineNumbers: {},
+        ...data,
+      };
+    } else {
+      // Merge file info if same description & severity
+      Object.entries(data.allLineNumbers || {}).forEach(([file, lines]) => {
+        if (!acc[key].allLineNumbers[file]) {
+          acc[key].allLineNumbers[file] = lines;
+        } else {
+          acc[key].allLineNumbers[file] = [
+            ...new Set([...acc[key].allLineNumbers[file], ...lines]),
+          ].sort((a, b) => a - b);
+        }
+      });
+    }
+
+    return acc;
+  }, {});
+
+  // Convert to array + sort by severity
+  const vulnerabilities = Object.values(groupedFindings)
+    .map((data) => ({
+      ...data,
+      files: Object.keys(data.allLineNumbers || {}).sort(),
+    }))
+    .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+  // Also group by file for "View by File" mode
+  const fileGrouped = {};
+  vulnerabilities.forEach((vuln) => {
+    vuln.files.forEach((file) => {
+      if (!fileGrouped[file]) {
+        fileGrouped[file] = [];
+      }
+      fileGrouped[file].push({
+        ...vuln,
+        lineNumbers: vuln.allLineNumbers[file] || [],
+      });
+    });
+  });
+
+  // State for clickable severity filter, search, and view mode
+  const [activeSeverity, setActiveSeverity] = useState('ALL'); // 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'ALL'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState('type'); // 'type' or 'file'
+
+  // Filter the vulnerabilities (View by Type)
+  const filteredByType = vulnerabilities.filter((vuln) => {
+    const matchesSeverity =
+      activeSeverity === 'ALL' || vuln.severity === activeSeverity;
+    const matchesSearch =
+      searchQuery === '' ||
+      vuln.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vuln.files.some((f) => f.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesSeverity && matchesSearch;
+  });
+
+  // Filter the vulnerabilities (View by File)
+  const filteredByFile = Object.entries(fileGrouped)
+    .map(([fileName, vulns]) => {
+      const fileVulns = vulns.filter((vuln) => {
+        const matchesSeverity =
+          activeSeverity === 'ALL' || vuln.severity === activeSeverity;
+        const matchesSearch =
+          searchQuery === '' ||
+          vuln.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          fileName.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesSeverity && matchesSearch;
+      });
+      return { fileName, fileVulns };
+    })
+    .filter((group) => group.fileVulns.length > 0);
+
+  // Summaries
+  const totalCritical = summary.criticalIssues || 0;
+  const totalHigh = summary.highIssues || 0;
+  const totalMed = summary.mediumIssues || 0;
+  const totalLow = summary.lowIssues || 0;
+
+  // Helper for deciding if a card is selected
+  const isSelected = (sev) => activeSeverity === sev;
+
+  return (
+    <div className="mt-8">
+      <div className="bg-white shadow rounded-lg p-6">
+        <h2 className="text-xl font-semibold mb-4">Scan Results</h2>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <button
+            type="button"
+            onClick={() => setActiveSeverity('CRITICAL')}
+            className={`p-4 rounded-lg border-2 transition-transform ${
+              isSelected('CRITICAL') ? 'border-red-700' : 'border-transparent'
+            } bg-red-50 text-red-700 hover:scale-[1.02]`}
+          >
+            <div className="font-semibold">Critical</div>
+            <div className="text-2xl">{totalCritical}</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSeverity('HIGH')}
+            className={`p-4 rounded-lg border-2 transition-transform ${
+              isSelected('HIGH') ? 'border-orange-700' : 'border-transparent'
+            } bg-orange-50 text-orange-700 hover:scale-[1.02]`}
+          >
+            <div className="font-semibold">High</div>
+            <div className="text-2xl">{totalHigh}</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSeverity('MEDIUM')}
+            className={`p-4 rounded-lg border-2 transition-transform ${
+              isSelected('MEDIUM') ? 'border-yellow-700' : 'border-transparent'
+            } bg-yellow-50 text-yellow-700 hover:scale-[1.02]`}
+          >
+            <div className="font-semibold">Medium</div>
+            <div className="text-2xl">{totalMed}</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSeverity('LOW')}
+            className={`p-4 rounded-lg border-2 transition-transform ${
+              isSelected('LOW') ? 'border-blue-700' : 'border-transparent'
+            } bg-blue-50 text-blue-700 hover:scale-[1.02]`}
+          >
+            <div className="font-semibold">Low</div>
+            <div className="text-2xl">{totalLow}</div>
+          </button>
+        </div>
+
+        {/* Cache Notice (unchanged from original) */}
+        {usedCache && (
+          <div className="mb-4 flex items-center justify-between bg-blue-50 p-4 rounded-lg">
+            <span className="text-blue-700">⚡ Results loaded from cache</span>
+            <button
+              onClick={onRefreshRequest}
+              disabled={scanning}
+              className={`px-4 py-2 rounded text-sm ${
+                scanning
+                  ? 'bg-gray-300 cursor-not-allowed'
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              {scanning ? 'Refreshing...' : 'Refresh Scan'}
+            </button>
+          </div>
+        )}
+
+        {/* View Toggle */}
+        <div className="flex items-center gap-2 bg-gray-200 rounded-md p-1 w-fit mb-6">
+          <button
+            type="button"
+            onClick={() => setViewMode('type')}
+            className={`px-4 py-2 rounded ${
+              viewMode === 'type' ? 'bg-white font-medium' : ''
+            }`}
+          >
+            View by Vulnerability Type
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('file')}
+            className={`px-4 py-2 rounded ${
+              viewMode === 'file' ? 'bg-white font-medium' : ''
+            }`}
+          >
+            View by File
+          </button>
+        </div>
+
+        {/* Search Input */}
+        <div className="mb-6">
+          <input
+            type="text"
+            placeholder="Search by description or file path..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Results */}
+        {viewMode === 'type' ? (
+          <>
+            {filteredByType.length > 0 ? (
+              <div className="space-y-4">
+                {filteredByType.map((finding, index) => {
+                  const recommendation = recommendations[finding.type];
+                  return (
+                    <div
+                      key={index}
+                      className="border border-gray-200 rounded-lg p-4"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold text-lg">
+                            {finding.description}
+                          </h3>
+                          <div className="mt-2 text-sm text-gray-700">
+                            <strong>Files:</strong>{' '}
+                            {finding.files.map((file, i) => (
+                              <span key={i} className="mr-2">
+                                {file} (lines:{' '}
+                                {finding.allLineNumbers[file].join(', ')})
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div
+                          className={`ml-4 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ${
+                            finding.severity === 'CRITICAL'
+                              ? 'bg-red-100 text-red-800'
+                              : finding.severity === 'HIGH'
+                              ? 'bg-orange-100 text-orange-800'
+                              : finding.severity === 'MEDIUM'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {finding.severity}
+                        </div>
+                      </div>
+
+                      {/* Recommendation details */}
+                      {recommendation && (
+                        <div className="mt-4 bg-gray-50 rounded p-3 text-sm text-gray-700">
+                          <div
+                            className="prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{
+                              __html: recommendation.recommendation
+                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\n/g, '<br />')
+                            }}
+                          />
+                          {recommendation.references && (
+                            <div className="mt-2">
+                              <strong>References:</strong>
+                              <ul className="list-disc pl-5 mt-1">
+                                {recommendation.references.map((ref, idx) => (
+                                  <li key={idx}>
+                                    <a
+                                      href={ref.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline"
+                                    >
+                                      {ref.title || ref.url}
+                                    </a>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No vulnerabilities found
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {filteredByFile.length > 0 ? (
+              <div className="space-y-4">
+                {filteredByFile.map(({ fileName, fileVulns }) => (
+                  <div
+                    key={fileName}
+                    className="border border-gray-200 rounded-lg p-4"
+                  >
+                    <h3 className="text-lg font-semibold mb-2">{fileName}</h3>
+                    <ul className="space-y-2">
+                      {fileVulns.map((vuln, i) => {
+                        const recommendation = recommendations[vuln.type];
+                        return (
+                          <li
+                            key={`${fileName}-${i}`}
+                            className="bg-gray-50 rounded p-3"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-medium text-sm">
+                                  {vuln.description}
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  Lines: {vuln.lineNumbers.join(', ')}
+                                </p>
+                              </div>
+                              <span
+                                className={`ml-4 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
+                                  vuln.severity === 'CRITICAL'
+                                    ? 'bg-red-100 text-red-800'
+                                    : vuln.severity === 'HIGH'
+                                    ? 'bg-orange-100 text-orange-800'
+                                    : vuln.severity === 'MEDIUM'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}
+                              >
+                                {vuln.severity}
+                              </span>
+                            </div>
+                            {recommendation && (
+                              <div className="mt-3 bg-white rounded p-3 text-sm text-gray-700">
+                                <div
+                                  className="prose prose-sm max-w-none"
+                                  dangerouslySetInnerHTML={{
+                                    __html: recommendation.recommendation
+                                      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                      .replace(/\n/g, '<br />')
+                                  }}
+                                />
+                                {recommendation.references && (
+                                  <div className="mt-2">
+                                    <strong>References:</strong>
+                                    <ul className="list-disc pl-5 mt-1">
+                                      {recommendation.references.map(
+                                        (ref, idx) => (
+                                          <li key={idx}>
+                                            <a
+                                              href={ref.url}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-blue-600 hover:underline"
+                                            >
+                                              {ref.title || ref.url}
+                                            </a>
+                                          </li>
+                                        )
+                                      )}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No vulnerabilities found
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ScanResults;
