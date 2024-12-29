@@ -24,13 +24,31 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
   const { findings = {}, summary = {} } = results;
   
   // Handle both array and object formats of findings
-  const vulnerabilities = Array.isArray(findings) ? findings : 
-    Object.entries(findings).map(([type, data]) => ({
-      type,
-      ...data,
-      description: data.description || 'No description provided',
-      severity: data.severity || 'LOW'
-    }));
+  // Convert findings object to array and sort by severity
+  const vulnerabilities = Object.entries(findings).map(([type, data]) => ({
+    type,
+    ...data,
+    description: data.description || 'No description provided',
+    severity: data.severity || 'LOW',
+    // Extract all file paths from allLineNumbers
+    files: Object.keys(data.allLineNumbers || {}).sort()
+  })).sort((a, b) => {
+    const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+    return severityOrder[a.severity] - severityOrder[b.severity];
+  });
+
+  // State for filtering
+  const [severityFilter, setSeverityFilter] = React.useState('ALL');
+  const [searchQuery, setSearchQuery] = React.useState('');
+
+  // Filter vulnerabilities based on severity and search query
+  const filteredVulnerabilities = vulnerabilities.filter(vuln => {
+    const matchesSeverity = severityFilter === 'ALL' || vuln.severity === severityFilter;
+    const matchesSearch = searchQuery === '' || 
+      vuln.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vuln.files.some(file => file.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesSeverity && matchesSearch;
+  });
   
   return (
     <div className="mt-8">
@@ -77,23 +95,54 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
           </div>
         )}
 
+        {/* Filtering Controls */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="Search by description or file path..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="ALL">All Severities</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+        </div>
+
         {/* Findings List */}
-        {vulnerabilities.length > 0 ? (
+        {filteredVulnerabilities.length > 0 ? (
           <div className="space-y-4">
-            {vulnerabilities.map((finding, index) => {
+            {filteredVulnerabilities.map((finding, index) => {
               const recommendation = recommendations[finding.type];
               
               return (
                 <div key={index} className="border rounded-lg p-4">
                   <div className="flex items-start justify-between">
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-semibold text-lg">{finding.description}</h3>
-                      <div className="text-sm text-gray-500">
-                        Found in: {Object.keys(finding.allLineNumbers).join(', ')}
+                      <div className="mt-2">
+                        <h4 className="font-medium text-sm text-gray-700 mb-1">Found in:</h4>
+                        <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                          {finding.files.map((file, fileIndex) => (
+                            <li key={fileIndex} className="truncate">
+                              {file} (Lines: {finding.allLineNumbers[file].join(', ')})
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     </div>
                     <div className={`
-                      px-3 py-1 rounded-full text-sm font-medium
+                      ml-4 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap
                       ${finding.severity === 'CRITICAL' ? 'bg-red-100 text-red-800' :
                         finding.severity === 'HIGH' ? 'bg-orange-100 text-orange-800' :
                         finding.severity === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
