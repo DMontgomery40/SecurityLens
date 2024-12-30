@@ -1,39 +1,6 @@
 import React, { useState } from 'react';
 import { patterns, patternCategories, recommendations } from '../lib/patterns';
 
-// Recommendations
-export const recommendations = {
-  // ... [keeping all the recommendations object content exactly as is]
-  evalExecution: {
-    recommendation: `
-**Why it Matters**: Using \`eval()\` or the Function constructor can allow malicious 
-code to run in your application, leading to data theft or system compromise.
-
-**What to Do**:
-1. **Avoid Dynamic Code**: Use safer alternatives (e.g., \`JSON.parse\` for JSON data).
-2. **Sanitize Input**: If dynamic evaluation is unavoidable, carefully whitelist 
-   valid inputs and reject anything unexpected.
-
-**Example**:
-Instead of:
-\`\`\`javascript
-eval(userInput);
-\`\`\`
-Do:
-\`\`\`javascript
-const parsed = JSON.parse(userInput); // with validation
-\`\`\`
-    `,
-    references: [
-      {
-        title: 'CWE-95: Eval Injection',
-        url: 'https://cwe.mitre.org/data/definitions/95.html'
-      }
-    ],
-    cwe: '95'
-  },
-  // ... [keeping all other recommendation entries exactly as is]
-};
 
 // Severity sort order
 const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
