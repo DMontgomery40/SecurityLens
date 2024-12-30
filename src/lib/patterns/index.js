@@ -1186,6 +1186,44 @@ Do:
     ],
     cwe: '639'
   },
+  memoryLeak: {
+    recommendation: `
+  **Why it Matters**: Timers, intervals, or event listeners can cause memory leaks if references to large objects or resources are never cleared. Over time, this can degrade performance or cause application crashes.
+  
+  **What to Do**:
+  1. **Track and Clear Intervals**: Store the return from \`setInterval\` and call \`clearInterval\` when you no longer need it.
+  2. **Limit Scope**: Avoid capturing large objects in timer callbacks that persist references.
+  3. **Check for Orphaned Listeners**: Remove event listeners or intervals in cleanup logic (e.g., when a component unmounts in React or a route finishes in Express).
+  
+  **Example**:
+  Instead of:
+  \`\`\`javascript
+  setInterval(() => {
+    // Some operation holding onto a big object
+  }, 1000);
+  \`\`\`
+  Do:
+  \`\`\`javascript
+  const intervalId = setInterval(() => {
+    // Perform the required operation
+  }, 1000);
+  
+  // Later, when done:
+  clearInterval(intervalId);
+  \`\`\`
+    `,
+    references: [
+      {
+        title: 'CWE-401: Missing Release of Memory after Effective Lifetime',
+        url: 'https://cwe.mitre.org/data/definitions/401.html'
+      },
+      {
+        title: 'MDN: setInterval() Documentation',
+        url: 'https://developer.mozilla.org/docs/Web/API/WindowOrWorkerGlobalScope/setInterval'
+      }
+    ],
+    cwe: '401'
+  },
   
 
   outdatedDependency: {
