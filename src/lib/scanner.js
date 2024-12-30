@@ -22,19 +22,13 @@ class VulnerabilityScanner {
 
         // Debug logging
         console.log('Initializing scanner with patterns:', {
-            corePatterns: !!corePatterns,
-            enhancedPatterns: !!enhancedPatterns
+            Patterns: !!corePatterns,
+          
         });
 
         this.vulnerabilityPatterns = { ...corePatterns };
         
-        // Only add enhanced patterns if they exist and are enabled
-        if (this.config.enableNewPatterns && enhancedPatterns) {
-            this.vulnerabilityPatterns = {
-                ...this.vulnerabilityPatterns,
-                ...enhancedPatterns
-            };
-        }
+        
 
         // Validate patterns
         let validPatterns = 0;
