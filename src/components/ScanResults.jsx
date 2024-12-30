@@ -1,34 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { patterns, patternCategories, recommendations } from '../lib/patterns';
-
+import VulnerabilityScanner from '../lib/scanner';
 
 // Severity sort order
 const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 
-const ScanResults = ({ files, onRefreshRequest, scanning }) => {
-  const [results, setResults] = useState(null);
+const ScanResults = ({ scanResults, onRefreshRequest, scanning }) => {
   const [error, setError] = useState(null);
 
-  const runScan = async () => {
-    try {
-      const scanResults = await scan(files);
-      setResults(scanResults);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-      setResults(null);
-    }
-  };
+  if (!scanResults) return null;
 
-  useEffect(() => {
-    if (files && Object.keys(files).length > 0) {
-      runScan();
-    }
-  }, [files]);
-
-  if (!results) return null;
-
-  const { findings = {}, summary = {} } = results;
+  const { findings = {}, summary = {} } = scanResults;
 
   // Convert findings object to array for processing
   const vulnerabilities = Object.entries(findings).map(([type, data]) => {
