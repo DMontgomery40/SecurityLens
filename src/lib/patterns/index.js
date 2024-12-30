@@ -308,13 +308,17 @@ code to run in your application, leading to data theft or system compromise.
 
 **Example**:
 Instead of:
+
 \`\`\`javascript
 eval(userInput);
 \`\`\`
+
 Do:
+
 \`\`\`javascript
 const parsed = JSON.parse(userInput); // with validation
 \`\`\`
+
     `,
     references: [
       {
@@ -908,6 +912,173 @@ app.use('/api', authenticateUser, someMiddleware, apiHandler);
     ],
     cwe: '926'
   },
+  // InsecureTransmission
+insecureTransmission: {
+  recommendation: `
+**Why it Matters**: Transmitting data over HTTP (cleartext) can allow attackers to intercept and read sensitive information.
+
+**What to Do**:
+1. **Use HTTPS**: Always transmit data over TLS/SSL.
+2. **Enforce Strict Transport Security (HSTS)**: Configure your server to require HTTPS connections.
+3. **Avoid Sensitive Data in Query Params**: Even over HTTPS, be cautious with tokens or credentials in URLs.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+fetch('http://example.com/api', { ... });
+\`\`\`
+Do:
+\`\`\`javascript
+fetch('https://example.com/api', { ... });
+\`\`\`
+  `,
+  references: [
+    {
+      title: 'CWE-319: Cleartext Transmission of Sensitive Information',
+      url: 'https://cwe.mitre.org/data/definitions/319.html'
+    },
+    {
+      title: 'OWASP Transport Layer Protection Cheat Sheet',
+      url: 'https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Protection_Cheat_Sheet.html'
+    }
+  ],
+  cwe: '319'
+},
+
+// ResourceLeak
+resourceLeak: {
+  recommendation: `
+**Why it Matters**: Synchronous file I/O (or unclosed resources) can cause memory or resource leaks, degrade performance, and potentially block the event loop.
+
+**What to Do**:
+1. **Use Asynchronous Methods**: Prefer async I/O when reading/writing files to avoid blocking.
+2. **Properly Close Resources**: Close file handles, database connections, and sockets.
+3. **Handle Errors**: Ensure error handling paths also close or release resources.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+fs.readFileSync('someLargeFile.txt');
+\`\`\`
+Do:
+\`\`\`javascript
+fs.readFile('someLargeFile.txt', (err, data) => {
+  if (err) throw err;
+  // handle data
+});
+\`\`\`
+  `,
+  references: [
+    {
+      title: 'CWE-399: Resource Management Errors',
+      url: 'https://cwe.mitre.org/data/definitions/399.html'
+    }
+  ],
+  cwe: '399'
+},
+
+// SensitiveData
+sensitiveData: {
+  recommendation: `
+**Why it Matters**: Exposing or mishandling passwords, tokens, or other sensitive data can lead to unauthorized access and data breaches.
+
+**What to Do**:
+1. **Use Strong Encryption**: Encrypt sensitive fields at rest (e.g., database) and in transit (HTTPS).
+2. **Limit Access**: Store sensitive data in environment variables or secure vaults.
+3. **Redact Logs**: Never log raw credentials or tokens.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+const password = "supersecret";
+logger.info(\`User password is: \${password}\`);
+\`\`\`
+Do:
+\`\`\`javascript
+const password = process.env.DB_PASSWORD;
+logger.info("User password retrieved securely");
+\`\`\`
+  `,
+  references: [
+    {
+      title: 'CWE-200: Exposure of Sensitive Information to an Unauthorized Actor',
+      url: 'https://cwe.mitre.org/data/definitions/200.html'
+    },
+    {
+      title: 'OWASP Top 10: Sensitive Data Exposure',
+      url: 'https://owasp.org/Top10/A03_2021-Sensitive_Data_Exposure/'
+    }
+  ],
+  cwe: '200'
+},
+
+// UnsanitizedInputUsage
+unsanitizedInputUsage: {
+  recommendation: `
+**Why it Matters**: Using raw, unsanitized user input in sensitive operations can allow attackers to manipulate configuration, perform injections, or escalate privileges.
+
+**What to Do**:
+1. **Validate Input**: Strictly check that input matches expected formats (e.g., regex, schemas).
+2. **Sanitize or Escape**: Remove or escape special characters before using them in file paths, queries, etc.
+3. **Use Safe APIs**: For queries or commands, prefer parameterized methods or built-in safety functions.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+config.dbHost = req.body.dbHost;
+\`\`\`
+Do:
+\`\`\`javascript
+if (isValidHostname(req.body.dbHost)) {
+  config.dbHost = sanitizeHostname(req.body.dbHost);
+}
+\`\`\`
+  `,
+  references: [
+    {
+      title: 'CWE-932: Insecure Mechanism for Updating or Upgrading Software',
+      url: 'https://cwe.mitre.org/data/definitions/932.html'
+    },
+    {
+      title: 'OWASP Input Validation Cheat Sheet',
+      url: 'https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html'
+    }
+  ],
+  cwe: '932'
+},
+
+// BufferIssue
+bufferIssue: {
+  recommendation: `
+**Why it Matters**: Using unsafe buffer allocation (like \`Buffer.allocUnsafe\` or the deprecated \`new Buffer\`) can lead to uninitialized memory leaks or potential buffer overflows.
+
+**What to Do**:
+1. **Use Safe Buffer Methods**: Prefer \`Buffer.alloc\` or \`Buffer.from\` instead of unsafe variants.
+2. **Validate Data Length**: Ensure you don’t write more data than the buffer’s capacity.
+3. **Avoid Deprecated Constructors**: \`new Buffer()\` is deprecated since Node.js 6.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+const unsafeBuf = new Buffer(10); // or Buffer.allocUnsafe(10)
+\`\`\`
+Do:
+\`\`\`javascript
+const safeBuf = Buffer.alloc(10); // zero-filled
+\`\`\`
+  `,
+  references: [
+    {
+      title: 'CWE-119: Improper Restriction of Operations within the Bounds of a Memory Buffer',
+      url: 'https://cwe.mitre.org/data/definitions/119.html'
+    },
+    {
+      title: 'Node.js Buffer Documentation',
+      url: 'https://nodejs.org/api/buffer.html'
+    }
+  ],
+  cwe: '119'
+},
 
   vulnerableDependency: {
     recommendation: `
