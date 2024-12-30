@@ -169,7 +169,9 @@ class VulnerabilityScanner {
             return [];
         }
 
-        if (fileContent.length > this.config.maxFileSize) {
+        // Check file size
+        const contentSize = new Blob([fileContent]).size;
+        if (contentSize > this.config.maxFileSize) {
             console.warn(`File ${filePath} exceeds size limit of ${this.config.maxFileSize} bytes`);
             return [];
         }
@@ -184,73 +186,84 @@ class VulnerabilityScanner {
         console.log(`Active patterns: ${Object.keys(this.vulnerabilityPatterns).length}`);
 
         try {
-            // Pattern scanning with chunking for large files
+            // Use a sliding window for pattern matching to handle patterns that might cross chunk boundaries
             const chunkSize = 100000; // 100KB chunks
-            const totalChunks = Math.ceil(fileContent.length / chunkSize);
+            const overlap = 1000; // 1KB overlap between chunks
+            const totalChunks = Math.ceil(fileContent.length / (chunkSize - overlap));
             let processedChunks = 0;
 
             if (this.config.onProgress) {
-                this.config.onProgress.setTotal(totalChunks);
+                this.config.onProgress(0, totalChunks);
             }
+
+            // Track line numbers for accurate reporting
+            const lines = fileContent.split('\n');
+            const lineOffsets = new Array(lines.length + 1);
+            let offset = 0;
+            for (let i = 0; i < lines.length; i++) {
+                lineOffsets[i] = offset;
+                offset += lines[i].length + 1; // +1 for newline
+            }
+            lineOffsets[lines.length] = offset;
 
             for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
                 try {
                     const regex = new RegExp(vulnInfo.pattern, 'g');
-                    let matches = [];
-                    
-                    // Process large files in chunks
-                    if (fileContent.length > chunkSize) {
-                        for (let i = 0; i < fileContent.length; i += chunkSize) {
-                            const chunk = fileContent.slice(i, i + chunkSize);
-                            const chunkMatches = chunk.match(regex) || [];
-                            matches.push(...chunkMatches);
+                    const matches = new Set(); // Use Set to deduplicate matches
+
+                    // Process file in overlapping chunks
+                    for (let i = 0; i < fileContent.length; i += chunkSize - overlap) {
+                        const chunk = fileContent.slice(i, i + chunkSize);
+                        let match;
+
+                        // Set regex lastIndex to 0 for each chunk
+                        regex.lastIndex = 0;
+
+                        while ((match = regex.exec(chunk)) !== null) {
+                            const globalOffset = i + match.index;
                             
-                            // Increment and update progress
-                            processedChunks++;
-                            if (this.config.onProgress) {
-                                this.config.onProgress.increment();
+                            // Find line number for this match
+                            let lineNumber = 0;
+                            while (lineNumber < lineOffsets.length && lineOffsets[lineNumber] <= globalOffset) {
+                                lineNumber++;
+                            }
+                            lineNumber--; // Adjust to 0-based index
+
+                            // Only add if not in overlap region or if it's a new match
+                            if (i === 0 || match.index < chunkSize - overlap) {
+                                matches.add(lineNumber);
                             }
                         }
-                    } else {
-                        matches = fileContent.match(regex) || [];
-                        // Single chunk for small files
+
                         processedChunks++;
                         if (this.config.onProgress) {
-                            this.config.onProgress.increment();
+                            this.config.onProgress(processedChunks, totalChunks);
                         }
                     }
-                    
-                    if (matches.length > 0) {
-                        console.log(`Found ${matches.length} matches for pattern: ${vulnType}`);
+
+                    if (matches.size > 0) {
                         findings.push({
-                            ...vulnInfo,
                             type: vulnType,
+                            severity: vulnInfo.severity,
+                            description: vulnInfo.description,
                             file: filePath,
-                            occurrences: matches.length,
-                            lineNumbers: this.findLineNumbers(fileContent, vulnInfo.pattern),
-                            recommendation: recommendations[vulnType]?.recommendation || 'Review and fix the identified issue',
-                            references: recommendations[vulnType]?.references || [],
-                            cwe: recommendations[vulnType]?.cwe,
-                            scannerType: 'pattern'
+                            lineNumbers: Array.from(matches).sort((a, b) => a - b)
                         });
                     }
                 } catch (error) {
-                    console.error(`Error analyzing pattern ${vulnType}:`, error);
+                    console.error(`Error processing pattern ${vulnType}:`, error);
                 }
             }
 
             if (this.config.onProgress) {
-                this.config.onProgress.complete();
+                this.config.onProgress(totalChunks, totalChunks);
             }
-        } catch (error) {
-            if (error.message === 'Pattern matching timeout') {
-                console.warn(`Pattern matching timeout for ${filePath} after ${this.config.patternTimeout}ms`);
-                return findings;
-            }
-            console.error(`Error scanning file ${filePath}:`, error);
-        }
 
-        return findings;
+            return findings;
+        } catch (error) {
+            console.error(`Error scanning file ${filePath}:`, error);
+            return findings;
+        }
     }
 
     findLineNumbers(content, pattern) {

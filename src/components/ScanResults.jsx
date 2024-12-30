@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { patterns, patternCategories, recommendations } from '../lib/patterns';
-import { scan } from '../lib/patterns'; // Update this line
+
 
 // Severity sort order
 const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
@@ -30,39 +30,14 @@ const ScanResults = ({ files, onRefreshRequest, scanning }) => {
 
   const { findings = {}, summary = {} } = results;
 
-  // Group by (description+severity) just like before
-  const groupedFindings = Object.entries(findings).reduce((acc, [type, data]) => {
-    const description = data.description || 'No description provided';
-    const severity = data.severity || 'LOW';
-    const key = `${description}_${severity}`;
-
-    if (!acc[key]) {
-      acc[key] = {
-        type,
-        description,
-        severity,
-        files: [],
-        allLineNumbers: {},
-        ...data
-      };
-    } else {
-      // Merge file line data if same description & severity
-      Object.entries(data.allLineNumbers || {}).forEach(([file, lines]) => {
-        if (!acc[key].allLineNumbers[file]) {
-          acc[key].allLineNumbers[file] = lines;
-        } else {
-          const merged = new Set([...acc[key].allLineNumbers[file], ...lines]);
-          acc[key].allLineNumbers[file] = Array.from(merged).sort((a, b) => a - b);
-        }
-      });
-    }
-    return acc;
-  }, {});
-
-  // Convert to array, gather line counts, etc.
-  const vulnerabilities = Object.values(groupedFindings).map((v) => {
-    const filesSorted = Object.keys(v.allLineNumbers).sort();
-    return { ...v, files: filesSorted };
+  // Convert findings object to array for processing
+  const vulnerabilities = Object.entries(findings).map(([type, data]) => {
+    const filesSorted = Object.keys(data.allLineNumbers).sort();
+    return { 
+      ...data,
+      type,
+      files: filesSorted
+    };
   });
 
   // Sort by severity first

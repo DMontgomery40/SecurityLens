@@ -155,6 +155,29 @@ export const handler = async (event, context) => {
       // Start recursive scan from the initial path
       const allFindings = await scanDirectory(path);
 
+      // Process findings to match client-side data structure
+      const processedFindings = allFindings.reduce((acc, finding) => {
+        const key = finding.type;
+        if (!acc[key]) {
+          acc[key] = {
+            type: finding.type,
+            severity: finding.severity || 'LOW',
+            description: finding.description || 'No description provided',
+            allLineNumbers: { [finding.file]: finding.lineNumbers || [] }
+          };
+        } else {
+          // Merge line numbers if same type
+          const file = finding.file;
+          if (!acc[key].allLineNumbers[file]) {
+            acc[key].allLineNumbers[file] = finding.lineNumbers || [];
+          } else {
+            const merged = new Set([...acc[key].allLineNumbers[file], ...finding.lineNumbers]);
+            acc[key].allLineNumbers[file] = Array.from(merged).sort((a, b) => a - b);
+          }
+        }
+        return acc;
+      }, {});
+
       // Generate report
       const report = scannerInstance.generateReport(allFindings);
 
@@ -162,13 +185,7 @@ export const handler = async (event, context) => {
         statusCode: 200,
         headers,
         body: JSON.stringify({
-          files: files.map(f => ({
-            name: f.name,
-            path: f.path,
-            type: f.type,
-            size: f.size
-          })),
-          findings: allFindings,
+          findings: processedFindings,
           summary: report.summary,
           rateLimit: rateLimit.data.rate
         })

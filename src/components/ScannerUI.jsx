@@ -26,50 +26,143 @@ const ScannerUI = () => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
+    // Validate files first
+    const validFiles = files.filter(file => {
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setError(`File ${file.name} is too large (max 10MB)`);
+        return false;
+      }
+
+      // Check file type - extensive list of file types that could contain vulnerabilities
+      const validExtensions = [
+        // Web/Frontend
+        '.js', '.jsx', '.ts', '.tsx', '.html', '.htm', '.css', '.scss', '.sass', '.less', '.vue', '.svelte',
+        // Backend
+        '.py', '.rb', '.php', '.java', '.jsp', '.asp', '.aspx', '.cs', '.go', '.rs', '.scala', '.kt', '.kts',
+        // Configuration/Infrastructure
+        '.xml', '.yaml', '.yml', '.json', '.toml', '.ini', '.conf', '.config', '.env', '.properties',
+        '.dockerfile', 'dockerfile', '.docker-compose.yml', '.docker-compose.yaml',
+        // Shell/Scripts
+        '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1', '.psm1',
+        // Database
+        '.sql', '.graphql', '.prisma',
+        // Mobile
+        '.swift', '.m', '.h', '.mm', '.kotlin', '.gradle',
+        // Other
+        '.pl', '.pm', '.t', '.perl', '.cgi',  // Perl
+        '.lua',  // Lua
+        '.r', '.rmd',  // R
+        '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp',  // C/C++
+        '.ex', '.exs',  // Elixir
+        '.erl', '.hrl',  // Erlang
+        '.hs', '.lhs',  // Haskell
+        '.ml', '.mli',  // OCaml
+        '.fs', '.fsx', '.fsi',  // F#
+        // Template files
+        '.ejs', '.pug', '.jade', '.hbs', '.mustache', '.twig', '.liquid',
+        // Build/Package files
+        'package.json', 'package-lock.json', 'yarn.lock', 'pom.xml', 'build.gradle', 
+        'requirements.txt', 'pipfile', 'gemfile', 'cargo.toml', 'mix.exs'
+      ];
+      
+      const ext = file.name.toLowerCase();
+      const isValidExtension = validExtensions.some(validExt => {
+        if (validExt.startsWith('.')) {
+          return ext.endsWith(validExt);
+        }
+        // For exact filename matches (like 'dockerfile')
+        return ext === validExt;
+      });
+
+      if (!isValidExtension) {
+        setError(`File type ${ext} is not supported`);
+        return false;
+      }
+
+      return true;
+    });
+
+    if (validFiles.length === 0) {
+      setError('No valid files to scan');
+      return;
+    }
+
     setScanning(true);
     setError(null);
-    setProgress({ current: 0, total: files.length });
+    setProgress({ current: 0, total: validFiles.length });
     setScanResults(null);
     setUsedCache(false);
     
     try {
       const scanner = new VulnerabilityScanner({
         enableNewPatterns: true,
-        enablePackageScanners: true
+        enablePackageScanners: true,
+        onProgress: (current, total) => {
+          setProgress({ current, total });
+        }
       });
 
       let allFindings = [];
       let processedFiles = 0;
 
-      for (const file of files) {
-        try {
-          const content = await file.text();
-          const fileFindings = await scanner.scanFile(content, file.name);
-          allFindings.push(...fileFindings);
+      // Process files in batches to avoid memory issues
+      const batchSize = 5;
+      for (let i = 0; i < validFiles.length; i += batchSize) {
+        const batch = validFiles.slice(i, i + batchSize);
+        const batchPromises = batch.map(async (file) => {
+          try {
+            const content = await file.text();
+            const fileFindings = await scanner.scanFile(content, file.name);
+            return { file: file.name, findings: fileFindings };
+          } catch (err) {
+            console.error(`Error scanning file ${file.name}:`, err);
+            return { file: file.name, error: err.message };
+          }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        batchResults.forEach(result => {
+          if (result.findings) {
+            allFindings.push(...result.findings);
+          }
           processedFiles++;
-          setProgress({ current: processedFiles, total: files.length });
-        } catch (err) {
-          console.error(`Error scanning file ${file.name}:`, err);
-        }
+          setProgress({ current: processedFiles, total: validFiles.length });
+        });
       }
 
-      // Process findings to ensure proper structure and maintain array format
-      const processedFindings = allFindings.map(finding => ({
-        ...finding,
-        severity: finding.severity || 'LOW',
-        description: finding.description || 'No description provided',
-        allLineNumbers: { [finding.file]: finding.lineNumbers || [] }
-      }));
+      // Process findings to ensure proper structure
+      const processedFindings = allFindings.reduce((acc, finding) => {
+        const key = finding.type;
+        if (!acc[key]) {
+          acc[key] = {
+            type: finding.type,
+            severity: finding.severity || 'LOW',
+            description: finding.description || 'No description provided',
+            allLineNumbers: { [finding.file]: finding.lineNumbers || [] }
+          };
+        } else {
+          // Merge line numbers if same type
+          const file = finding.file;
+          if (!acc[key].allLineNumbers[file]) {
+            acc[key].allLineNumbers[file] = finding.lineNumbers || [];
+          } else {
+            const merged = new Set([...acc[key].allLineNumbers[file], ...finding.lineNumbers]);
+            acc[key].allLineNumbers[file] = Array.from(merged).sort((a, b) => a - b);
+          }
+        }
+        return acc;
+      }, {});
 
-      const report = scanner.generateReport(processedFindings);
+      const report = scanner.generateReport(allFindings);
       setScanResults({
-        ...report,
-        findings: processedFindings // Keep findings as array for local scans
+        findings: processedFindings,
+        summary: report.summary || {}
       });
       
       const { criticalIssues = 0, highIssues = 0, mediumIssues = 0, lowIssues = 0 } = report.summary || {};
       setSuccessMessage(
-        `Scan complete! Found ${processedFindings.length} potential vulnerabilities ` +
+        `Scan complete! Found ${Object.keys(processedFindings).length} potential vulnerabilities ` +
         `(${criticalIssues} critical, ${highIssues} high, ${mediumIssues} medium, ${lowIssues} low)`
       );
     } catch (err) {

@@ -1,3 +1,6 @@
+// In-memory progress tracking (will be lost on function restart)
+const scanProgress = new Map();
+
 export class ProgressHandler {
   constructor(callback) {
     this.callback = callback;
@@ -40,4 +43,38 @@ export class ProgressHandler {
       });
     }
   }
-} 
+}
+
+export const updateProgress = (scanId, data) => {
+  scanProgress.set(scanId, {
+    ...data,
+    timestamp: Date.now()
+  });
+};
+
+export const getProgressForScan = async (scanId) => {
+  const progress = scanProgress.get(scanId);
+  
+  if (!progress) {
+    return {
+      status: 'unknown',
+      message: 'No progress data found for this scan'
+    };
+  }
+
+  // Clear old progress data after 1 hour
+  if (Date.now() - progress.timestamp > 3600000) {
+    scanProgress.delete(scanId);
+    return {
+      status: 'expired',
+      message: 'Scan progress data has expired'
+    };
+  }
+
+  return {
+    status: progress.status,
+    current: progress.current,
+    total: progress.total,
+    message: progress.message
+  };
+};
