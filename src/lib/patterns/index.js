@@ -8,21 +8,21 @@ const MAX_CONTEXT_LINES = 5;     // Lines of context around matches
 
 // Categories with CVSS mappings
 export const patternCategories = {
-  CRITICAL_EXECUTION: { id: '94', cvss: 9.8 },
-  AUTHENTICATION: { id: '287', cvss: 9.1 },
-  INJECTION: { id: '74', cvss: 9.0 },
-  FILE_OPERATIONS: { id: '434', cvss: 8.8 },
-  CRYPTO_ISSUES: { id: '310', cvss: 7.4 },
-  MEMORY_BUFFER: { id: '119', cvss: 7.3 },
-  DATA_PROTECTION: { id: '200', cvss: 7.5 },
-  INPUT_VALIDATION: { id: '20', cvss: 6.5 },
-  ERROR_HANDLING: { id: '389', cvss: 5.0 },
-  ACCESS_CONTROL: { id: '264', cvss: 8.2 },
-  RESOURCE_MGMT: { id: '399', cvss: 7.1 },
-  SSRF: { id: '918', cvss: 8.6 },
-  SESSION_MANAGEMENT: { id: '384', cvss: 8.0 },
-  API_SECURITY: { id: '920', cvss: 8.3 },
-  DEPENDENCY_MANAGEMENT: { id: '925', cvss: 7.5 }
+  CRITICAL_EXECUTION: '94',
+  AUTHENTICATION: '287',
+  INJECTION: '74',
+  FILE_OPERATIONS: '434',
+  CRYPTO_ISSUES: '310',
+  MEMORY_BUFFER: '119',
+  DATA_PROTECTION: '200',
+  INPUT_VALIDATION: '20',
+  ERROR_HANDLING: '389',
+  ACCESS_CONTROL: '264',
+  RESOURCE_MGMT: '399',
+  SSRF: '918',
+  SESSION_MANAGEMENT: '384',
+  API_SECURITY: '920',
+  DEPENDENCY_MANAGEMENT: '925'
 };
 
 // Pattern validation
