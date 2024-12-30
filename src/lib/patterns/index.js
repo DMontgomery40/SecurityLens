@@ -1116,6 +1116,78 @@ Do:
     cwe: '925'
   },
 
+  insecureCryptoUsage: {
+    recommendation: `
+  **Why it Matters**: Using deprecated cryptographic functions (like \`crypto.createCipher\` or \`crypto.createDecipher\`) can result in insecure encryption. These older APIs lack modern security features (e.g., authenticated encryption), and may allow attackers to decrypt or tamper with data.
+  
+  **What to Do**:
+  1. **Use \`createCipheriv\`** or similar modern APIs: These allow specifying the algorithm, key, and IV explicitly.
+  2. **Choose a Strong Cipher**: Use AES-256-GCM or another well-reviewed cipher rather than older, weaker algorithms.
+  3. **Implement Key Management**: Ensure keys and IVs are generated/stored securely.
+  
+  **Example**:
+  Instead of:
+  \`\`\`javascript
+  const cipher = crypto.createCipher('aes192', 'somePasswordKey');
+  \`\`\`
+  Do:
+  \`\`\`javascript
+  const cipher = crypto.createCipheriv('aes-256-gcm', keyBuffer, ivBuffer);
+  \`\`\`
+    `,
+    references: [
+      {
+        title: 'CWE-327: Use of a Broken or Risky Cryptographic Algorithm',
+        url: 'https://cwe.mitre.org/data/definitions/327.html'
+      },
+      {
+        title: 'Node.js Crypto Documentation',
+        url: 'https://nodejs.org/api/crypto.html'
+      }
+    ],
+    cwe: '927'
+  },
+  
+  insecureDirectObjectRef: {
+    recommendation: `
+  **Why it Matters**: Insecure Direct Object References (IDOR) allow attackers to manipulate parameters (like user IDs, document IDs, etc.) to access data they shouldn't. Without proper authorization checks, any user can potentially read or modify another user's information.
+  
+  **What to Do**:
+  1. **Enforce Authorization**: Validate that the current user is allowed to access the requested resource. 
+  2. **Use Indirect References**: Instead of exposing real IDs, map them to temporary tokens or hashed identifiers.
+  3. **Check Ownership**: Always confirm the resource belongs to (or is permissible for) the authenticated user.
+  
+  **Example**:
+  Instead of:
+  \`\`\`javascript
+  app.get('/document/:id', (req, res) => {
+    return db.getDocument(req.params.id); // No checks
+  });
+  \`\`\`
+  Do:
+  \`\`\`javascript
+  app.get('/document/:id', (req, res) => {
+    if (!userCanAccess(req.user, req.params.id)) {
+      return res.status(403).send('Forbidden');
+    }
+    return db.getDocument(req.params.id);
+  });
+  \`\`\`
+    `,
+    references: [
+      {
+        title: 'CWE-639: Insecure Direct Object Reference (IDOR)',
+        url: 'https://cwe.mitre.org/data/definitions/639.html'
+      },
+      {
+        title: 'OWASP Broken Access Control',
+        url: 'https://owasp.org/Top10/A01_2021-Broken_Access_Control/'
+      }
+    ],
+    cwe: '639'
+  },
+  
+
   outdatedDependency: {
     recommendation: `
 **Why it Matters**: Outdated dependencies may lack the latest security patches, exposing your application to known vulnerabilities.
