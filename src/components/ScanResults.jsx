@@ -1,42 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { patterns, patternCategories, recommendations } from '../lib/patterns';
-import VulnerabilityScanner from '../lib/scanner';
+// ScanResults.jsx
+
+import React, { useState } from 'react';
+import { patternCategories, recommendations } from './patterns';
 
 // Severity sort order
 const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 
-const ScanResults = ({ scanResults, onRefreshRequest }) => {
-  const [error, setError] = useState(null);
+const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
+  if (!results) return null;
 
-  if (!scanResults) {
-    console.log('No scan results provided');
-    return null;
-  }
+  const { findings = {}, summary = {} } = results;
 
-  const { findings = {}, summary = {} } = scanResults;
-  
-  // Validate findings structure
-  if (!findings || typeof findings !== 'object') {
-    console.error('Invalid findings structure:', findings);
-    return (
-      <div className="mt-8">
-        <Alert variant="error">
-          <AlertDescription>
-            Error: Invalid scan results structure. Please try scanning again.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  // Group by (description + severity)
+  const groupedFindings = Object.entries(findings).reduce((acc, [type, data]) => {
+    const description = data.description || 'No description provided';
+    const severity = data.severity || 'LOW';
+    const key = `${description}_${severity}`;
 
-  // Convert findings object to array for processing
-  const vulnerabilities = Object.entries(findings).map(([type, data]) => {
-    const filesSorted = Object.keys(data.allLineNumbers).sort();
-    return { 
-      ...data,
-      type,
-      files: filesSorted
-    };
+    if (!acc[key]) {
+      acc[key] = {
+        type,
+        description,
+        severity,
+        files: [],
+        allLineNumbers: {},
+        ...data
+      };
+    } else {
+      // Merge file line data if same description & severity
+      Object.entries(data.allLineNumbers || {}).forEach(([file, lines]) => {
+        if (!acc[key].allLineNumbers[file]) {
+          acc[key].allLineNumbers[file] = lines;
+        } else {
+          const merged = new Set([...acc[key].allLineNumbers[file], ...lines]);
+          acc[key].allLineNumbers[file] = Array.from(merged).sort((a, b) => a - b);
+        }
+      });
+    }
+    return acc;
+  }, {});
+
+  // Convert to array, gather line counts, etc.
+  const vulnerabilities = Object.values(groupedFindings).map((v) => {
+    const filesSorted = Object.keys(v.allLineNumbers).sort();
+    return { ...v, files: filesSorted };
   });
 
   // Sort by severity first
@@ -54,17 +61,15 @@ const ScanResults = ({ scanResults, onRefreshRequest }) => {
     });
   });
 
-  // We also want to show "2 Unique Vulnerabilities, 4 Total Instances" in the summary cards
-  // Let's count them properly:
+  // Summary statistics are already provided
   const severityStats = {
-    CRITICAL: { uniqueCount: 0, instanceCount: 0 },
-    HIGH: { uniqueCount: 0, instanceCount: 0 },
-    MEDIUM: { uniqueCount: 0, instanceCount: 0 },
-    LOW: { uniqueCount: 0, instanceCount: 0 }
+    CRITICAL: { uniqueCount: summary.criticalIssues || 0, instanceCount: 0 },
+    HIGH: { uniqueCount: summary.highIssues || 0, instanceCount: 0 },
+    MEDIUM: { uniqueCount: summary.mediumIssues || 0, instanceCount: 0 },
+    LOW: { uniqueCount: summary.lowIssues || 0, instanceCount: 0 }
   };
   vulnerabilities.forEach((vuln) => {
     const sev = vuln.severity;
-    severityStats[sev].uniqueCount += 1;
     // Sum line counts for total "instances"
     let totalLines = 0;
     Object.values(vuln.allLineNumbers).forEach((linesArr) => {
@@ -109,7 +114,7 @@ const ScanResults = ({ scanResults, onRefreshRequest }) => {
     })
     .filter((group) => group.vulns.length > 0);
 
-  // Expandable lines: we'll do a small component
+  // Expandable lines component
   const FileLineNumbers = ({ lines }) => {
     const [expanded, setExpanded] = useState(false);
     // Show only first 5 if more than 5
@@ -135,27 +140,19 @@ const ScanResults = ({ scanResults, onRefreshRequest }) => {
     );
   };
 
-  // Renders the big vulnerability card (similar to mockup)
+  // Vulnerability Card Component
   const VulnerabilityCard = ({ vuln }) => {
     // Grab the recommendation
     const rec = recommendations[vuln.type];
-    // If we want a pattern display, let's find it from patterns object
+    // If we want a pattern display, let's find it from patterns
     let matchedPattern = '';
-    let cwe = '';
-    let catNum = vuln.category || ''; // might be in the data
-    let subCat = vuln.subcategory || '';
+    let cwe = vuln.cwe || '';
 
-    // Get pattern info from patterns object
     if (patterns[vuln.type]) {
       matchedPattern = patterns[vuln.type].pattern.toString();
-      catNum = patterns[vuln.type].category;
-      subCat = patterns[vuln.type].subcategory;
-    }
-    if (rec && rec.cwe) {
-      cwe = rec.cwe; // e.g. "798"
     }
 
-    // We can style severity badge
+    // Style severity badge
     const severityBadge = {
       CRITICAL: 'bg-red-100 text-red-800',
       HIGH: 'bg-orange-100 text-orange-800',
@@ -164,7 +161,7 @@ const ScanResults = ({ scanResults, onRefreshRequest }) => {
     }[vuln.severity] || 'bg-gray-100 text-gray-700';
 
     return (
-      <div className="vulnerability-card border border-gray-200 rounded-lg p-4">
+      <div className="vulnerability-card border border-gray-200 rounded-lg p-4 shadow-sm">
         <div className="vuln-header flex items-start justify-between mb-4">
           <div className="vuln-title flex flex-col gap-2">
             {/* Severity badge + Title */}
@@ -184,9 +181,9 @@ const ScanResults = ({ scanResults, onRefreshRequest }) => {
                   CWE-{cwe}
                 </a>
               ) : null}
-              {catNum ? (
+              {vuln.category ? (
                 <span className="cve-category text-gray-600">
-                  Category: {Object.keys(patternCategories).find(k => patternCategories[k] === catNum)} ({catNum})
+                  Category: {Object.keys(patternCategories).find(k => patternCategories[k] === vuln.category)} ({vuln.category})
                 </span>
               ) : null}
             </div>
@@ -218,18 +215,18 @@ const ScanResults = ({ scanResults, onRefreshRequest }) => {
         {/* Recommendation section */}
         {rec ? (
           <div className="recommendation bg-gray-50 border border-gray-200 rounded-md p-4 text-sm">
-            {/* Why it Matters / What to Do / Example ... We parse the markdown-ish text */}
-            {/* We'll split the recommendation into sections if you want, or just show it raw. */}
+            {/* Render recommendation with markdown-like formatting */}
             <div
               className="prose prose-sm text-gray-800 max-w-none recommendation-section"
               dangerouslySetInnerHTML={{
                 __html: rec.recommendation
                   .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                  .replace(/## (.*?)\n/g, '<h4>$1</h4>')
                   .replace(/\n/g, '<br />')
               }}
             />
             {/* References */}
-            {rec.references && (
+            {rec.references && rec.references.length > 0 && (
               <div className="references border-t border-gray-200 mt-3 pt-3">
                 <h4 className="font-medium mb-2">References</h4>
                 <ul className="list-disc pl-5">
@@ -258,10 +255,10 @@ const ScanResults = ({ scanResults, onRefreshRequest }) => {
                 <pre className="bg-white p-2 text-xs text-gray-800 rounded overflow-auto">
                   {matchedPattern}
                 </pre>
-                {catNum || subCat ? (
+                {vuln.category || vuln.subcategory ? (
                   <p className="text-xs text-gray-600 mt-2">
-                    Category: {Object.keys(patternCategories).find(k => patternCategories[k] === catNum)} ({catNum})<br />
-                    Subcategory: {subCat}
+                    Category: {Object.keys(patternCategories).find(k => patternCategories[k] === vuln.category)} ({vuln.category})<br />
+                    Subcategory: {vuln.subcategory}
                   </p>
                 ) : null}
               </div>
@@ -274,187 +271,140 @@ const ScanResults = ({ scanResults, onRefreshRequest }) => {
         )}
       </div>
     );
+
   };
 
-  // Now we handle UI
+  // UI Rendering
   return (
     <div className="mt-8">
       <div className="scan-results bg-white shadow rounded-lg p-6">
         {/* Summary Cards */}
         <div className="summary-grid grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          {/* CRITICAL */}
-          <button
-            type="button"
-            onClick={() => setActiveSeverity(activeSeverity === 'CRITICAL' ? 'ALL' : 'CRITICAL')}
-            className={`
-              summary-card critical p-4 rounded-lg border-2 cursor-pointer transition-transform
-              ${activeSeverity === 'CRITICAL' ? 'border-red-700' : 'border-transparent'}
-              bg-red-50 text-red-700 hover:scale-[1.02]
-            `}
-          >
-            <div className="summary-label text-sm font-semibold mb-1">Critical</div>
-            <div className="summary-numbers flex flex-col gap-1">
-              <div className="summary-count text-2xl font-bold">
-                {severityStats.CRITICAL.uniqueCount}
-              </div>
-              <div className="summary-details text-sm">
-                Unique Vulnerabilities
-              </div>
-              <div className="summary-details text-sm">
-                {severityStats.CRITICAL.instanceCount} Total Instances
-              </div>
-            </div>
-          </button>
-
-          {/* HIGH */}
-          <button
-            type="button"
-            onClick={() => setActiveSeverity(activeSeverity === 'HIGH' ? 'ALL' : 'HIGH')}
-            className={`
-              summary-card high p-4 rounded-lg border-2 cursor-pointer transition-transform
-              ${activeSeverity === 'HIGH' ? 'border-orange-700' : 'border-transparent'}
-              bg-orange-50 text-orange-700 hover:scale-[1.02]
-            `}
-          >
-            <div className="summary-label text-sm font-semibold mb-1">High</div>
-            <div className="summary-numbers flex flex-col gap-1">
-              <div className="summary-count text-2xl font-bold">
-                {severityStats.HIGH.uniqueCount}
-              </div>
-              <div className="summary-details text-sm">
-                Unique Vulnerabilities
-              </div>
-              <div className="summary-details text-sm">
-                {severityStats.HIGH.instanceCount} Total Instances
-              </div>
-            </div>
-          </button>
-
-          {/* MEDIUM */}
-          <button
-            type="button"
-            onClick={() => setActiveSeverity(activeSeverity === 'MEDIUM' ? 'ALL' : 'MEDIUM')}
-            className={`
-              summary-card medium p-4 rounded-lg border-2 cursor-pointer transition-transform
-              ${activeSeverity === 'MEDIUM' ? 'border-yellow-700' : 'border-transparent'}
-              bg-yellow-50 text-yellow-700 hover:scale-[1.02]
-            `}
-          >
-            <div className="summary-label text-sm font-semibold mb-1">Medium</div>
-            <div className="summary-numbers flex flex-col gap-1">
-              <div className="summary-count text-2xl font-bold">
-                {severityStats.MEDIUM.uniqueCount}
-              </div>
-              <div className="summary-details text-sm">
-                Unique Vulnerabilities
-              </div>
-              <div className="summary-details text-sm">
-                {severityStats.MEDIUM.instanceCount} Total Instances
-              </div>
-            </div>
-          </button>
-
-          {/* LOW */}
-          <button
-            type="button"
-            onClick={() => setActiveSeverity(activeSeverity === 'LOW' ? 'ALL' : 'LOW')}
-            className={`
-              summary-card low p-4 rounded-lg border-2 cursor-pointer transition-transform
-              ${activeSeverity === 'LOW' ? 'border-blue-700' : 'border-transparent'}
-              bg-blue-50 text-blue-700 hover:scale-[1.02]
-            `}
-          >
-            <div className="summary-label text-sm font-semibold mb-1">Low</div>
-            <div className="summary-numbers flex flex-col gap-1">
-              <div className="summary-count text-2xl font-bold">
-                {severityStats.LOW.uniqueCount}
-              </div>
-              <div className="summary-details text-sm">
-                Unique Vulnerabilities
-              </div>
-              <div className="summary-details text-sm">
-                {severityStats.LOW.instanceCount} Total Instances
-              </div>
-            </div>
-          </button>
-        </div>
-
-        {/* Show the cache notice */}
-        {error && (
-          <div className="mb-4 flex items-center justify-between bg-red-50 p-4 rounded-lg">
-            <span className="text-red-700">{error}</span>
-          </div>
-        )}
-
-        {/* Toggle buttons */}
-        <div className="view-toggle flex gap-1 bg-gray-200 rounded-md p-1 w-fit mb-4">
-          <button
-            onClick={() => setViewMode('type')}
-            className={`px-4 py-2 text-sm rounded ${
-              viewMode === 'type' ? 'bg-white font-medium' : ''
-            }`}
-          >
-            View by Vulnerability Type
-          </button>
-          <button
-            onClick={() => setViewMode('file')}
-            className={`px-4 py-2 text-sm rounded ${
-              viewMode === 'file' ? 'bg-white font-medium' : ''
-            }`}
-          >
-            View by File
-          </button>
-        </div>
-
-        {/* Search bar */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Search by description or file path..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Actual results */}
-        {viewMode === 'type' ? (
-          // By vulnerability
-          filteredByType.length ? (
-            <div className="space-y-4">
-              {filteredByType.map((vuln, i) => (
-                <VulnerabilityCard key={i} vuln={vuln} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No vulnerabilities found
-            </div>
-          )
-        ) : (
-          // By file
-          filteredByFile.length ? (
-            <div className="space-y-4">
-              {filteredByFile.map(({ fileName, vulns }) => (
-                <div key={fileName} className="file-view border border-gray-200 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold mb-3">{fileName}</h3>
-                  <div className="vulnerability-list space-y-4">
-                    {vulns.map((v, idx) => (
-                      <VulnerabilityCard key={`${fileName}-${idx}`} vuln={v} />
-                    ))}
+            {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((severity) => (
+              <button
+                key={severity}
+                type="button"
+                onClick={() => setActiveSeverity(activeSeverity === severity ? 'ALL' : severity)}
+                className={`summary-card ${severity.toLowerCase()} p-4 rounded-lg border-2 cursor-pointer transition-transform
+                  ${
+                    activeSeverity === severity
+                      ? `border-${severity.toLowerCase()}-700`
+                      : 'border-transparent'
+                  }
+                  ${
+                    severity === 'CRITICAL'
+                      ? 'bg-red-50 text-red-700'
+                      : severity === 'HIGH'
+                      ? 'bg-orange-50 text-orange-700'
+                      : severity === 'MEDIUM'
+                      ? 'bg-yellow-50 text-yellow-700'
+                      : 'bg-blue-50 text-blue-700'
+                  } hover:scale-[1.02]`}
+              >
+                <div className="summary-label text-sm font-semibold mb-1">
+                  {severity.charAt(0) + severity.slice(1).toLowerCase()}
+                </div>
+                <div className="summary-numbers flex flex-col gap-1">
+                  <div className="summary-count text-2xl font-bold">
+                    {severityStats[severity].uniqueCount}
+                  </div>
+                  <div className="summary-details text-sm">
+                    Unique Vulnerabilities
+                  </div>
+                  <div className="summary-details text-sm">
+                    {severityStats[severity].instanceCount} Total Instances
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No vulnerabilities found
-            </div>
-          )
-        )}
-      </div>
-    </div>
-  );
-};
+              </button>
+            ))}
+          </div>
 
+          {/* Cache Notice */}
+          {usedCache && (
+            <div className="mb-4 flex items-center justify-between bg-blue-50 p-4 rounded-lg">
+              <span className="text-blue-700">⚡ Results loaded from cache</span>
+              <button
+                onClick={onRefreshRequest}
+                disabled={scanning}
+                className={`px-4 py-2 rounded text-sm ${
+                  scanning
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-blue-500 hover:bg-blue-600 text-white'
+                }`}
+              >
+                {scanning ? 'Refreshing...' : 'Refresh Scan'}
+              </button>
+            </div>
+          )}
+
+          {/* Toggle Buttons */}
+          <div className="view-toggle flex gap-1 bg-gray-200 rounded-md p-1 w-fit mb-4">
+            <button
+              onClick={() => setViewMode('type')}
+              className={`px-4 py-2 text-sm rounded ${
+                viewMode === 'type' ? 'bg-white font-medium' : ''
+              }`}
+            >
+              View by Vulnerability Type
+            </button>
+            <button
+              onClick={() => setViewMode('file')}
+              className={`px-4 py-2 text-sm rounded ${
+                viewMode === 'file' ? 'bg-white font-medium' : ''
+              }`}
+            >
+              View by File
+            </button>
+          </div>
+
+          {/* Search Bar */}
+          <div className="mb-6">
+            <input
+              type="text"
+              placeholder="Search by description or file path..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Scan Results */}
+          {viewMode === 'type' ? (
+            // By Vulnerability Type
+            filteredByType.length ? (
+              <div className="space-y-4">
+                {filteredByType.map((vuln, i) => (
+                  <VulnerabilityCard key={i} vuln={vuln} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No vulnerabilities found
+              </div>
+            )
+          ) : (
+            // By File
+            filteredByFile.length ? (
+              <div className="space-y-4">
+                {filteredByFile.map(({ fileName, vulns }) => (
+                  <div key={fileName} className="file-view border border-gray-200 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold mb-3">{fileName}</h3>
+                    <div className="vulnerability-list space-y-4">
+                      {vulns.map((v, idx) => (
+                        <VulnerabilityCard key={`${fileName}-${idx}`} vuln={v} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No vulnerabilities found
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    );
+  };
 export default ScanResults;
