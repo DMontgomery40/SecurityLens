@@ -70,146 +70,143 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
             ...new Set([...acc[key].allLineNumbers[file], ...lines])
           ].sort((a, b) => a - b);
         }
+      }
+
+      // Process findings to ensure proper structure
+      const processedFindings = allFindings.map(finding => ({
+        ...finding,
+        severity: finding.severity || 'LOW',
+        description: finding.description || 'No description provided',
+        allLineNumbers: { [finding.file]: finding.lineNumbers || [] }
+      }));
+
+      const report = scanner.generateReport(processedFindings);
+      setScanResults({
+        ...report,
+        findings: processedFindings // Keep findings as array for local scans
       });
+      
+      const { criticalIssues = 0, highIssues = 0, mediumIssues = 0, lowIssues = 0 } = report.summary || {};
+      setSuccessMessage(
+        `Scan complete! Found ${processedFindings.length} potential vulnerabilities ` +
+        `(${criticalIssues} critical, ${highIssues} high, ${mediumIssues} medium, ${lowIssues} low)`
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleUrlScan = useCallback(async () => {
+    if (!urlInput) return;
+    
+    if (!authManager.hasToken()) {
+      setShowTokenDialog(true);
+      return;
+    }
+    
+    setScanning(true);
+    setError(null);
+    setScanResults(null);
+    setUsedCache(false);
+    
+    try {
+      const results = await scanRepository(urlInput);
+      console.log('Scan results:', results);
+      
+      if (results.findings && results.summary) {
+        setScanResults({
+          findings: results.findings,
+          summary: results.summary,
+          rateLimit: results.rateLimit
+        });
+        setSuccessMessage(
+          `Scan complete! Found ${results.summary.totalIssues} potential vulnerabilities ` +
+          `(${results.summary.criticalIssues} critical, ${results.summary.highIssues} high, ` +
+          `${results.summary.mediumIssues} medium, ${results.summary.lowIssues} low)`
+        );
+        setUsedCache(results.fromCache || false);
+      } else {
+        setSuccessMessage(`Found ${results.files.length} files in repository`);
+      }
+      
+      // Show rate limit info
+      if (results.rateLimit) {
+        setRateLimitInfo(results.rateLimit);
+      }
+    } catch (err) {
+      setError(err.message);
+      if (err.status === 403) {
+        setError('Rate limit exceeded. Please try again later.');
+      }
+    } finally {
+      setScanning(false);
+    }
+  }, [urlInput]);
+
+  const handleTokenSubmit = async (token) => {
+    if (!token) return;
+
+    setError(null);
+
+    if (!authManager.isValidTokenFormat(token)) {
+      setError('Invalid token format. Please ensure you\'ve copied the entire token.');
+      return;
     }
 
-    return acc;
-  }, {});
-
-  // Convert to an array and sort by severity
-  const vulnerabilities = Object.values(groupedFindings)
-    .map(data => ({
-      ...data,
-      files: Object.keys(data.allLineNumbers || {}).sort()
-    }))
-    .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
-
-  // We also want the data grouped by file for the “View by File” mode
-  // -> That means scanning vulnerabilities for each file
-  // -> Then collecting vulnerabilities that appear in that file + line numbers
-  const fileGrouped = {};
-  vulnerabilities.forEach(vuln => {
-    vuln.files.forEach(file => {
-      if (!fileGrouped[file]) {
-        fileGrouped[file] = [];
+    try {
+      authManager.setToken(token);
+      setGithubToken(token);
+      setShowTokenDialog(false);
+      
+      // Only trigger scan if we have a URL
+      if (urlInput) {
+        await handleUrlScan();
       }
-      fileGrouped[file].push({
-        ...vuln,
-        lineNumbers: vuln.allLineNumbers[file] || []
-      });
-    });
-  });
-
-  // State for clickable severity selection, search, and view mode
-  const [activeSeverity, setActiveSeverity] = useState('ALL'); // 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'ALL'
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState('type'); // 'type' or 'file'
-
-  // Filter the vulnerabilities based on activeSeverity & search
-  const filteredByType = vulnerabilities.filter(vuln => {
-    const matchesSeverity =
-      activeSeverity === 'ALL' || vuln.severity === activeSeverity;
-    const matchesSearch =
-      searchQuery === '' ||
-      vuln.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vuln.files.some(f =>
-        f.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    return matchesSeverity && matchesSearch;
-  });
-
-  // For the “View by File” mode, we need to filter at the file level
-  // We'll produce a new structure that only includes files/vulns matching the user filter
-  const filteredByFile = Object.entries(fileGrouped)
-    .map(([fileName, vulns]) => {
-      // Filter each vulnerability in this file by severity + search
-      const fileVulns = vulns.filter(vuln => {
-        const matchesSeverity =
-          activeSeverity === 'ALL' || vuln.severity === activeSeverity;
-        const matchesSearch =
-          searchQuery === '' ||
-          vuln.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          fileName.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesSeverity && matchesSearch;
-      });
-
-      return { fileName, fileVulns };
-    })
-    .filter(group => group.fileVulns.length > 0);
-
-  // Summaries for the clickable cards
-  const totalCritical = summary.criticalIssues || 0;
-  const totalHigh = summary.highIssues || 0;
-  const totalMed = summary.mediumIssues || 0;
-  const totalLow = summary.lowIssues || 0;
-
-  // Helper to apply “selected” style if activeSeverity matches
-  const isSelected = sev => activeSeverity === sev;
+    } catch (error) {
+      console.error('Token submission error:', error);
+      setError(error.message);
+      authManager.clearToken();
+      setGithubToken('');
+    }
+  };
 
   return (
-    <div className="mt-8">
-      {/* Container with white background etc. */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Scan Results</h2>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <button
-            type="button"
-            onClick={() => setActiveSeverity('CRITICAL')}
-            className={`p-4 rounded-lg border-2 transition-transform ${
-              isSelected('CRITICAL') ? 'border-red-700' : 'border-transparent'
-            } bg-red-50 text-red-700 hover:scale-[1.02]`}
-          >
-            <div className="font-semibold">Critical</div>
-            <div className="text-2xl">{totalCritical}</div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSeverity('HIGH')}
-            className={`p-4 rounded-lg border-2 transition-transform ${
-              isSelected('HIGH') ? 'border-orange-700' : 'border-transparent'
-            } bg-orange-50 text-orange-700 hover:scale-[1.02]`}
-          >
-            <div className="font-semibold">High</div>
-            <div className="text-2xl">{totalHigh}</div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSeverity('MEDIUM')}
-            className={`p-4 rounded-lg border-2 transition-transform ${
-              isSelected('MEDIUM') ? 'border-yellow-700' : 'border-transparent'
-            } bg-yellow-50 text-yellow-700 hover:scale-[1.02]`}
-          >
-            <div className="font-semibold">Medium</div>
-            <div className="text-2xl">{totalMed}</div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSeverity('LOW')}
-            className={`p-4 rounded-lg border-2 transition-transform ${
-              isSelected('LOW') ? 'border-blue-700' : 'border-transparent'
-            } bg-blue-50 text-blue-700 hover:scale-[1.02]`}
-          >
-            <div className="font-semibold">Low</div>
-            <div className="text-2xl">{totalLow}</div>
-          </button>
+    <div className="p-8 bg-gradient-to-b from-blue-50 to-white min-h-screen">
+      <div className="max-w-3xl mx-auto">
+        {/* HEADER */}
+        <div className="text-center mb-8">
+          <h1 className="inline-flex items-center text-4xl font-bold text-gray-900 tracking-tight shadow-sm">
+            <Shield className="h-9 w-9 text-blue-600 mr-2" />
+            SecurityLens
+          </h1>
+          <p className="text-gray-600 mt-4 max-w-xl mx-auto">
+            Scans code for security vulnerabilities including code injection, 
+            authentication bypass, SQL injection, XSS, buffer issues, 
+            sensitive data exposure, and more. Supports JavaScript, TypeScript, 
+            Python, and other languages.
+          </p>
         </div>
 
-        {/* Cache Notice (unchanged) */}
-        {usedCache && (
-          <div className="mb-4 flex items-center justify-between bg-blue-50 p-4 rounded-lg">
-            <span className="text-blue-700">⚡ Results loaded from cache</span>
+        {/* SCAN REPO */}
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-xl font-semibold text-gray-700 mb-4">Scan Repository</h2>
+          <div className="flex gap-4">
+            <input
+              type="text"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              placeholder="Enter GitHub repository URL"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            />
             <button
-              onClick={onRefreshRequest}
-              disabled={scanning}
-              className={`px-4 py-2 rounded text-sm ${
-                scanning
-                  ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              onClick={handleUrlScan}
+              disabled={scanning || !urlInput}
+              className={`px-6 py-2 rounded-md text-white font-medium transition ${
+                scanning || !urlInput
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
               }`}
             >
               {scanning ? 'Refreshing...' : 'Refresh Scan'}
@@ -239,195 +236,158 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
           </button>
         </div>
 
-        {/* Search Input */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Search by description or file path..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+        {/* SCAN LOCAL FILES */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold text-gray-700 mb-4">Scan Local Files</h2>
+          <div className="flex justify-center">
+            <input
+              type="file"
+              id="fileInput"
+              multiple
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <label
+              htmlFor="fileInput"
+              className="inline-flex flex-col items-center justify-center px-4 py-6 
+                         bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 
+                         cursor-pointer hover:bg-gray-100 transition focus:outline-none 
+                         focus:ring-2 focus:ring-blue-500 w-full text-center"
+            >
+              <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <p className="text-gray-700">
+                Drag and drop files here, or click to select files
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Supported files: .js, .jsx, .ts, .tsx, .py, etc.
+              </p>
+            </label>
+          </div>
         </div>
 
-        {/* Results Display */}
-        {viewMode === 'type' ? (
-          <>
-            {/* Vuln-by-Type View */}
-            {filteredByType.length > 0 ? (
-              <div className="space-y-4">
-                {filteredByType.map((finding, index) => {
-                  const recommendation = recommendations[finding.type];
-                  return (
-                    <div
-                      key={index}
-                      className="border border-gray-200 rounded-lg p-4"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-semibold text-lg">
-                            {finding.description}
-                          </h3>
-                          <div className="mt-2 text-sm text-gray-700">
-                            <strong>Files:</strong>{' '}
-                            {finding.files.map((file, i) => (
-                              <span key={i} className="mr-2">
-                                {file} (lines:{' '}
-                                {finding.allLineNumbers[file].join(', ')})
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div
-                          className={`ml-4 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ${
-                            finding.severity === 'CRITICAL'
-                              ? 'bg-red-100 text-red-800'
-                              : finding.severity === 'HIGH'
-                              ? 'bg-orange-100 text-orange-800'
-                              : finding.severity === 'MEDIUM'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}
-                        >
-                          {finding.severity}
-                        </div>
-                      </div>
+        {/* PROGRESS BAR */}
+        {scanning && progress.total > 0 && (
+          <div className="my-6">
+            <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden">
+              <div
+                className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              />
+            </div>
+            <div className="text-sm text-gray-700 mt-2 text-center">
+              {progress.current === progress.total 
+                ? 'Processing results...' 
+                : `Scanning file ${progress.current} of ${progress.total}`}
+            </div>
+          </div>
+        )}
 
-                      {/* Recommendation details */}
-                      {recommendation && (
-                        <div className="mt-4 bg-gray-50 rounded p-3 text-sm text-gray-700">
-                          <div
-                            className="prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{
-                              __html: recommendation.recommendation
-                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                .replace(/\n/g, '<br />')
-                            }}
-                          />
-                          {recommendation.references && (
-                            <div className="mt-2">
-                              <strong>References:</strong>
-                              <ul className="list-disc pl-5 mt-1">
-                                {recommendation.references.map((ref, idx) => (
-                                  <li key={idx}>
-                                    <a
-                                      href={ref.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 hover:underline"
-                                    >
-                                      {ref.title || ref.url}
-                                    </a>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                No vulnerabilities found
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            {/* View by File */}
-            {filteredByFile.length > 0 ? (
-              <div className="space-y-4">
-                {filteredByFile.map(({ fileName, fileVulns }) => (
-                  <div
-                    key={fileName}
-                    className="border border-gray-200 rounded-lg p-4"
-                  >
-                    <h3 className="text-lg font-semibold mb-2">{fileName}</h3>
-                    <ul className="space-y-2">
-                      {fileVulns.map((vuln, i) => {
-                        const recommendation = recommendations[vuln.type];
-                        return (
-                          <li
-                            key={`${fileName}-${i}`}
-                            className="bg-gray-50 rounded p-3"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {vuln.description}
-                                </p>
-                                <p className="text-xs text-gray-600">
-                                  Lines: {vuln.lineNumbers.join(', ')}
-                                </p>
-                              </div>
-                              <span
-                                className={`ml-4 px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
-                                  vuln.severity === 'CRITICAL'
-                                    ? 'bg-red-100 text-red-800'
-                                    : vuln.severity === 'HIGH'
-                                    ? 'bg-orange-100 text-orange-800'
-                                    : vuln.severity === 'MEDIUM'
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : 'bg-blue-100 text-blue-800'
-                                }`}
-                              >
-                                {vuln.severity}
-                              </span>
-                            </div>
-                            {recommendation && (
-                              <div className="mt-3 bg-white rounded p-3 text-sm text-gray-700">
-                                <div
-                                  className="prose prose-sm max-w-none"
-                                  dangerouslySetInnerHTML={{
-                                    __html: recommendation.recommendation
-                                      .replace(
-                                        /\*\*(.*?)\*\*/g,
-                                        '<strong>$1</strong>'
-                                      )
-                                      .replace(/\n/g, '<br />')
-                                  }}
-                                />
-                                {recommendation.references && (
-                                  <div className="mt-2">
-                                    <strong>References:</strong>
-                                    <ul className="list-disc pl-5 mt-1">
-                                      {recommendation.references.map(
-                                        (ref, idx) => (
-                                          <li key={idx}>
-                                            <a
-                                              href={ref.url}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="text-blue-600 hover:underline"
-                                            >
-                                              {ref.title || ref.url}
-                                            </a>
-                                          </li>
-                                        )
-                                      )}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                No vulnerabilities found
-              </div>
-            )}
-          </>
+        {/* SUCCESS MESSAGE */}
+        {successMessage && (
+          <Alert className="my-4" variant="default">
+            <AlertDescription>{successMessage}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* ERROR MESSAGE */}
+        {error && (
+          <Alert className="my-4" variant="error">
+            <AlertDescription>
+              <AlertTriangle className="h-4 w-4 inline-block mr-2" />
+              {error}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* RATE LIMIT INFO */}
+        {rateLimitInfo && rateLimitInfo.remaining < 10 && (
+          <Alert className="my-4" variant="warning">
+            <AlertDescription>
+              Rate limit: {rateLimitInfo.remaining} requests remaining.
+              Resets at {new Date(rateLimitInfo.reset * 1000).toLocaleTimeString()}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* SCAN RESULTS */}
+        {scanResults && (
+          <div className="mt-6">
+            <ScanResults 
+              results={scanResults}
+              usedCache={usedCache}
+              onRefreshRequest={handleUrlScan}
+              scanning={scanning}
+            />
+          </div>
+        )}
+
+        {/* GITHUB TOKEN NOTICE (if none saved) */}
+        {!githubToken && (
+          <div className="bg-white p-6 rounded-lg shadow mt-6">
+            <h2 className="text-lg font-semibold text-gray-700 mb-4">GitHub Access Token</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              To scan repositories, you'll need a GitHub personal access token.
+              This stays in your browser and is never sent to any server.
+            </p>
+            <input 
+              type="password"
+              placeholder="GitHub token"
+              onChange={(e) => handleTokenSubmit(e.target.value)}
+              className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            />
+            <a 
+              href="https://github.com/settings/tokens/new" 
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm text-blue-600 hover:underline mt-2 inline-block"
+            >
+              Generate a token
+            </a>
+          </div>
         )}
       </div>
+
+      {/* TOKEN DIALOG */}
+      <AlertDialog open={showTokenDialog} onClose={() => setShowTokenDialog(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <h2 className="text-lg font-semibold">GitHub Token Required</h2>
+          </AlertDialogHeader>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
+              <strong>🔒 Security Note:</strong> Your token is stored only in your browser's local storage. 
+              It never leaves your device and is not sent to any external servers.
+            </div>
+            <p className="text-sm text-gray-600">
+              To scan GitHub repositories, you'll need a Personal Access Token. Here's how to get one:
+            </p>
+            <ol className="list-decimal list-inside space-y-2 text-sm">
+              <li>
+                Go to{' '}
+                <a 
+                  href="https://github.com/settings/tokens/new" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  GitHub Token Settings
+                </a>
+              </li>
+              <li>Select either "Classic" or "Fine-grained" token</li>
+              <li>Enable "repo" access permissions</li>
+              <li>Generate and copy the token</li>
+            </ol>
+            <input
+              type="password"
+              placeholder="Paste your GitHub token here"
+              className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              onChange={(e) => handleTokenSubmit(e.target.value)}
+            />
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
