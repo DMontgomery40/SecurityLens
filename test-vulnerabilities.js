@@ -36,20 +36,22 @@ const apiKey = "abcd1234";
 const secretKey = "my-secret-key";
 const authToken = "Bearer abc123xyz";
 
-// CWE-916: Weak password hashing
-const crypto = require('crypto');
-const bcrypt = require('bcrypt');
+// CWE-306: Missing Authentication
+app.get('/api/admin', (req, res) => {
+  // No authentication check
+  performAdminAction();
+});
 
-const passwordHash = crypto.createHash('md5').update(password).digest('hex');
-bcrypt.hash(password, 10); // Work factor too low
-const sha1Hash = crypto.createHash('sha1');
+// CWE-285: Improper Authorization
+if (req.user) {  // Only checks authentication
+  return handleAdminAction();
+}
 
 // ACCESS CONTROL
 // CWE-639: Insecure Direct Object Reference (IDOR)
-const userId = req.params.userId;
-const documentId = req.query.docId;
-const accountId = req.body.accountId;
-const fileId = params.fileId;
+app.get('/api/document/:id', (req, res) => {
+  return db.getDocument(req.params.id);  // No access control check
+});
 
 // CRYPTOGRAPHIC ISSUES
 // CWE-326: Weak cryptography
@@ -57,24 +59,35 @@ const hash1 = crypto.createHash('md5');
 const hash2 = crypto.createHash('sha1');
 const weakHash = require('crypto').createHash('md5');
 
+// CWE-327: Use of broken crypto
+const cipher = crypto.createCipher('des', key);  // DES is weak
+const decipher = crypto.createDecipher('des', key);
+
 // ERROR HANDLING
 // CWE-209: Sensitive error info
 try {
-    processUserData(userData);
+  processUserData(userData);
 } catch (err) {
-    console.error(err);
-    res.json({ error: err.message });
-    res.send({ stack: err.stack });
+  console.error(err);
+  res.json({ error: err.message });
+  res.send({ stack: err.stack });
 }
 
 // MEMORY & RESOURCE ISSUES
 // CWE-401: Memory leak
 setInterval(() => {
-    // Some operation that never clears
+  // Some operation that never clears
 }, 1000);
+
 setTimeout(function() {
-    // Another operation that might not be cleared
+  // Another operation that might not be cleared
 }, 5000);
+
+// Resource exhaustion
+app.post('/api/process', (req, res) => {
+  const largeArray = new Array(1000000).fill('x');
+  // Process without limits
+});
 
 // CWE-23: Path traversal
 const filePath = "../" + userInput;
@@ -104,7 +117,7 @@ https.request(userInput);
 
 // Additional SSRF example
 function fetchUserAvatar(userProfileUrl) {
-    return axios.get(userProfileUrl); // Potential SSRF if userProfileUrl is untrusted
+  return axios.get(userProfileUrl); // Potential SSRF if userProfileUrl is untrusted
 }
 fetchUserAvatar(req.query.profileUrl);
 
@@ -117,9 +130,9 @@ req.session.identifier = req.query.session;
 
 // Another session fixation example
 req.session.regenerate(function(err) {
-    if (!err) {
-        req.session.id = userInput; // Overwrites new session ID with user-supplied data
-    }
+  if (!err) {
+    req.session.id = userInput; // Overwrites new session ID with user-supplied data
+  }
 });
 
 // DATA PROTECTION
@@ -132,3 +145,19 @@ console.log('Secret:', process.env.SECRET_KEY);
 // CWE-319: Cleartext Transmission
 const insecureUrl = 'http://api.example.com';
 fetch('http://payment.example.com');
+
+// CWE-614: Secure Flag Not Set on Sensitive Cookie
+res.cookie('sessionId', 'abc123', { httpOnly: false });
+res.cookie('authToken', token, { secure: false });
+
+// INPUT VALIDATION
+// CWE-20: Improper Input Validation
+app.get('/api/user/:id', (req, res) => {
+  const userId = req.params.id;  // No validation
+  db.findUser(userId);
+});
+
+// DEPENDENCY MANAGEMENT
+// CWE-937: Using Components with Known Vulnerabilities
+const oldPackage = require('vulnerable-package');
+import { riskyFunction } from 'outdated-library';

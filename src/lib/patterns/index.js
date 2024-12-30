@@ -528,29 +528,46 @@ crypto.createHash('sha256').update(data).digest('hex');
     cwe: '326'
   },
   sensitiveErrorInfo: {
-    recommendation: `
-**Why it Matters**: Exposing full error messages or stack traces can reveal 
-sensitive info to attackers.
+    description: `
+**Information Exposure Through Error Messages**
+
+Detailed error messages can expose sensitive information about your application's internal workings, dependencies, or data structures.
+
+**Why it Matters**: Attackers can use detailed error information to understand your system's architecture and vulnerabilities.
 
 **What to Do**:
-1. **Log Detailed Errors Privately**, show generic messages publicly.
-2. **Sanitize Outputs**.
+1. **Sanitize Error Messages**: Remove sensitive details from user-facing errors
+2. **Use Error Logging**: Log detailed errors server-side only
+3. **Implement Error Boundaries**: Use proper error handling patterns
+4. **Custom Error Types**: Create standardized error responses
 
 **Example**:
-Instead of:
+Bad:
 \`\`\`javascript
-res.send({ stack: err.stack });
+catch (err) {
+  console.error(err);
+  res.json({ error: err.message });
+}
 \`\`\`
-Do:
+
+Good:
 \`\`\`javascript
-console.error(err);
-res.status(500).send({ error: "Something went wrong" });
+catch (err) {
+  console.error('Internal error:', err);
+  res.status(500).json({ 
+    error: 'An unexpected error occurred' 
+  });
+}
 \`\`\`
     `,
     references: [
       {
-        title: 'CWE-209: Information Exposure Through an Error Message',
+        title: 'CWE-209: Information Exposure Through Error Messages',
         url: 'https://cwe.mitre.org/data/definitions/209.html'
+      },
+      {
+        title: 'OWASP Error Handling',
+        url: 'https://owasp.org/www-community/Improper_Error_Handling'
       }
     ],
     cwe: '209'
@@ -960,5 +977,145 @@ Do:
       }
     ],
     cwe: '926'
+  },
+  memoryLeak: {
+    description: `
+**Memory Leak Vulnerability**
+
+Memory leaks can occur when timers and intervals are not properly cleared, especially in long-running applications or components that are frequently mounted and unmounted.
+
+**Why it Matters**: Memory leaks can degrade application performance over time and eventually lead to crashes or out-of-memory errors.
+
+**What to Do**:
+1. **Clear Timers**: Always clear setInterval and setTimeout when they are no longer needed
+2. **Use Cleanup Functions**: In React components, use useEffect cleanup function
+3. **Monitor Memory Usage**: Implement memory monitoring in production
+4. **Proper Resource Management**: Ensure all resources are properly released
+
+**Example**:
+Bad:
+\`\`\`javascript
+setInterval(() => {
+  // Some operation
+}, 1000);
+\`\`\`
+
+Good:
+\`\`\`javascript
+const timer = setInterval(() => {
+  // Some operation
+}, 1000);
+
+// Clear when done
+clearInterval(timer);
+
+// In React:
+useEffect(() => {
+  const timer = setInterval(() => {
+    // Some operation
+  }, 1000);
+  return () => clearInterval(timer);
+}, []);
+\`\`\`
+    `,
+    references: [
+      {
+        title: 'Memory Management Best Practices',
+        url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Memory_Management'
+      },
+      {
+        title: 'CWE-401: Memory Leak',
+        url: 'https://cwe.mitre.org/data/definitions/401.html'
+      }
+    ]
+  },
+  insecureDirectObjectRef: {
+    description: `
+**Insecure Direct Object References (IDOR)**
+
+IDOR vulnerabilities occur when an application uses user-supplied input to access objects directly without proper access control checks.
+
+**Why it Matters**: Attackers can bypass authorization and access or modify data belonging to other users.
+
+**What to Do**:
+1. **Implement Access Controls**: Always verify user has permission to access requested resource
+2. **Use Indirect References**: Map internal object references to user-specific tokens
+3. **Input Validation**: Validate all user input before using in database queries
+4. **Proper Authorization**: Check user permissions at both controller and service layers
+
+**Example**:
+Bad:
+\`\`\`javascript
+app.get('/api/document/:id', (req, res) => {
+  return db.getDocument(req.params.id);
+});
+\`\`\`
+
+Good:
+\`\`\`javascript
+app.get('/api/document/:id', async (req, res) => {
+  const userId = req.user.id;
+  const doc = await db.getDocument(req.params.id);
+  if (doc.ownerId !== userId) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  return res.json(doc);
+});
+\`\`\`
+    `,
+    references: [
+      {
+        title: 'CWE-639: Authorization Bypass Through User-Controlled Key',
+        url: 'https://cwe.mitre.org/data/definitions/639.html'
+      },
+      {
+        title: 'OWASP IDOR Prevention',
+        url: 'https://owasp.org/www-project-web-security-testing-guide/v41/4-Web_Application_Security_Testing/05-Authorization_Testing/04-Testing_for_Insecure_Direct_Object_References'
+      }
+    ]
+  },
+  improperAuthorizationChecks: {
+    description: `
+**Improper Authorization Checks**
+
+Improper authorization checks can lead to unauthorized access to resources or functionality.
+
+**Why it Matters**: Without proper authorization checks, users can access data or perform actions they shouldn't be allowed to.
+
+**What to Do**:
+1. **Implement RBAC**: Use Role-Based Access Control
+2. **Check at Multiple Levels**: Verify authorization at API and service layers
+3. **Use Middleware**: Implement authorization middleware
+4. **Audit Trails**: Log all access attempts
+
+**Example**:
+Bad:
+\`\`\`javascript
+if (req.user) {  // Only checks authentication
+  return handleAdminAction();
+}
+\`\`\`
+
+Good:
+\`\`\`javascript
+if (!req.user.hasRole('admin')) {
+  return res.status(403).json({ 
+    error: 'Requires admin privileges' 
+  });
+}
+await auditLog.log('admin_action', req.user.id);
+return handleAdminAction();
+\`\`\`
+    `,
+    references: [
+      {
+        title: 'CWE-285: Improper Authorization',
+        url: 'https://cwe.mitre.org/data/definitions/285.html'
+      },
+      {
+        title: 'OWASP Authorization Cheat Sheet',
+        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html'
+      }
+    ]
   }
 };
