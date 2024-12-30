@@ -1,6 +1,5 @@
 import _ from 'lodash';
-import { patterns, recommendations } from './patterns';
-import { getScannerForFile, PACKAGE_FILE_PATTERNS } from './scanners';
+import { patterns, recommendations } from './patterns/index';
 import { repoCache } from './cache';
 import { Octokit } from '@octokit/core';
 import { authManager } from './githubAuth';
@@ -185,22 +184,6 @@ class VulnerabilityScanner {
         console.log(`Active patterns: ${Object.keys(this.vulnerabilityPatterns).length}`);
 
         try {
-            // Package scanners
-            if (this.config.enablePackageScanners) {
-                for (const [pattern, type] of Object.entries(PACKAGE_FILE_PATTERNS)) {
-                    if (filePath.toLowerCase().endsWith(pattern.toLowerCase())) {
-                        console.log(`Found package file match: ${pattern} -> ${type}`);
-                        const scanner = getScannerForFile(type);
-                        if (scanner) {
-                            const packageFindings = await scanner.scan(filePath, fileContent);
-                            console.log(`Package scanner found ${packageFindings.length} issues`);
-                            findings.push(...packageFindings);
-                        }
-                        break;
-                    }
-                }
-            }
-
             // Pattern scanning with chunking for large files
             const chunkSize = 100000; // 100KB chunks
             const totalChunks = Math.ceil(fileContent.length / chunkSize);

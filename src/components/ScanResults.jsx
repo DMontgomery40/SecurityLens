@@ -1,12 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { patterns, patternCategories, recommendations } from '../lib/patterns';
-
+import { scan } from '../lib/patterns'; // Update this line
 
 // Severity sort order
 const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 
-const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
-  // ... [keeping all the component code exactly as is]
+const ScanResults = ({ files, onRefreshRequest, scanning }) => {
+  const [results, setResults] = useState(null);
+  const [error, setError] = useState(null);
+
+  const runScan = async () => {
+    try {
+      const scanResults = await scan(files);
+      setResults(scanResults);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      setResults(null);
+    }
+  };
+
+  useEffect(() => {
+    if (files && Object.keys(files).length > 0) {
+      runScan();
+    }
+  }, [files]);
+
   if (!results) return null;
 
   const { findings = {}, summary = {} } = results;
@@ -387,20 +406,9 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
         </div>
 
         {/* Show the cache notice */}
-        {usedCache && (
-          <div className="mb-4 flex items-center justify-between bg-blue-50 p-4 rounded-lg">
-            <span className="text-blue-700">⚡ Results loaded from cache</span>
-            <button
-              onClick={onRefreshRequest}
-              disabled={scanning}
-              className={`px-4 py-2 rounded text-sm ${
-                scanning
-                  ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
-              }`}
-            >
-              {scanning ? 'Refreshing...' : 'Refresh Scan'}
-            </button>
+        {error && (
+          <div className="mb-4 flex items-center justify-between bg-red-50 p-4 rounded-lg">
+            <span className="text-red-700">{error}</span>
           </div>
         )}
 
