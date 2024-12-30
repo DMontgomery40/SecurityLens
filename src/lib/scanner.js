@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import { patterns, recommendations } from './patterns/index';
+import { patternCategories, patterns, recommendations } from './patterns/index';
 import { repoCache } from './cache';
 import { Octokit } from '@octokit/core';
 import { authManager } from './githubAuth';
@@ -291,17 +291,16 @@ class VulnerabilityScanner {
         const categorized = {};
         
         findings.forEach(finding => {
-            const category = finding.category || 'UNCATEGORIZED';
-            const subcategory = finding.subcategory || 'UNKNOWN';
+            const pattern = this.vulnerabilityPatterns[finding.type];
+            const patternCategory = pattern?.category || 'UNCATEGORIZED';
+            const categoryName = Object.entries(patternCategories)
+                .find(([_, code]) => code === patternCategory)?.[0] || 'UNCATEGORIZED';
             
-            if (!categorized[category]) {
-                categorized[category] = {};
-            }
-            if (!categorized[category][subcategory]) {
-                categorized[category][subcategory] = [];
+            if (!categorized[categoryName]) {
+                categorized[categoryName] = [];
             }
             
-            categorized[category][subcategory].push(finding);
+            categorized[categoryName].push(finding);
         });
         
         return categorized;
@@ -314,7 +313,7 @@ class VulnerabilityScanner {
                 acc[finding.type] = {
                     severity: finding.severity,
                     description: finding.description,
-                    category: finding.category,
+                    patternCategory: finding.category,
                     subcategory: finding.subcategory,
                     allLineNumbers: {},
                 };
