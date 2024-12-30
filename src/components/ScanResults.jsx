@@ -333,13 +333,10 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
       {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((severity) => (
         <button
           key={severity}
-          onClick={() => {
+          onClick={(e) => {
+            e.preventDefault(); // Prevent any default behavior
+            e.stopPropagation(); // Stop event bubbling
             setActiveSeverity(activeSeverity === severity ? 'ALL' : severity);
-            // Smooth scroll to first matching result
-            const firstResult = document.querySelector(`.${severity.toLowerCase()}`);
-            if (firstResult) {
-              firstResult.scrollIntoView({ behavior: 'smooth' });
-            }
           }}
           className={`flex items-center gap-2 px-3 py-2 rounded-md w-full mb-1 last:mb-0 transition-colors
             ${activeSeverity === severity ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
@@ -365,8 +362,12 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
             <button
               key={severity}
               type="button"
-              onClick={() => setActiveSeverity(activeSeverity === severity ? 'ALL' : severity)}
-              className={`summary-card ${severity.toLowerCase()} p-6 rounded-xl border-2 cursor-pointer transition-all transform hover:scale-105 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActiveSeverity(activeSeverity === severity ? 'ALL' : severity);
+              }}
+              className={`summary-card p-6 rounded-xl border-2 cursor-pointer transition-all transform hover:scale-105 
                 ${activeSeverity === severity ? 'border-gray-700 shadow-lg' : 'border-transparent shadow'}
                 ${severity === 'CRITICAL' 
                   ? 'bg-gradient-to-br from-red-50 to-red-100 text-red-700'
@@ -486,7 +487,7 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
       {showBackToTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-8 right-8 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+          className="fixed bottom-8 right-8 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-50"
           aria-label="Back to top"
         >
           <svg 
