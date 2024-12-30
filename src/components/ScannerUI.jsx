@@ -154,15 +154,17 @@ const ScannerUI = () => {
   };
 
   return (
-    <div className="p-8 bg-gradient-to-b from-blue-50 to-white min-h-screen">
-      <div className="max-w-3xl mx-auto">
+    <div className="p-8 bg-gradient-to-b from-blue-50 via-white to-blue-50 min-h-screen">
+      <div className="max-w-4xl mx-auto">
         {/* HEADER */}
-        <div className="text-center mb-8">
-          <h1 className="inline-flex items-center text-4xl font-bold text-gray-900 tracking-tight shadow-sm">
-            <Shield className="h-9 w-9 text-blue-600 mr-2" />
-            SecurityLens
+        <div className="text-center mb-12">
+          <h1 className="inline-flex items-center text-4xl font-bold text-gray-900 tracking-tight mb-2">
+            <Shield className="h-10 w-10 text-blue-600 mr-3 transform -rotate-6" />
+            <span className="bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+              SecurityLens
+            </span>
           </h1>
-          <p className="text-gray-600 mt-4 max-w-xl mx-auto">
+          <p className="text-gray-600 mt-6 max-w-2xl mx-auto leading-relaxed">
             Scans code for security vulnerabilities including code injection, 
             authentication bypass, SQL injection, XSS, buffer issues, 
             sensitive data exposure, and more. Supports JavaScript, TypeScript, 
@@ -171,23 +173,28 @@ const ScannerUI = () => {
         </div>
 
         {/* SCAN REPO */}
-        <div className="bg-white p-6 rounded-lg shadow mb-6">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4">Scan Repository</h2>
+        <div className="bg-white p-8 rounded-xl shadow-lg mb-8 border border-gray-100 hover:border-blue-100 transition-colors">
+          <h2 className="text-xl font-semibold text-gray-700 mb-6 flex items-center">
+            <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Scan Repository
+          </h2>
           <div className="flex gap-4">
             <input
               type="text"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="Enter GitHub repository URL"
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all hover:border-gray-400"
             />
             <button
               onClick={handleUrlScan}
               disabled={scanning || !urlInput}
-              className={`px-6 py-2 rounded-md text-white font-medium transition ${
+              className={`px-6 py-3 rounded-lg text-white font-medium transition-all transform hover:scale-105 ${
                 scanning || !urlInput
                   ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md'
               }`}
             >
               {scanning ? 'Scanning...' : 'Scan Repository'}
@@ -196,8 +203,13 @@ const ScannerUI = () => {
         </div>
 
         {/* SCAN LOCAL FILES */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4">Scan Local Files</h2>
+        <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:border-blue-100 transition-colors">
+          <h2 className="text-xl font-semibold text-gray-700 mb-6 flex items-center">
+            <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Scan Local Files
+          </h2>
           <div className="flex justify-center">
             <input
               type="file"
@@ -208,18 +220,18 @@ const ScannerUI = () => {
             />
             <label
               htmlFor="fileInput"
-              className="inline-flex flex-col items-center justify-center px-4 py-6 
-                         bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 
-                         cursor-pointer hover:bg-gray-100 transition focus:outline-none 
-                         focus:ring-2 focus:ring-blue-500 w-full text-center"
+              className="group inline-flex flex-col items-center justify-center px-6 py-8 
+                       bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 
+                       cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all 
+                       focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-center"
             >
-              <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-12 h-12 text-gray-400 group-hover:text-blue-500 transition-colors mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              <p className="text-gray-700">
+              <p className="text-gray-700 group-hover:text-gray-900 transition-colors font-medium">
                 Drag and drop files here, or click to select files
               </p>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 mt-2">
                 Supported files: .js, .jsx, .ts, .tsx, .py, etc.
               </p>
             </label>

@@ -165,10 +165,10 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
 
     // Style severity badge
     const severityBadge = {
-      CRITICAL: 'bg-red-100 text-red-800',
-      HIGH: 'bg-orange-100 text-orange-800',
-      MEDIUM: 'bg-yellow-100 text-yellow-800',
-      LOW: 'bg-blue-100 text-blue-800'
+      CRITICAL: 'bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-200',
+      HIGH: 'bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border border-orange-200',
+      MEDIUM: 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-200',
+      LOW: 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border border-blue-200'
     }[vuln.severity] || 'bg-gray-100 text-gray-700';
 
     return (
@@ -313,39 +313,39 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
     <div className="mt-8">
       <div className="scan-results bg-white shadow rounded-lg p-6">
         {/* Summary Cards */}
-        <div className="summary-grid grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="summary-grid grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((severity) => (
               <button
                 key={severity}
                 type="button"
                 onClick={() => setActiveSeverity(activeSeverity === severity ? 'ALL' : severity)}
-                className={`summary-card ${severity.toLowerCase()} p-4 rounded-lg border-2 cursor-pointer transition-transform
+                className={`summary-card ${severity.toLowerCase()} p-6 rounded-xl border-2 cursor-pointer transition-all transform hover:scale-105
                   ${
                     activeSeverity === severity
-                      ? `border-${severity.toLowerCase()}-700`
-                      : 'border-transparent'
+                      ? `border-${severity.toLowerCase()}-700 shadow-lg`
+                      : 'border-transparent shadow'
                   }
                   ${
                     severity === 'CRITICAL'
-                      ? 'bg-red-50 text-red-700'
+                      ? 'bg-gradient-to-br from-red-50 to-red-100 text-red-700'
                       : severity === 'HIGH'
-                      ? 'bg-orange-50 text-orange-700'
+                      ? 'bg-gradient-to-br from-orange-50 to-orange-100 text-orange-700'
                       : severity === 'MEDIUM'
-                      ? 'bg-yellow-50 text-yellow-700'
-                      : 'bg-blue-50 text-blue-700'
-                  } hover:scale-[1.02]`}
+                      ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 text-yellow-700'
+                      : 'bg-gradient-to-br from-blue-50 to-blue-100 text-blue-700'
+                  }`}
               >
-                <div className="summary-label text-sm font-semibold mb-1">
+                <div className="summary-label text-sm font-semibold mb-2">
                   {severity.charAt(0) + severity.slice(1).toLowerCase()}
                 </div>
                 <div className="summary-numbers flex flex-col gap-1">
-                  <div className="summary-count text-2xl font-bold">
+                  <div className="summary-count text-3xl font-bold">
                     {severityStats[severity].uniqueCount}
                   </div>
-                  <div className="summary-details text-sm">
+                  <div className="summary-details text-sm opacity-90">
                     Unique Vulnerabilities
                   </div>
-                  <div className="summary-details text-sm">
+                  <div className="summary-details text-sm opacity-90">
                     {severityStats[severity].instanceCount} Total Instances
                   </div>
                 </div>
