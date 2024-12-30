@@ -272,7 +272,7 @@ const ScannerUI = () => {
         {/* Scan Results */}
         {scanResults && (
           <ScanResults 
-            results={scanResults}
+            data={scanResults}
             usedCache={usedCache}
             onRefreshRequest={handleUrlScan}
             scanning={scanning}
