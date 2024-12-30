@@ -53,7 +53,7 @@ const ScannerUI = () => {
         }
       }
 
-      // Process findings to ensure proper structure and maintain array format
+      // Process findings to ensure proper structure
       const processedFindings = allFindings.map(finding => ({
         ...finding,
         severity: finding.severity || 'LOW',
@@ -154,32 +154,37 @@ const ScannerUI = () => {
   };
 
   return (
-    <div className="p-8 bg-white min-h-screen">
-      {/* Main Input Section */}
-      <div className="max-w-3xl mx-auto mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4 flex items-center">
-          <Shield className="h-8 w-8 mr-2" />
-          SecurityLens
-        </h1>
-        <p className="text-gray-600 mb-6 max-w-2xl">
-          Scans code for security vulnerabilities including code injection, authentication bypass, SQL injection, XSS, buffer issues, sensitive data exposure, and more. Supports JavaScript, TypeScript, Python, and other languages.
-        </p>
+    <div className="p-8 bg-gradient-to-b from-blue-50 to-white min-h-screen">
+      <div className="max-w-3xl mx-auto">
+        {/* HEADER */}
+        <div className="text-center mb-8">
+          <h1 className="inline-flex items-center text-4xl font-bold text-gray-900 tracking-tight shadow-sm">
+            <Shield className="h-9 w-9 text-blue-600 mr-2" />
+            SecurityLens
+          </h1>
+          <p className="text-gray-600 mt-4 max-w-xl mx-auto">
+            Scans code for security vulnerabilities including code injection, 
+            authentication bypass, SQL injection, XSS, buffer issues, 
+            sensitive data exposure, and more. Supports JavaScript, TypeScript, 
+            Python, and other languages.
+          </p>
+        </div>
 
-        {/* URL Input Section */}
-        <div className="bg-gray-50 p-6 rounded-lg shadow-sm mb-4">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Scan Repository</h2>
+        {/* SCAN REPO */}
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-xl font-semibold text-gray-700 mb-4">Scan Repository</h2>
           <div className="flex gap-4">
             <input
               type="text"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="Enter GitHub repository URL"
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
             />
             <button
               onClick={handleUrlScan}
               disabled={scanning || !urlInput}
-              className={`px-6 py-2 rounded-md text-white font-medium ${
+              className={`px-6 py-2 rounded-md text-white font-medium transition ${
                 scanning || !urlInput
                   ? 'bg-gray-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700'
@@ -190,9 +195,9 @@ const ScannerUI = () => {
           </div>
         </div>
 
-        {/* File Upload Section */}
-        <div className="bg-gray-50 p-6 rounded-lg shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Scan Local Files</h2>
+        {/* SCAN LOCAL FILES */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold text-gray-700 mb-4">Scan Local Files</h2>
           <div className="flex justify-center">
             <input
               type="file"
@@ -203,51 +208,51 @@ const ScannerUI = () => {
             />
             <label
               htmlFor="fileInput"
-              className="inline-flex flex-col items-center justify-center px-4 py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 cursor-pointer hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="inline-flex flex-col items-center justify-center px-4 py-6 
+                         bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 
+                         cursor-pointer hover:bg-gray-100 transition focus:outline-none 
+                         focus:ring-2 focus:ring-blue-500 w-full text-center"
             >
-              <div className="mb-2">
-                <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-              </div>
-              <p className="text-gray-600">
+              <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <p className="text-gray-700">
                 Drag and drop files here, or click to select files
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                Supported files: .js, .jsx, .ts, .tsx, .py, and more
+                Supported files: .js, .jsx, .ts, .tsx, .py, etc.
               </p>
             </label>
           </div>
         </div>
 
-        {/* Progress Bar */}
+        {/* PROGRESS BAR */}
         {scanning && progress.total > 0 && (
-          <div className="mb-6">
-            <div className="w-full bg-gray-300 rounded-full h-3">
+          <div className="my-6">
+            <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden">
               <div
                 className="bg-blue-600 h-3 rounded-full transition-all duration-300"
                 style={{ width: `${(progress.current / progress.total) * 100}%` }}
-              ></div>
+              />
             </div>
             <div className="text-sm text-gray-700 mt-2 text-center">
-              {progress.current === progress.total ? 
-                'Processing results...' : 
-                `Scanning file ${progress.current} of ${progress.total}`
-              }
+              {progress.current === progress.total 
+                ? 'Processing results...' 
+                : `Scanning file ${progress.current} of ${progress.total}`}
             </div>
           </div>
         )}
 
-        {/* Success Message */}
+        {/* SUCCESS MESSAGE */}
         {successMessage && (
-          <Alert className="mb-4" variant="default">
+          <Alert className="my-4" variant="default">
             <AlertDescription>{successMessage}</AlertDescription>
           </Alert>
         )}
 
-        {/* Error Message */}
+        {/* ERROR MESSAGE */}
         {error && (
-          <Alert className="mb-4" variant="error">
+          <Alert className="my-4" variant="error">
             <AlertDescription>
               <AlertTriangle className="h-4 w-4 inline-block mr-2" />
               {error}
@@ -255,9 +260,9 @@ const ScannerUI = () => {
           </Alert>
         )}
 
-        {/* Rate Limit Info */}
+        {/* RATE LIMIT INFO */}
         {rateLimitInfo && rateLimitInfo.remaining < 10 && (
-          <Alert className="mb-4" variant="warning">
+          <Alert className="my-4" variant="warning">
             <AlertDescription>
               Rate limit: {rateLimitInfo.remaining} requests remaining.
               Resets at {new Date(rateLimitInfo.reset * 1000).toLocaleTimeString()}
@@ -265,32 +270,36 @@ const ScannerUI = () => {
           </Alert>
         )}
 
-        {/* Scan Results */}
+        {/* SCAN RESULTS */}
         {scanResults && (
-          <ScanResults 
-            results={scanResults}
-            usedCache={usedCache}
-            onRefreshRequest={handleUrlScan}
-            scanning={scanning}
-          />
+          <div className="mt-6">
+            <ScanResults 
+              results={scanResults}
+              usedCache={usedCache}
+              onRefreshRequest={handleUrlScan}
+              scanning={scanning}
+            />
+          </div>
         )}
 
+        {/* GITHUB TOKEN NOTICE (if none saved) */}
         {!githubToken && (
-          <div className="bg-gray-50 p-6 rounded-lg shadow-sm mb-4">
+          <div className="bg-white p-6 rounded-lg shadow mt-6">
             <h2 className="text-lg font-semibold text-gray-700 mb-4">GitHub Access Token</h2>
             <p className="text-sm text-gray-600 mb-4">
-              To scan repositories, you'll need a GitHub personal access token. 
+              To scan repositories, you'll need a GitHub personal access token.
               This stays in your browser and is never sent to any server.
             </p>
             <input 
               type="password"
               placeholder="GitHub token"
               onChange={(e) => handleTokenSubmit(e.target.value)}
-              className="w-full px-4 py-2 border rounded"
+              className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
             />
             <a 
               href="https://github.com/settings/tokens/new" 
               target="_blank"
+              rel="noreferrer"
               className="text-sm text-blue-600 hover:underline mt-2 inline-block"
             >
               Generate a token
@@ -299,7 +308,7 @@ const ScannerUI = () => {
         )}
       </div>
 
-      {/* Token Dialog */}
+      {/* TOKEN DIALOG */}
       <AlertDialog open={showTokenDialog} onClose={() => setShowTokenDialog(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -314,14 +323,17 @@ const ScannerUI = () => {
               To scan GitHub repositories, you'll need a Personal Access Token. Here's how to get one:
             </p>
             <ol className="list-decimal list-inside space-y-2 text-sm">
-              <li>Go to <a 
-                href="https://github.com/settings/tokens/new" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                GitHub Token Settings
-              </a></li>
+              <li>
+                Go to{' '}
+                <a 
+                  href="https://github.com/settings/tokens/new" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  GitHub Token Settings
+                </a>
+              </li>
               <li>Select either "Classic" or "Fine-grained" token</li>
               <li>Enable "repo" access permissions</li>
               <li>Generate and copy the token</li>
@@ -329,7 +341,7 @@ const ScannerUI = () => {
             <input
               type="password"
               placeholder="Paste your GitHub token here"
-              className="w-full px-4 py-2 border rounded"
+              className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
               onChange={(e) => handleTokenSubmit(e.target.value)}
             />
           </div>
