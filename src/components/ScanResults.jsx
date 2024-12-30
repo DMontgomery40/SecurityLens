@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { patterns, patternCategories } from '../lib/patterns';
+import { patterns, patternCategories, recommendations } from '../lib/patterns';
 
 // Recommendations
 export const recommendations = {
