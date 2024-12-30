@@ -186,7 +186,7 @@ const ScanResults = ({ scanResults, onRefreshRequest }) => {
               ) : null}
               {catNum ? (
                 <span className="cve-category text-gray-600">
-                  Category: {Object.keys(patternCategories).find(k => patternCategories[k] === catNum)} ({catNum})
+                  Category: {Object.keys(patternCategories).find(k => patternCategories[k]?.id === catNum)} ({catNum})
                 </span>
               ) : null}
             </div>
@@ -260,7 +260,7 @@ const ScanResults = ({ scanResults, onRefreshRequest }) => {
                 </pre>
                 {catNum || subCat ? (
                   <p className="text-xs text-gray-600 mt-2">
-                    Category: {Object.keys(patternCategories).find(k => patternCategories[k] === catNum)} ({catNum})<br />
+                    Category: {Object.keys(patternCategories).find(k => patternCategories[k]?.id === catNum)} ({catNum})<br />
                     Subcategory: {subCat}
                   </p>
                 ) : null}
