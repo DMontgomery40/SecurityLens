@@ -1,74 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { 
+  AlertTriangle, 
+  Shield 
+} from 'lucide-react';
+import { scanRepository } from '../lib/apiClient';
+import { Alert, AlertDescription } from './ui/alert';
+import VulnerabilityScanner from '../lib/scanner';
+import ScanResults from './ScanResults';
+import { authManager } from '../lib/githubAuth';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader } from './ui/alert-dialog';
 
-// Keep these if you need them in the same file; otherwise import from wherever:
-export const patternCategories = {
-  CRITICAL_EXECUTION: '94',
-  AUTHENTICATION: '287',
-  INJECTION: '74',
-  CRYPTO_ISSUES: '310',
-  MEMORY_BUFFER: '119',
-  DATA_PROTECTION: '200',
-  INPUT_VALIDATION: '20',
-  ERROR_HANDLING: '389',
-  ACCESS_CONTROL: '264',
-  RESOURCE_MGMT: '399',
-  SSRF: '918',
-  SESSION_MANAGEMENT: '384'
-};
+const ScannerUI = () => {
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState(null);
+  const [rateLimitInfo, setRateLimitInfo] = useState(null);
+  const [urlInput, setUrlInput] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [scanResults, setScanResults] = useState(null);
+  const [usedCache, setUsedCache] = useState(false);
+  const [githubToken, setGithubToken] = useState(authManager.getToken() || '');
+  const [showTokenDialog, setShowTokenDialog] = useState(false);
 
-// Example recommendations object, if needed in the same file:
-export const recommendations = {
-  hardcodedCreds: {
-    recommendation: `
-      **Why it Matters**: Hardcoded credentials in source code can be found by attackers, 
-      giving direct access to privileged resources.
+  const handleFileUpload = async (event) => {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
 
-      **What to Do**:
-      1. **Use Environment Variables**: ...
-      2. **Rotate Credentials**: ...
-    `,
-    references: [
-      {
-        title: 'CWE-798: Use of Hard-coded Credentials',
-        url: 'https://cwe.mitre.org/data/definitions/798.html'
-      }
-    ]
-  },
-  // ... add the rest of your recommendation objects
-};
+    setScanning(true);
+    setError(null);
+    setProgress({ current: 0, total: files.length });
+    setScanResults(null);
+    setUsedCache(false);
+    
+    try {
+      const scanner = new VulnerabilityScanner({
+        enableNewPatterns: true,
+        enablePackageScanners: true
+      });
 
-// A helper object for severity ordering
-const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+      let allFindings = [];
+      let processedFiles = 0;
 
-const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
-  if (!results) return null;
-
-  const { findings = {}, summary = {} } = results;
-
-  // Group findings by description + severity (like before)
-  const groupedFindings = Object.entries(findings).reduce((acc, [type, data]) => {
-    const description = data.description || 'No description provided';
-    const severity = data.severity || 'LOW';
-    const key = `${description}_${severity}`;
-
-    if (!acc[key]) {
-      acc[key] = {
-        type,
-        description,
-        severity,
-        files: [],
-        allLineNumbers: {},
-        ...data
-      };
-    } else {
-      // Merge file info if same description & severity
-      Object.entries(data.allLineNumbers || {}).forEach(([file, lines]) => {
-        if (!acc[key].allLineNumbers[file]) {
-          acc[key].allLineNumbers[file] = lines;
-        } else {
-          acc[key].allLineNumbers[file] = [
-            ...new Set([...acc[key].allLineNumbers[file], ...lines])
-          ].sort((a, b) => a - b);
+      for (const file of files) {
+        try {
+          const content = await file.text();
+          const fileFindings = await scanner.scanFile(content, file.name);
+          allFindings.push(...fileFindings);
+          processedFiles++;
+          setProgress({ current: processedFiles, total: files.length });
+        } catch (err) {
+          console.error(`Error scanning file ${file.name}:`, err);
         }
       }
 
@@ -209,31 +190,9 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
                   : 'bg-blue-600 hover:bg-blue-700'
               }`}
             >
-              {scanning ? 'Refreshing...' : 'Refresh Scan'}
+              {scanning ? 'Scanning...' : 'Scan Repository'}
             </button>
           </div>
-        )}
-
-        {/* View Toggle */}
-        <div className="flex items-center gap-2 bg-gray-200 rounded-md p-1 w-fit mb-6">
-          <button
-            type="button"
-            onClick={() => setViewMode('type')}
-            className={`px-4 py-2 rounded ${
-              viewMode === 'type' ? 'bg-white font-medium' : ''
-            }`}
-          >
-            View by Vulnerability Type
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('file')}
-            className={`px-4 py-2 rounded ${
-              viewMode === 'file' ? 'bg-white font-medium' : ''
-            }`}
-          >
-            View by File
-          </button>
         </div>
 
         {/* SCAN LOCAL FILES */}
@@ -392,4 +351,4 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
   );
 };
 
-export default ScanResults;
+export default ScannerUI;

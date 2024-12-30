@@ -1,5 +1,3 @@
-// patterns.js
-
 // Categories
 export const patternCategories = {
   CRITICAL_EXECUTION: '94',    // Code injection/execution
@@ -296,7 +294,6 @@ export const patterns = {
     cwe: '926'
   }
 };
-
 // Recommendations
 export const recommendations = {
   evalExecution: {
@@ -327,6 +324,7 @@ const parsed = JSON.parse(userInput); // with validation
     ],
     cwe: '95'
   },
+
   commandInjection: {
     recommendation: `
 **Why it Matters**: Command injection vulnerabilities let attackers run arbitrary
@@ -355,6 +353,7 @@ execFile('ls', ['-la', userInput], callback);
     ],
     cwe: '77'
   },
+
   missingAuth: {
     recommendation: `
 **Why it Matters**: Skipping authentication leaves data wide open.
@@ -381,6 +380,7 @@ app.get("/admin", requireAuth, (req, res) => { ... });
     ],
     cwe: '306'
   },
+
   hardcodedCreds: {
     recommendation: `
 **Why it Matters**: Hardcoded credentials can be easily discovered and exploited.
@@ -395,7 +395,6 @@ Instead of:
 \`\`\`javascript
 const password = "supersecret123";
 \`\`\`
-
 Do:
 \`\`\`javascript
 const password = process.env.DB_PASSWORD;
@@ -413,6 +412,7 @@ const password = process.env.DB_PASSWORD;
     ],
     cwe: '798'
   },
+
   sqlInjection: {
     recommendation: `
 **Why it Matters**: SQL injection can lead to database breaches or 
@@ -444,6 +444,7 @@ db.query("SELECT * FROM users WHERE id = ?", [userId]);
     ],
     cwe: '89'
   },
+
   xssVulnerability: {
     recommendation: `
 **Why it Matters**: XSS allows attackers to run arbitrary scripts in the victim’s browser.
@@ -474,6 +475,7 @@ element.textContent = userInput;
     ],
     cwe: '79'
   },
+
   noSqlInjection: {
     recommendation: `
 **Why it Matters**: NoSQL databases can still be compromised by malicious queries 
@@ -501,6 +503,7 @@ db.users.find({ password: userSuppliedPassword });
     ],
     cwe: '943'
   },
+
   weakCrypto: {
     recommendation: `
 **Why it Matters**: MD5 and SHA-1 are cryptographically weak.
@@ -527,6 +530,7 @@ crypto.createHash('sha256').update(data).digest('hex');
     ],
     cwe: '326'
   },
+
   sensitiveErrorInfo: {
     recommendation: `
 **Why it Matters**: Exposing full error messages or stack traces can reveal 
@@ -555,6 +559,7 @@ res.status(500).send({ error: "Something went wrong" });
     ],
     cwe: '209'
   },
+
   pathTraversal: {
     recommendation: `
 **Why it Matters**: Attackers can manipulate file paths to access system files 
@@ -583,6 +588,7 @@ fs.readFileSync(safePath);
     ],
     cwe: '23'
   },
+
   openRedirect: {
     recommendation: `
 **Why it Matters**: Open redirects can trick users into visiting malicious websites.
@@ -610,13 +616,14 @@ else res.redirect("/error");
     ],
     cwe: '601'
   },
+
   weakPasswordHash: {
     recommendation: `
 **Why it Matters**: Using weak password hashes (low cost factor) 
 makes brute-forcing easier.
 
 **What to Do**:
-1. **Use Strong Hashing** like bcrypt≥12, scrypt, or Argon2.
+1. **Use Strong Hashing** like \`bcrypt≥12\`, scrypt, or Argon2.
 2. **Use Salts/Pepper**.
 
 **Example**:
@@ -637,6 +644,7 @@ bcrypt.hash(password, 12);
     ],
     cwe: '916'
   },
+
   ssrfVulnerability: {
     recommendation: `
 **Why it Matters**: SSRF can let an attacker pivot to internal services.
@@ -667,6 +675,7 @@ if (isSafeUrl(req.query.url)) axios.get(req.query.url);
     ],
     cwe: '918'
   },
+
   sessionFixation: {
     recommendation: `
 **Why it Matters**: Session fixation lets attackers set or reuse a session ID.
@@ -693,6 +702,7 @@ req.session.regenerate(() => { ... });
     ],
     cwe: '384'
   },
+
   insecureAPISetup: {
     recommendation: `
 **Why it Matters**: Insecure API setup without proper authentication middleware can expose your endpoints to unauthorized access and potential attacks.
@@ -724,6 +734,7 @@ app.use('/api', authenticateUser, apiHandler);
     ],
     cwe: '921'
   },
+
   jwtInURL: {
     recommendation: `
 **Why it Matters**: JWT tokens in URLs can be exposed through browser history, logs, or referer headers, leading to token theft and unauthorized access.
@@ -757,6 +768,9 @@ axios.get('https://api.example.com/data', {
     ],
     cwe: '922'
   },
+
+
+
   tokenInURL: {
     recommendation: `
 **Why it Matters**: Authentication tokens in URLs can be intercepted or exposed through logs, browser history, or referer headers, leading to unauthorized access.
@@ -790,6 +804,7 @@ fetch('https://example.com/api', {
     ],
     cwe: '923'
   },
+
   badRateLimit: {
     recommendation: `
 **Why it Matters**: Weak rate limiting configurations can be exploited for brute-force attacks, denial-of-service (DoS), or abuse of API endpoints.
@@ -825,6 +840,7 @@ app.use('/api', rateLimit({
     ],
     cwe: '924'
   },
+
   missingCORS: {
     recommendation: `
 **Why it Matters**: Improper or missing Cross-Origin Resource Sharing (CORS) configurations can allow unauthorized domains to interact with your APIs, leading to data leaks or unauthorized actions.
@@ -860,6 +876,7 @@ app.use('/api', cors({
     ],
     cwe: '925'
   },
+
   insecureMiddleware: {
     recommendation: `
 **Why it Matters**: Insecure middleware setups can inadvertently expose sensitive endpoints or allow unauthorized access, undermining the security of your APIs.
@@ -891,6 +908,7 @@ app.use('/api', authenticateUser, someMiddleware, apiHandler);
     ],
     cwe: '926'
   },
+
   vulnerableDependency: {
     recommendation: `
 **Why it Matters**: Vulnerable dependencies can be exploited to compromise your application, leading to data breaches or unauthorized access.
@@ -926,6 +944,7 @@ Do:
     ],
     cwe: '925'
   },
+
   outdatedDependency: {
     recommendation: `
 **Why it Matters**: Outdated dependencies may lack the latest security patches, exposing your application to known vulnerabilities.
