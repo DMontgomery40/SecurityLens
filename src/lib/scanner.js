@@ -19,10 +19,11 @@ class VulnerabilityScanner {
             ...config
         };
 
-        // Debug logging
+        // Enhanced debug logging
         console.log('Initializing scanner with patterns:', {
-            Patterns: !!patterns,
-          
+            patternsLoaded: !!patterns,
+            patternCount: patterns ? Object.keys(patterns).length : 0,
+            patternTypes: patterns ? Object.keys(patterns) : []
         });
 
         this.vulnerabilityPatterns = { ...patterns };
@@ -162,7 +163,11 @@ class VulnerabilityScanner {
     }
 
     async scanFile(fileContent, filePath) {
-        console.log(`Scanning file: ${filePath}`);
+        console.log(`Scanning file: ${filePath}`, {
+            contentProvided: !!fileContent,
+            contentLength: fileContent ? fileContent.length : 0,
+            activePatterns: Object.keys(this.vulnerabilityPatterns).length
+        });
         
         if (!fileContent || typeof fileContent !== 'string') {
             console.error('Invalid file content provided to scanner');
@@ -262,7 +267,12 @@ class VulnerabilityScanner {
             return findings;
         } catch (error) {
             console.error(`Error scanning file ${filePath}:`, error);
-            return findings;
+            console.error('Scan context:', {
+                patternsLoaded: !!this.vulnerabilityPatterns,
+                patternCount: this.vulnerabilityPatterns ? Object.keys(this.vulnerabilityPatterns).length : 0,
+                fileSize: fileContent ? fileContent.length : 0
+            });
+            throw error; // Re-throw to handle in UI
         }
     }
 

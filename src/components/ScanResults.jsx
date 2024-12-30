@@ -5,12 +5,29 @@ import VulnerabilityScanner from '../lib/scanner';
 // Severity sort order
 const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 
-const ScanResults = ({ scanResults, onRefreshRequest, scanning }) => {
+const ScanResults = ({ scanResults, onRefreshRequest }) => {
   const [error, setError] = useState(null);
 
-  if (!scanResults) return null;
+  if (!scanResults) {
+    console.log('No scan results provided');
+    return null;
+  }
 
   const { findings = {}, summary = {} } = scanResults;
+  
+  // Validate findings structure
+  if (!findings || typeof findings !== 'object') {
+    console.error('Invalid findings structure:', findings);
+    return (
+      <div className="mt-8">
+        <Alert variant="error">
+          <AlertDescription>
+            Error: Invalid scan results structure. Please try scanning again.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   // Convert findings object to array for processing
   const vulnerabilities = Object.entries(findings).map(([type, data]) => {
