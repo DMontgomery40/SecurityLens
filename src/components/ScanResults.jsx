@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { patterns, patternCategories, recommendations } from '../lib/patterns';
-import { ChevronUp, ArrowUp } from 'lucide-react';
 
 
 // Severity sort order
@@ -204,7 +203,17 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
               Found in {Object.keys(vuln.allLineNumbers).length} file(s)
             </div>
           </div>
-          <ChevronUp className={`w-5 h-5 transform transition-transform ${isExpanded ? '' : 'rotate-180'}`} />
+          <svg 
+            className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
         </button>
 
         {/* Expandable Content */}
@@ -352,130 +361,124 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
       <div className="scan-results bg-white shadow rounded-lg p-6">
         {/* Summary Cards */}
         <div className="summary-grid grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((severity) => (
-              <button
-                key={severity}
-                type="button"
-                onClick={() => setActiveSeverity(activeSeverity === severity ? 'ALL' : severity)}
-                className={`summary-card ${severity.toLowerCase()} p-6 rounded-xl border-2 cursor-pointer transition-all transform hover:scale-105
-                  ${
-                    activeSeverity === severity
-                      ? `border-${severity.toLowerCase()}-700 shadow-lg`
-                      : 'border-transparent shadow'
-                  }
-                  ${
-                    severity === 'CRITICAL'
-                      ? 'bg-gradient-to-br from-red-50 to-red-100 text-red-700'
-                      : severity === 'HIGH'
-                      ? 'bg-gradient-to-br from-orange-50 to-orange-100 text-orange-700'
-                      : severity === 'MEDIUM'
-                      ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 text-yellow-700'
-                      : 'bg-gradient-to-br from-blue-50 to-blue-100 text-blue-700'
-                  }`}
-              >
-                <div className="summary-label text-sm font-semibold mb-2">
-                  {severity.charAt(0) + severity.slice(1).toLowerCase()}
-                </div>
-                <div className="summary-numbers flex flex-col gap-1">
-                  <div className="summary-count text-3xl font-bold">
-                    {severityStats[severity].uniqueCount}
-                  </div>
-                  <div className="summary-details text-sm opacity-90">
-                    Unique Vulnerabilities
-                  </div>
-                  <div className="summary-details text-sm opacity-90">
-                    {severityStats[severity].instanceCount} Total Instances
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Cache Notice */}
-          {usedCache && (
-            <div className="mb-4 flex items-center justify-between bg-blue-50 p-4 rounded-lg">
-              <span className="text-blue-700">⚡ Results loaded from cache</span>
-              <button
-                onClick={onRefreshRequest}
-                disabled={scanning}
-                className={`px-4 py-2 rounded text-sm ${
-                  scanning
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-blue-500 hover:bg-blue-600 text-white'
+          {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((severity) => (
+            <button
+              key={severity}
+              type="button"
+              onClick={() => setActiveSeverity(activeSeverity === severity ? 'ALL' : severity)}
+              className={`summary-card ${severity.toLowerCase()} p-6 rounded-xl border-2 cursor-pointer transition-all transform hover:scale-105 
+                ${activeSeverity === severity ? 'border-gray-700 shadow-lg' : 'border-transparent shadow'}
+                ${severity === 'CRITICAL' 
+                  ? 'bg-gradient-to-br from-red-50 to-red-100 text-red-700'
+                  : severity === 'HIGH'
+                  ? 'bg-gradient-to-br from-orange-50 to-orange-100 text-orange-700'
+                  : severity === 'MEDIUM'
+                  ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 text-yellow-700'
+                  : 'bg-gradient-to-br from-blue-50 to-blue-100 text-blue-700'
                 }`}
-              >
-                {scanning ? 'Refreshing...' : 'Refresh Scan'}
-              </button>
-            </div>
-          )}
-
-          {/* Toggle Buttons */}
-          <div className="view-toggle flex gap-1 bg-gray-200 rounded-md p-1 w-fit mb-4">
-            <button
-              onClick={() => setViewMode('type')}
-              className={`px-4 py-2 text-sm rounded ${
-                viewMode === 'type' ? 'bg-white font-medium' : ''
-              }`}
             >
-              View by Vulnerability Type
+              <div className="summary-label text-sm font-semibold mb-2">
+                {severity.charAt(0) + severity.slice(1).toLowerCase()}
+              </div>
+              <div className="summary-numbers flex flex-col gap-1">
+                <div className="summary-count text-3xl font-bold">
+                  {severityStats[severity].uniqueCount}
+                </div>
+                <div className="summary-details text-sm opacity-90">
+                  Unique Vulnerabilities
+                </div>
+                <div className="summary-details text-sm opacity-90">
+                  {severityStats[severity].instanceCount} Total Instances
+                </div>
+              </div>
             </button>
-            <button
-              onClick={() => setViewMode('file')}
-              className={`px-4 py-2 text-sm rounded ${
-                viewMode === 'file' ? 'bg-white font-medium' : ''
-              }`}
-            >
-              View by File
-            </button>
-          </div>
-
-          {/* Search Bar */}
-          <div className="mb-6">
-            <input
-              type="text"
-              placeholder="Search by description or file path..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* Scan Results */}
-          {viewMode === 'type' ? (
-            // By Vulnerability Type
-            filteredByType.length ? (
-              <div className="space-y-4">
-                {filteredByType.map((vuln, i) => (
-                  <VulnerabilityCard key={i} vuln={vuln} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                No vulnerabilities found
-              </div>
-            )
-          ) : (
-            // By File
-            filteredByFile.length ? (
-              <div className="space-y-4">
-                {filteredByFile.map(({ fileName, vulns }) => (
-                  <div key={fileName} className="file-view border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold mb-3">{fileName}</h3>
-                    <div className="vulnerability-list space-y-4">
-                      {vulns.map((v, idx) => (
-                        <VulnerabilityCard key={`${fileName}-${idx}`} vuln={v} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                No vulnerabilities found
-              </div>
-            )
-          )}
+          ))}
         </div>
+
+        {/* Cache Notice */}
+        {usedCache && (
+          <div className="mb-4 flex items-center justify-between bg-blue-50 p-4 rounded-lg">
+            <span className="text-blue-700">⚡ Results loaded from cache</span>
+            <button
+              onClick={onRefreshRequest}
+              disabled={scanning}
+              className={`px-4 py-2 rounded text-sm ${
+                scanning
+                  ? 'bg-gray-300 cursor-not-allowed'
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              {scanning ? 'Refreshing...' : 'Refresh Scan'}
+            </button>
+          </div>
+        )}
+
+        {/* Toggle Buttons */}
+        <div className="view-toggle flex gap-1 bg-gray-200 rounded-md p-1 w-fit mb-4">
+          <button
+            onClick={() => setViewMode('type')}
+            className={`px-4 py-2 text-sm rounded ${
+              viewMode === 'type' ? 'bg-white font-medium' : ''
+            }`}
+          >
+            View by Vulnerability Type
+          </button>
+          <button
+            onClick={() => setViewMode('file')}
+            className={`px-4 py-2 text-sm rounded ${
+              viewMode === 'file' ? 'bg-white font-medium' : ''
+            }`}
+          >
+            View by File
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="mb-6">
+          <input
+            type="text"
+            placeholder="Search by description or file path..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Scan Results */}
+        {viewMode === 'type' ? (
+          // By Vulnerability Type
+          filteredByType.length ? (
+            <div className="space-y-4">
+              {filteredByType.map((vuln, i) => (
+                <VulnerabilityCard key={i} vuln={vuln} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No vulnerabilities found
+            </div>
+          )
+        ) : (
+          // By File
+          filteredByFile.length ? (
+            <div className="space-y-4">
+              {filteredByFile.map(({ fileName, vulns }) => (
+                <div key={fileName} className="file-view border border-gray-200 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold mb-3">{fileName}</h3>
+                  <div className="vulnerability-list space-y-4">
+                    {vulns.map((v, idx) => (
+                      <VulnerabilityCard key={`${fileName}-${idx}`} vuln={v} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No vulnerabilities found
+            </div>
+          )
+        )}
       </div>
       <FloatingNav />
       
@@ -486,7 +489,18 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
           className="fixed bottom-8 right-8 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors"
           aria-label="Back to top"
         >
-          <ArrowUp className="w-5 h-5" />
+          <svg 
+            className="w-5 h-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="12" y1="19" x2="12" y2="5"></line>
+            <polyline points="5 12 12 5 19 12"></polyline>
+          </svg>
         </button>
       )}
     </div>
