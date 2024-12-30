@@ -7,6 +7,16 @@ import { patterns, patternCategories, recommendations } from '../lib/patterns';
 // Severity sort order
 const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 
+const codeBlockStyles = {
+  pre: {
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    fontSize: '0.9em',
+    lineHeight: '1.5',
+    overflowX: 'auto',
+    margin: '1em 0'
+  }
+};
+
 const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
   if (!results) return null;
 
@@ -216,16 +226,39 @@ const ScanResults = ({ results, usedCache, onRefreshRequest, scanning }) => {
         {/* Recommendation section */}
         {rec ? (
           <div className="recommendation bg-gray-50 border border-gray-200 rounded-md p-4 text-sm">
-            {/* Render recommendation with markdown-like formatting */}
-            <div
-              className="prose prose-sm text-gray-800 max-w-none recommendation-section"
-              dangerouslySetInnerHTML={{
-                __html: rec.recommendation
-                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                  .replace(/## (.*?)\n/g, '<h4>$1</h4>')
-                  .replace(/\n/g, '<br />')
-              }}
-            />
+            {/* Split recommendation into sections and handle code blocks specially */}
+            {rec.recommendation.split(/(Instead of:|Do:)/).map((section, index) => {
+              if (section === 'Instead of:' || section === 'Do:') {
+                // Return the label
+                return (
+                  <div key={index} className="font-medium mt-3 mb-2">
+                    {section}
+                  </div>
+                );
+              } else if (section.includes('```')) {
+                // Handle code blocks - extract content between ``` marks
+                const code = section.match(/```(?:\w*\n)?([^`]+)```/);
+                return code ? (
+                  <pre key={index} className="bg-gray-800 text-gray-100 p-3 rounded-md my-2 overflow-x-auto">
+                    <code>{code[1].trim()}</code>
+                  </pre>
+                ) : null;
+              } else {
+                // Regular text
+                return (
+                  <div
+                    key={index}
+                    className="prose prose-sm text-gray-800 max-w-none"
+                    dangerouslySetInnerHTML={{
+                      __html: section
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\n/g, '<br />')
+                    }}
+                  />
+                );
+              }
+            })}
+            
             {/* References */}
             {rec.references && rec.references.length > 0 && (
               <div className="references border-t border-gray-200 mt-3 pt-3">

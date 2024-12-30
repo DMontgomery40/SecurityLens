@@ -268,7 +268,11 @@ class VulnerabilityScanner {
                 this.config.onProgress(totalChunks, totalChunks);
             }
 
-            console.log('Generated findings with categories:', findings.map(f => ({type: f.type, category: f.category})));
+            console.log('Generated findings with categories:', findings.map(f => ({
+                type: f.type, 
+                category: f.category,
+                subcategory: f.subcategory
+            })));
 
             return findings;
         } catch (error) {
