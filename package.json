@@ -15,6 +15,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "@octokit/core": "^6.1.2",
     "@octokit/rest": "^19.0.13",
     "@radix-ui/react-alert-dialog": "1.0.5",
     "chalk": "5.3.0",
@@ -23,11 +24,14 @@
     "commander": "11.1.0",
     "crypto-js": "^4.2.0",
     "jose": "^5.2.0",
-    "lodash": "4.17.21",
+    "lodash": "^4.17.21",
     "lucide-react": "^0.263.1",
+    "node-fetch": "^3.3.2",
+    "octokit": "^4.0.3",
     "rate-limiter-flexible": "^4.0.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "semver": "^7.6.3",
     "tailwind-merge": "1.14.0",
     "zod": "^3.22.4"
   },
