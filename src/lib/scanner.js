@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import { patterns as corePatterns, recommendations } from './patterns';
+import { patterns, recommendations } from './patterns';
 import { getScannerForFile, PACKAGE_FILE_PATTERNS } from './scanners';
 import { repoCache } from './cache';
 import { Octokit } from '@octokit/core';
@@ -8,7 +8,7 @@ import { authManager } from './githubAuth';
 class VulnerabilityScanner {
     constructor(config = {}) {
         this.config = {
-            enableNewPatterns: true,
+            enablePatterns: true,
             enablePackageScanners: true,
             maxRetries: 3,
             retryDelay: 1000,
@@ -22,11 +22,11 @@ class VulnerabilityScanner {
 
         // Debug logging
         console.log('Initializing scanner with patterns:', {
-            Patterns: !!corePatterns,
+            Patterns: !!patterns,
           
         });
 
-        this.vulnerabilityPatterns = { ...corePatterns };
+        this.vulnerabilityPatterns = { ...patterns };
         
         
 
