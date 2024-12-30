@@ -190,6 +190,8 @@ class VulnerabilityScanner {
 
         console.log(`Active patterns: ${Object.keys(this.vulnerabilityPatterns).length}`);
 
+        console.log('Pattern categories available:', Object.keys(this.vulnerabilityPatterns).map(k => this.vulnerabilityPatterns[k].category));
+
         try {
             // Use a sliding window for pattern matching to handle patterns that might cross chunk boundaries
             const chunkSize = 100000; // 100KB chunks
@@ -252,7 +254,9 @@ class VulnerabilityScanner {
                             severity: vulnInfo.severity,
                             description: vulnInfo.description,
                             file: filePath,
-                            lineNumbers: Array.from(matches).sort((a, b) => a - b)
+                            lineNumbers: Array.from(matches).sort((a, b) => a - b),
+                            category: vulnInfo.category,
+                            subcategory: vulnInfo.subcategory
                         });
                     }
                 } catch (error) {
@@ -263,6 +267,8 @@ class VulnerabilityScanner {
             if (this.config.onProgress) {
                 this.config.onProgress(totalChunks, totalChunks);
             }
+
+            console.log('Generated findings with categories:', findings.map(f => ({type: f.type, category: f.category})));
 
             return findings;
         } catch (error) {
@@ -313,7 +319,7 @@ class VulnerabilityScanner {
                 acc[finding.type] = {
                     severity: finding.severity,
                     description: finding.description,
-                    patternCategory: finding.category,
+                    category: finding.category,
                     subcategory: finding.subcategory,
                     allLineNumbers: {},
                 };
