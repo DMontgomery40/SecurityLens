@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import { corePatterns, enhancedPatterns, recommendations } from './patterns';
+import { patterns as corePatterns, recommendations } from './patterns';
 import { getScannerForFile, PACKAGE_FILE_PATTERNS } from './scanners';
 import { repoCache } from './cache';
 import { Octokit } from '@octokit/core';
