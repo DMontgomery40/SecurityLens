@@ -1,7 +1,8 @@
 // ScanResults.jsx
 
 import React, { useState } from 'react';
-import { patterns, patternCategories, recommendations } from './lib/patterns';
+import { patterns, patternCategories, recommendations } from '../lib/patterns';
+
 
 // Severity sort order
 const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
