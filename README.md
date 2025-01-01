@@ -74,5 +74,5 @@ Below is the list of vulnerabilities that **SecurityLens** scans for:
 
 ## Current Results Page Example
 
-![SecurityLens Screenshot](../assets/security-lens-screenshot.png)
+![SecurityLens Screenshot](/assets/security-lens-screenshot.png)
 {: .text-center }
