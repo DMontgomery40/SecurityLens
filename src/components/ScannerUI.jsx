@@ -21,6 +21,10 @@ const ScannerUI = () => {
   const [usedCache, setUsedCache] = useState(false);
   const [githubToken, setGithubToken] = useState(authManager.getToken() || '');
   const [showTokenDialog, setShowTokenDialog] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showLicense, setShowLicense] = useState(false);
+  const [showVulnList, setShowVulnList] = useState(false);
 
   const handleFileUpload = async (event) => {
     const files = Array.from(event.target.files);
@@ -170,6 +174,14 @@ const ScannerUI = () => {
             sensitive data exposure, and more. Supports JavaScript, TypeScript, 
             Python, and other languages.
           </p>
+          
+          {/* Info Button */}
+          <button 
+            onClick={() => setShowVulnList(true)} 
+            className="mt-4 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            View Full List of Checks
+          </button>
         </div>
 
         {/* SCAN REPO */}
@@ -264,10 +276,23 @@ const ScannerUI = () => {
 
         {/* ERROR MESSAGE */}
         {error && (
-          <Alert className="my-4" variant="error">
+          <Alert className="my-4" variant={error.includes('Invalid GitHub URL') ? 'default' : 'error'}>
             <AlertDescription>
-              <AlertTriangle className="h-4 w-4 inline-block mr-2" />
-              {error}
+              {error.includes('Invalid GitHub URL') ? (
+                <div className="space-y-2">
+                  <p><AlertTriangle className="h-4 w-4 inline-block mr-2" />Please provide a valid GitHub repository URL in one of these formats:</p>
+                  <ul className="list-disc pl-5 text-sm">
+                    <li>https://github.com/username/repository</li>
+                    <li>https://github.com/username/repository/tree/branch</li>
+                    <li>https://github.com/username/repository/tree/branch/folder</li>
+                  </ul>
+                </div>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4 inline-block mr-2" />
+                  {error}
+                </>
+              )}
             </AlertDescription>
           </Alert>
         )}
@@ -356,6 +381,173 @@ const ScannerUI = () => {
               className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
               onChange={(e) => handleTokenSubmit(e.target.value)}
             />
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Legal Footer */}
+      <footer className="mt-8 border-t border-gray-200 pt-8 pb-4">
+        <div className="max-w-4xl mx-auto space-y-4">
+          {/* Warning Banner */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-sm text-yellow-800">
+            <p><strong>Beta Notice:</strong> SecurityLens is in active development. Please note:</p>
+            <ul className="list-disc pl-5 mt-2 space-y-1">
+              <li>Results may include false positives</li>
+              <li>The dependency vulnerability and outdated dependency checkers are currently in development</li>
+            </ul>
+          </div>
+
+          {/* Links */}
+          <div className="flex justify-center space-x-6 text-sm text-gray-600">
+            <button 
+              onClick={() => setShowTerms(true)} 
+              className="hover:text-blue-600 transition-colors"
+            >
+              Terms of Service
+            </button>
+            <button 
+              onClick={() => setShowPrivacy(true)} 
+              className="hover:text-blue-600 transition-colors"
+            >
+              Privacy Policy
+            </button>
+            <a 
+              href="https://github.com/DMontgomery40/SecurityLens"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-blue-600 transition-colors"
+            >
+              GitHub
+            </a>
+            <button 
+              onClick={() => setShowLicense(true)} 
+              className="hover:text-blue-600 transition-colors"
+            >
+              License
+            </button>
+          </div>
+
+          {/* Copyright */}
+          <div className="text-center text-sm text-gray-500 mt-4">
+            © {new Date().getFullYear()} David Montgomery. MIT License.
+          </div>
+        </div>
+      </footer>
+
+      {/* Terms Dialog */}
+      <AlertDialog open={showTerms} onClose={() => setShowTerms(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <h2 className="text-lg font-semibold">Terms of Service</h2>
+          </AlertDialogHeader>
+          <div className="space-y-4 text-sm">
+            <p>
+              By using SecurityLens, you agree to the following terms:
+            </p>
+            <h3 className="font-medium">1. Token Handling</h3>
+            <p>
+              GitHub access tokens are stored only in your local browser storage and are never transmitted to our servers.
+              You are responsible for managing and securing your tokens.
+            </p>
+            <h3 className="font-medium">2. Security Scanning</h3>
+            <p>
+              While we strive for accuracy, security scanning results are provided "as is" without warranty of any kind.
+              False positives and false negatives may occur.
+            </p>
+            <h3 className="font-medium">3. Usage Limits</h3>
+            <p>
+              Usage is subject to GitHub's API rate limits. We are not responsible for any rate limiting or access issues.
+            </p>
+            <h3 className="font-medium">4. Liability</h3>
+            <p>
+              SecurityLens is provided without any warranties. We are not liable for any damages or losses resulting from your use of the service.
+            </p>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Privacy Dialog */}
+      <AlertDialog open={showPrivacy} onClose={() => setShowPrivacy(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <h2 className="text-lg font-semibold">Privacy Policy</h2>
+          </AlertDialogHeader>
+          <div className="space-y-4 text-sm">
+            <h3 className="font-medium">Data Collection</h3>
+            <p>
+              SecurityLens is designed with privacy in mind. We do not collect, store, or transmit:
+            </p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>Your GitHub tokens (stored only in your browser)</li>
+              <li>Your source code</li>
+              <li>Scan results</li>
+              <li>Personal information</li>
+            </ul>
+            <h3 className="font-medium">Local Storage</h3>
+            <p>
+              The only data stored locally in your browser is your GitHub token, if you choose to provide one.
+              You can clear this at any time by clearing your browser data.
+            </p>
+            <h3 className="font-medium">Third-Party Services</h3>
+            <p>
+              We use GitHub's API for repository scanning. Your interactions with GitHub are subject to their privacy policy.
+            </p>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* License Dialog */}
+      <AlertDialog open={showLicense} onClose={() => setShowLicense(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <h2 className="text-lg font-semibold">MIT License</h2>
+          </AlertDialogHeader>
+          <div className="space-y-4 text-sm">
+            <p>Copyright (c) {new Date().getFullYear()} David Montgomery</p>
+            
+            <p>
+              Permission is hereby granted, free of charge, to any person obtaining a copy
+              of this software and associated documentation files (the "Software"), to deal
+              in the Software without restriction, including without limitation the rights
+              to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+              copies of the Software, and to permit persons to whom the Software is
+              furnished to do so, subject to the following conditions:
+            </p>
+
+            <p>
+              The above copyright notice and this permission notice shall be included in all
+              copies or substantial portions of the Software.
+            </p>
+
+            <p className="text-xs">
+              THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+              IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+              FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+              AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+              LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+              OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+              SOFTWARE.
+            </p>
+
+            <div className="pt-4 border-t">
+              <p>
+                Want to contribute? Visit the{' '}
+                <a 
+                  href="https://github.com/DMontgomery40/SecurityLens" 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  GitHub repository
+                </a>
+                {' '}to:
+              </p>
+              <ul className="list-disc pl-5 mt-2">
+                <li>Report issues</li>
+                <li>Submit pull requests</li>
+                <li>View the source code</li>
+              </ul>
+            </div>
           </div>
         </AlertDialogContent>
       </AlertDialog>
