@@ -433,564 +433,567 @@ const ScannerUI = () => {
           </div>
         </div>
       </footer>
-      {/* VULNERABILITY LIST POPUP */}
-      <AlertDialog open={showVulnList} onClose={() => setShowVulnList(false)}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-            <h2 className="text-lg font-semibold">Terms of Service</h2>
-          </AlertDialogHeader>
-            <button
-              className="text-gray-500 hover:text-gray-700 px-2 py-1"
-              onClick={() => setShowVulnList(false)}
-            >
-              ✕
-            </button>
-          </div>
+          {/* VULNERABILITY LIST POPUP */}
+          <AlertDialog open={showVulnList} onClose={() => setShowVulnList(false)}>
+            <AlertDialogContent>
+              {/* Header + Close Button Row */}
+              <div className="flex items-center justify-between mb-4">
+                <AlertDialogHeader>
+                  <h2 className="text-lg font-semibold">Full Vulnerability List</h2>
+                </AlertDialogHeader>
+                <button
+                  className="text-gray-500 hover:text-gray-700 px-2 py-1"
+                  onClick={() => setShowVulnList(false)}
+                >
+                  ✕
+                </button>
+              </div>
 
-          {/* Scrollable table wrapper */}
-          <div className="max-h-[60vh] overflow-auto border rounded-md">
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-white shadow">
-                <tr className="border-b border-gray-300">
-                  <th className="py-2 px-4 font-medium">Vulnerability</th>
-                  <th className="py-2 px-4 font-medium">Description</th>
-                  <th className="py-2 px-4 font-medium">Severity</th>
-                  <th className="py-2 px-4 font-medium">CWE</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
+              {/* Scrollable table wrapper */}
+              <div className="max-h-[60vh] overflow-auto border rounded-md">
+                <table className="w-full text-left border-collapse">
+                  <thead className="sticky top-0 bg-white shadow">
+                    <tr className="border-b border-gray-300">
+                      <th className="py-2 px-4 font-medium">Vulnerability</th>
+                      <th className="py-2 px-4 font-medium">Description</th>
+                      <th className="py-2 px-4 font-medium">Severity</th>
+                      <th className="py-2 px-4 font-medium">CWE</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm">
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Dangerous Code Execution</td>
-                  <td className="py-2 px-4">
-                    Dangerous code execution via <code>eval()</code> or Function constructor
-                  </td>
-                  <td className="py-2 px-4">CRITICAL</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/95.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-95
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Dangerous Code Execution</td>
+                      <td className="py-2 px-4">
+                        Dangerous code execution via <code>eval()</code> or Function constructor
+                      </td>
+                      <td className="py-2 px-4">CRITICAL</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/95.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-95
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Command Injection</td>
-                  <td className="py-2 px-4">Potential command injection vulnerability</td>
-                  <td className="py-2 px-4">CRITICAL</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/77.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-77
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Command Injection</td>
+                      <td className="py-2 px-4">Potential command injection vulnerability</td>
+                      <td className="py-2 px-4">CRITICAL</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/77.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-77
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Authentication Bypass</td>
-                  <td className="py-2 px-4">Authentication bypass or missing authentication</td>
-                  <td className="py-2 px-4">CRITICAL</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/306.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-306
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Authentication Bypass</td>
+                      <td className="py-2 px-4">Authentication bypass or missing authentication</td>
+                      <td className="py-2 px-4">CRITICAL</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/306.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-306
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Hardcoded Credentials</td>
-                  <td className="py-2 px-4">Hardcoded credentials detected</td>
-                  <td className="py-2 px-4">CRITICAL</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/798.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-798
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Hardcoded Credentials</td>
+                      <td className="py-2 px-4">Hardcoded credentials detected</td>
+                      <td className="py-2 px-4">CRITICAL</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/798.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-798
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">SQL Injection</td>
-                  <td className="py-2 px-4">Potential SQL injection vulnerability</td>
-                  <td className="py-2 px-4">CRITICAL</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/89.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-89
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">SQL Injection</td>
+                      <td className="py-2 px-4">Potential SQL injection vulnerability</td>
+                      <td className="py-2 px-4">CRITICAL</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/89.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-89
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Cross-site Scripting (XSS)</td>
-                  <td className="py-2 px-4">Cross-site scripting vulnerability</td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/79.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-79
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Cross-site Scripting (XSS)</td>
+                      <td className="py-2 px-4">Cross-site scripting vulnerability</td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/79.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-79
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">NoSQL Injection</td>
-                  <td className="py-2 px-4">Potential NoSQL injection vulnerability</td>
-                  <td className="py-2 px-4">CRITICAL</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/943.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-943
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">NoSQL Injection</td>
+                      <td className="py-2 px-4">Potential NoSQL injection vulnerability</td>
+                      <td className="py-2 px-4">CRITICAL</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/943.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-943
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Weak Cryptographic Hash</td>
-                  <td className="py-2 px-4">Use of weak cryptographic hash function</td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/326.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-326
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Weak Cryptographic Hash</td>
+                      <td className="py-2 px-4">Use of weak cryptographic hash function</td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/326.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-326
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Deprecated Cryptographic Functions</td>
-                  <td className="py-2 px-4">Use of deprecated cryptographic functions</td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/927.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-927
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Deprecated Cryptographic Functions</td>
+                      <td className="py-2 px-4">Use of deprecated cryptographic functions</td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/927.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-927
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Unsafe Buffer Allocation</td>
-                  <td className="py-2 px-4">Unsafe buffer allocation</td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/119.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-119
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Unsafe Buffer Allocation</td>
+                      <td className="py-2 px-4">Unsafe buffer allocation</td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/119.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-119
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Memory Leak in Timer/Interval</td>
-                  <td className="py-2 px-4">Potential memory leak in timer/interval</td>
-                  <td className="py-2 px-4">MEDIUM</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/401.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-401
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Memory Leak in Timer/Interval</td>
+                      <td className="py-2 px-4">Potential memory leak in timer/interval</td>
+                      <td className="py-2 px-4">MEDIUM</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/401.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-401
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Sensitive Data Exposure</td>
-                  <td className="py-2 px-4">Sensitive data exposure</td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/200.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-200
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Sensitive Data Exposure</td>
+                      <td className="py-2 px-4">Sensitive data exposure</td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/200.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-200
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Insecure Data Transmission</td>
-                  <td className="py-2 px-4">Potential insecure data transmission</td>
-                  <td className="py-2 px-4">MEDIUM</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/319.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-319
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Insecure Data Transmission</td>
+                      <td className="py-2 px-4">Potential insecure data transmission</td>
+                      <td className="py-2 px-4">MEDIUM</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/319.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-319
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Sensitive Information in Errors</td>
-                  <td className="py-2 px-4">
-                    Potential sensitive information in error messages
-                  </td>
-                  <td className="py-2 px-4">MEDIUM</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/209.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-209
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Sensitive Information in Errors</td>
+                      <td className="py-2 px-4">
+                        Potential sensitive information in error messages
+                      </td>
+                      <td className="py-2 px-4">MEDIUM</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/209.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-209
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Insecure Direct Object Reference (IDOR)</td>
-                  <td className="py-2 px-4">
-                    Potential Insecure Direct Object Reference (IDOR)
-                  </td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/639.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-639
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Insecure Direct Object Reference (IDOR)</td>
+                      <td className="py-2 px-4">
+                        Potential Insecure Direct Object Reference (IDOR)
+                      </td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/639.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-639
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Improper Authorization Checks</td>
-                  <td className="py-2 px-4">
-                    Improper authorization checks allowing unauthorized access
-                  </td>
-                  <td className="py-2 px-4">CRITICAL</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/306.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-306
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Improper Authorization Checks</td>
+                      <td className="py-2 px-4">
+                        Improper authorization checks allowing unauthorized access
+                      </td>
+                      <td className="py-2 px-4">CRITICAL</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/306.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-306
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Path Traversal</td>
-                  <td className="py-2 px-4">Potential path traversal vulnerability</td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/23.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-23
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Path Traversal</td>
+                      <td className="py-2 px-4">Potential path traversal vulnerability</td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/23.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-23
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Unsanitized Input Usage</td>
-                  <td className="py-2 px-4">
-                    Unsanitized user input used in sensitive operations
-                  </td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/932.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-932
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Unsanitized Input Usage</td>
+                      <td className="py-2 px-4">
+                        Unsanitized user input used in sensitive operations
+                      </td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/932.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-932
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Open Redirect</td>
-                  <td className="py-2 px-4">Potential open redirect vulnerability</td>
-                  <td className="py-2 px-4">MEDIUM</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/601.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-601
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Open Redirect</td>
+                      <td className="py-2 px-4">Potential open redirect vulnerability</td>
+                      <td className="py-2 px-4">MEDIUM</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/601.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-601
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Resource Leak</td>
-                  <td className="py-2 px-4">
-                    Potential resource leak due to synchronous file operations
-                  </td>
-                  <td className="py-2 px-4">MEDIUM</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/399.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-399
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Resource Leak</td>
+                      <td className="py-2 px-4">
+                        Potential resource leak due to synchronous file operations
+                      </td>
+                      <td className="py-2 px-4">MEDIUM</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/399.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-399
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Session Fixation</td>
-                  <td className="py-2 px-4">
-                    Potential session fixation vulnerability allowing attacker to set session ID
-                  </td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/384.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-384
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Session Fixation</td>
+                      <td className="py-2 px-4">
+                        Potential session fixation vulnerability allowing attacker to set session ID
+                      </td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/384.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-384
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Insecure Session Storage</td>
-                  <td className="py-2 px-4">
-                    Insecure session storage without secure flags
-                  </td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/925.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-925
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Insecure Session Storage</td>
+                      <td className="py-2 px-4">
+                        Insecure session storage without secure flags
+                      </td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/925.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-925
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Server-Side Request Forgery (SSRF)</td>
-                  <td className="py-2 px-4">
-                    Potential SSRF vulnerability from user-supplied input in request calls
-                  </td>
-                  <td className="py-2 px-4">CRITICAL</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/918.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-918
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Server-Side Request Forgery (SSRF)</td>
+                      <td className="py-2 px-4">
+                        Potential SSRF vulnerability from user-supplied input in request calls
+                      </td>
+                      <td className="py-2 px-4">CRITICAL</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/918.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-918
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Insecure API Setup</td>
-                  <td className="py-2 px-4">
-                    Potential insecure API setup without proper authentication middleware
-                  </td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/921.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-921
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Insecure API Setup</td>
+                      <td className="py-2 px-4">
+                        Potential insecure API setup without proper authentication middleware
+                      </td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/921.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-921
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">JWT in URL</td>
-                  <td className="py-2 px-4">
-                    JWT token present in URL instead of headers
-                  </td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/922.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-922
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">JWT in URL</td>
+                      <td className="py-2 px-4">
+                        JWT token present in URL instead of headers
+                      </td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/922.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-922
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Token in URL</td>
-                  <td className="py-2 px-4">
-                    Authentication token present in URL parameters
-                  </td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/923.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-923
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Token in URL</td>
+                      <td className="py-2 px-4">
+                        Authentication token present in URL parameters
+                      </td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/923.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-923
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Weak Rate Limiting</td>
-                  <td className="py-2 px-4">
-                    Potentially weak rate limiting configuration in API setup
-                  </td>
-                  <td className="py-2 px-4">MEDIUM</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/924.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-924
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Weak Rate Limiting</td>
+                      <td className="py-2 px-4">
+                        Potentially weak rate limiting configuration in API setup
+                      </td>
+                      <td className="py-2 px-4">MEDIUM</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/924.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-924
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Missing or Misconfigured CORS</td>
-                  <td className="py-2 px-4">Missing or misconfigured CORS in API setup</td>
-                  <td className="py-2 px-4">MEDIUM</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/925.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-925
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Missing or Misconfigured CORS</td>
+                      <td className="py-2 px-4">Missing or misconfigured CORS in API setup</td>
+                      <td className="py-2 px-4">MEDIUM</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/925.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-925
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Insecure Middleware Setup</td>
-                  <td className="py-2 px-4">Insecure middleware setup allowing unauthorized access</td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/926.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-926
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Insecure Middleware Setup</td>
+                      <td className="py-2 px-4">Insecure middleware setup allowing unauthorized access</td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/926.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-926
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr className="border-b border-gray-100">
-                  <td className="py-2 px-4">Vulnerable Dependencies</td>
-                  <td className="py-2 px-4">
-                    Vulnerable dependencies detected in <code>package.json</code>
-                  </td>
-                  <td className="py-2 px-4">HIGH</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/925.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-925
-                    </a>
-                  </td>
-                </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="py-2 px-4">Vulnerable Dependencies</td>
+                      <td className="py-2 px-4">
+                        Vulnerable dependencies detected in <code>package.json</code>
+                      </td>
+                      <td className="py-2 px-4">HIGH</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/925.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-925
+                        </a>
+                      </td>
+                    </tr>
 
-                <tr>
-                  <td className="py-2 px-4">Outdated Dependencies</td>
-                  <td className="py-2 px-4">
-                    Outdated dependencies detected in <code>package.json</code>
-                  </td>
-                  <td className="py-2 px-4">MEDIUM</td>
-                  <td className="py-2 px-4">
-                    <a
-                      href="https://cwe.mitre.org/data/definitions/926.html"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      CWE-926
-                    </a>
-                  </td>
-                </tr>
+                    <tr>
+                      <td className="py-2 px-4">Outdated Dependencies</td>
+                      <td className="py-2 px-4">
+                        Outdated dependencies detected in <code>package.json</code>
+                      </td>
+                      <td className="py-2 px-4">MEDIUM</td>
+                      <td className="py-2 px-4">
+                        <a
+                          href="https://cwe.mitre.org/data/definitions/926.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          CWE-926
+                        </a>
+                      </td>
+                    </tr>
 
-              </tbody>
-            </table>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
+                  </tbody>
+                </table>
+              </div>
+            </AlertDialogContent>
+          </AlertDialog>
+
 
       {/* Privacy Dialog */}
       <AlertDialog open={showPrivacy} onClose={() => setShowPrivacy(false)}>
@@ -1017,6 +1020,46 @@ const ScannerUI = () => {
             <h3 className="font-medium">Third-Party Services</h3>
             <p>
               We use GitHub's API for repository scanning. Your interactions with GitHub are subject to their privacy policy.
+            </p>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Terms of Service Dialog */}
+      <AlertDialog open={showTerms} onClose={() => setShowTerms(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <h2 className="text-lg font-semibold">Terms of Service</h2>
+          </AlertDialogHeader>
+          <div className="space-y-4 text-sm">
+            <h3 className="font-medium">1. Acceptance of Terms</h3>
+            <p>
+              By accessing and using SecurityLens, you agree to be bound by these Terms of Service.
+            </p>
+
+            <h3 className="font-medium">2. Service Description</h3>
+            <p>
+              SecurityLens is a code scanning tool that helps identify potential security vulnerabilities
+              in source code. The service is provided "as is" and "as available".
+            </p>
+
+            <h3 className="font-medium">3. Use of Service</h3>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>You must use the service in compliance with all applicable laws</li>
+              <li>You are responsible for maintaining the security of your GitHub tokens</li>
+              <li>You agree not to misuse or attempt to circumvent the service's limitations</li>
+            </ul>
+
+            <h3 className="font-medium">4. Limitations of Liability</h3>
+            <p>
+              SecurityLens and its creators are not liable for any damages arising from the use
+              or inability to use the service. Scan results are provided without warranty of any kind.
+            </p>
+
+            <h3 className="font-medium">5. Changes to Terms</h3>
+            <p>
+              We reserve the right to modify these terms at any time. Continued use of the service
+              constitutes acceptance of modified terms.
             </p>
           </div>
         </AlertDialogContent>
