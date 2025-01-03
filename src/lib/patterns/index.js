@@ -1484,5 +1484,44 @@ Do:
       }
     ],
     cwe: '926'
+  },
+  improperAuthorizationChecks: {
+    recommendation: `
+  **Why it Matters**: If authorization checks are too simplistic or missing in critical paths, attackers may access privileged functions or data without proper permissions.
+  
+  **What to Do**:
+  1. **Enforce Role/Permission Checks**: Ensure every privileged route or function verifies user roles/permissions explicitly.
+  2. **Use a Centralized Authorization Mechanism**: Avoid ad-hoc checks scattered across the code; rely on a well-tested library or framework feature.
+  3. **Validate Ownership**: For operations on user-specific data (like editing a profile), confirm the authenticated user owns the resource.
+  
+  **Example**:
+  Instead of:
+  \`\`\`javascript
+  if (req.user) {
+    doAdminStuff(); // No role/permission check
   }
+  \`\`\`
+  Use:
+  \`\`\`json
+  if (req.user && req.user.role === 'admin') {
+    doAdminStuff();
+  }
+  \`\`\`
+    `,
+    references: [
+      {
+        title: 'CWE-306: Missing Authentication for Critical Function',
+        url: 'https://cwe.mitre.org/data/definitions/306.html'
+      },
+      {
+        title: 'CAPEC-115: Authentication Bypass',
+        url: 'https://capec.mitre.org/data/definitions/115.html'
+      },
+      {
+        title: 'OWASP Broken Access Control',
+        url: 'https://owasp.org/Top10/A01_2021-Broken_Access_Control/'
+      }
+    ],
+    cwe: '306'
+  }  
 };
