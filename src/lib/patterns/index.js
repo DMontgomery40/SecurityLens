@@ -15,20 +15,30 @@ export const patternCategories = {
   API_SECURITY: '920',         // API Security issues
   DEPENDENCY_MANAGEMENT: '925' // Dependency-related issues
 };
+// Categories
 
-// Consolidated Patterns
+// Refined Patterns
 export const patterns = {
   // Execution Patterns
   evalExecution: {
-    pattern: /eval\s*\([^)]*\)|new\s+Function\s*\(/,
+    /**
+     *  - Anchored for “eval” or “new Function”
+     *  - Ignores partial matches like “myEvalFunc”
+     */
+    pattern: /(^|[^.\w])(eval|new\s+Function)\s*\(/,
     description: 'Dangerous code execution via eval() or Function constructor',
     severity: 'CRITICAL',
     category: patternCategories.CRITICAL_EXECUTION,
     subcategory: '95',
     cwe: '95'
   },
+
   commandInjection: {
-    pattern: /child_process\.exec\s*\(|\.exec\s*\(|\.spawn\s*\(/,
+    /**
+     *  - Looks for child_process.exec/spawn/fork/execFile or bare "exec("
+     *  - Avoids partial matches like “executor” or “executeStuff()”
+     */
+    pattern: /\b(child_process\.(?:exec|spawn|execFile|fork)\s*\(|exec\s*\()/,
     description: 'Potential command injection vulnerability',
     severity: 'CRITICAL',
     category: patternCategories.CRITICAL_EXECUTION,
@@ -38,7 +48,10 @@ export const patterns = {
 
   // Authentication Patterns
   missingAuth: {
-    pattern: /authentication:\s*false|auth:\s*false|noAuth:\s*true|skipAuth/i,
+    /**
+     *  - Uses word boundaries (\b) to avoid partial matches like "authfalseEnabled"
+     */
+    pattern: /\bauthentication\s*:\s*false\b|\bauth\s*:\s*false\b|\bnoAuth\s*:\s*true\b|\bskipAuth\b/i,
     description: 'Authentication bypass or missing authentication',
     severity: 'CRITICAL',
     category: patternCategories.AUTHENTICATION,
@@ -46,7 +59,13 @@ export const patterns = {
     cwe: '306'
   },
   hardcodedCreds: {
-    pattern: /(password|secret|key|token|credential)s?\s*[:=]\s*['"][^'"]+['"]/i,
+    /**
+     *  - Requires a boundary (\b) around "password|secret|key|token|credential"
+     *  - Then captures : or = 
+     *  - Followed by a quoted string
+     *  - Case-insensitive
+     */
+    pattern: /\b(password|secret|key|token|credential)s?\b\s*[:=]\s*['"][^'"]+['"]/i,
     description: 'Hardcoded credentials detected',
     severity: 'CRITICAL',
     category: patternCategories.AUTHENTICATION,
@@ -56,7 +75,12 @@ export const patterns = {
 
   // Injection Patterns
   sqlInjection: {
-    pattern: /(SELECT|INSERT|UPDATE|DELETE).*(\bFROM\b|\bINTO\b|\bWHERE\b).*(\?|'|")/i,
+    /**
+     *  - Ensures we catch “SELECT/INSERT/UPDATE/DELETE” as a whole word (\b)
+     *  - Must have FROM/INTO/WHERE somewhere after
+     *  - Then a quote or question mark that might indicate direct input injection
+     */
+    pattern: /\b(SELECT|INSERT|UPDATE|DELETE)\b.*\b(FROM|INTO|WHERE)\b.*(\?|'|")/i,
     description: 'Potential SQL injection vulnerability',
     severity: 'CRITICAL',
     category: patternCategories.INJECTION,
@@ -64,7 +88,11 @@ export const patterns = {
     cwe: '89'
   },
   xssVulnerability: {
-    pattern: /innerHTML\s*=|outerHTML\s*=|document\.write\s*\(|\$\(.*\)\.html\s*\(/,
+    /**
+     *  - Matches direct writes to innerHTML/outerHTML, document.write, or jQuery .html()
+     *  - This tries to avoid false positives by requiring a boundary (\b)
+     */
+    pattern: /\b(innerHTML|outerHTML)\b\s*=|\bdocument\.write\s*\(|\$\(\S*\)\.html\s*\(/,
     description: 'Cross-site scripting vulnerability',
     severity: 'HIGH',
     category: patternCategories.INJECTION,
@@ -72,7 +100,11 @@ export const patterns = {
     cwe: '79'
   },
   noSqlInjection: {
-    pattern: /\$where\s*:\s*['"]|\.find\s*\(\s*{[^}]*\$regex/,
+    /**
+     *  - Looks for $where or usage of $regex in a .find() query
+     *  - Could be expanded to check for other NoSQL operators too
+     */
+    pattern: /\b\$where\s*:\s*['"]|\.find\s*\(\s*{[^}]*\$regex/i,
     description: 'Potential NoSQL injection vulnerability',
     severity: 'CRITICAL',
     category: patternCategories.INJECTION,
@@ -82,7 +114,10 @@ export const patterns = {
 
   // Cryptography Patterns
   weakCrypto: {
-    pattern: /crypto\.createHash\s*\(\s*['"]md5['"]\)|crypto\.createHash\s*\(\s*['"]sha1['"]\)/,
+    /**
+     *  - Also handles possible variations like 'sha-1' or "sha1"
+     */
+    pattern: /crypto\.createHash\s*\(\s*['"](?:md5|sha1|sha-1)['"]\)/i,
     description: 'Use of weak cryptographic hash function',
     severity: 'HIGH',
     category: patternCategories.CRYPTO_ISSUES,
@@ -100,7 +135,13 @@ export const patterns = {
 
   // Memory Patterns
   bufferIssue: {
-    pattern: /Buffer\.allocUnsafe\s*\(|new\s+Buffer\s*\(/,
+    /**
+     *  - Matches new Buffer() or Buffer.allocUnsafe()
+     *  - Negative lookbehind can be used if we want to exclude comments, but
+     *    that often gets too tricky in plain regex scanning
+     */
+    pattern: /\bBuffer\.(allocUnsafe|from)\s*\(|\bnew\s+Buffer\s*\(/,
+    // Alternatively: /(?<!\/\/.*)(?<!\/\*.*)(Buffer\.allocUnsafe\(|new\s+Buffer\()/
     description: 'Unsafe buffer allocation',
     severity: 'HIGH',
     category: patternCategories.MEMORY_BUFFER,
@@ -108,7 +149,11 @@ export const patterns = {
     cwe: '119'
   },
   memoryLeak: {
-    pattern: /(setInterval|setTimeout)\s*\([^,]+,[^)]+\)/,
+    /**
+     *  - Looks for setInterval/setTimeout with arguments that might be storing big references
+     *  - This is still broad, but at least ensures a second argument is present 
+     */
+    pattern: /\b(setInterval|setTimeout)\s*\([^,]+,\s*\d+\s*\)/,
     description: 'Potential memory leak in timer/interval',
     severity: 'MEDIUM',
     category: patternCategories.MEMORY_BUFFER,
@@ -118,7 +163,7 @@ export const patterns = {
 
   // Data Protection Patterns
   sensitiveData: {
-    pattern: /(password|token|secret|key|credential)s?\s*=\s*[^;]+/i,
+    pattern: /\b(password|token|secret|key|credential)s?\b\s*=\s*[^;]+/i,
     description: 'Sensitive data exposure',
     severity: 'HIGH',
     category: patternCategories.DATA_PROTECTION,
@@ -126,6 +171,10 @@ export const patterns = {
     cwe: '200'
   },
   insecureTransmission: {
+    /**
+     *  - Looks for “http://” that’s not localhost/127.0.0.1
+     *  - Negative lookahead for “localhost|127.0.0.1”
+     */
     pattern: /http:\/\/(?!localhost|127\.0\.0\.1)/,
     description: 'Potential insecure data transmission',
     severity: 'MEDIUM',
@@ -136,6 +185,10 @@ export const patterns = {
 
   // Error Handling Patterns
   sensitiveErrorInfo: {
+    /**
+     *  - Checks if we catch(...) { console.log(...) or res.send(...err...) 
+     *  - You might still get partial matches, but it’s better than nothing
+     */
     pattern: /catch\s*\([^)]*\)\s*{\s*(?:console\.(?:log|error)|res\.(?:json|send))\s*\([^)]*(?:err|error)/,
     description: 'Potential sensitive information in error messages',
     severity: 'MEDIUM',
@@ -146,6 +199,10 @@ export const patterns = {
 
   // Access Control Patterns
   insecureDirectObjectRef: {
+    /**
+     *  - This looks for e.g. “userId = req.query.userId”
+     *  - You could expand if you want to detect “.body.userId” etc.
+     */
     pattern: /\b(?:user|account|file|document)Id\s*=\s*(?:params|query|body|req)\.[a-zA-Z_][a-zA-Z0-9_]*/,
     description: 'Potential Insecure Direct Object Reference (IDOR)',
     severity: 'HIGH',
@@ -154,6 +211,10 @@ export const patterns = {
     cwe: '639'
   },
   improperAuthorizationChecks: {
+    /**
+     *  - Checking “if (!req.user.isAdmin || !req.user.hasPermission) ...” 
+     *    can be ambiguous. This is a heuristic at best.
+     */
     pattern: /if\s*\(\s*(!?req\.user\.isAdmin\s*|\s*!req\.user\.hasPermission)/,
     description: 'Improper authorization checks allowing unauthorized access',
     severity: 'CRITICAL',
@@ -164,6 +225,10 @@ export const patterns = {
 
   // Input Validation Patterns
   pathTraversal: {
+    /**
+     *  - Looks for ../ or ..\ sequences to flag potential path traversal
+     *  - You might want to ensure it’s not in a comment, etc.
+     */
     pattern: /(?:\.\.\/|\.\.\\|\.\.[/\\])[^/\\]*/,
     description: 'Potential path traversal vulnerability',
     severity: 'HIGH',
@@ -172,7 +237,11 @@ export const patterns = {
     cwe: '23'
   },
   unsanitizedInputUsage: {
-    pattern: /process\.env\.[^;\n]+|config\.[a-zA-Z0-9_]+\s*=\s*req\.[a-zA-Z0-9_]+/,
+    /**
+     *  - Looks for usage of user input in config or env
+     *  - Could be refined more (like checking .body input specifically)
+     */
+    pattern: /\b(process\.env\.[^\s;]+|config\.[a-zA-Z0-9_]+)\s*=\s*req\.[a-zA-Z0-9_]+/,
     description: 'Unsanitized user input used in sensitive operations',
     severity: 'HIGH',
     category: patternCategories.INPUT_VALIDATION,
@@ -182,7 +251,11 @@ export const patterns = {
 
   // Resource Management Patterns
   openRedirect: {
-    pattern: /(?:res\.redirect|window\.location|location\.href)\s*=\s*(?:req\.(?:query|params|body)|['"]\s*\+)/,
+    /**
+     *  - Looks for “res.redirect = req.query/params” or “location.href = ...”
+     *  - Minimal bounding to reduce false positives
+     */
+    pattern: /(?:\bres\.redirect|\bwindow\.location|\blocation\.href)\s*=\s*(?:req\.(?:query|params|body)|['"]\s*\+)/,
     description: 'Potential open redirect vulnerability',
     severity: 'MEDIUM',
     category: patternCategories.RESOURCE_MGMT,
@@ -190,7 +263,11 @@ export const patterns = {
     cwe: '601'
   },
   resourceLeak: {
-    pattern: /fs\.readFileSync\s*\(|fs\.writeFileSync\s*\(/,
+    /**
+     *  - Matching usage of sync file operations that could tie up resources
+     *  - Still simplistic, but better than nothing
+     */
+    pattern: /\bfs\.(?:readFileSync|writeFileSync)\s*\(/,
     description: 'Potential resource leak due to synchronous file operations',
     severity: 'MEDIUM',
     category: patternCategories.RESOURCE_MGMT,
@@ -200,7 +277,7 @@ export const patterns = {
 
   // Session Management Patterns
   sessionFixation: {
-    pattern: /req\.session\.id\s*=\s*req\.(query|params|body)|session\.id\s*=\s*req\.(query|params|body)/,
+    pattern: /\breq\.session\.id\s*=\s*req\.(query|params|body)|\bsession\.id\s*=\s*req\.(query|params|body)/,
     description: 'Potential session fixation vulnerability allowing attacker to set session id',
     severity: 'HIGH',
     category: patternCategories.SESSION_MANAGEMENT,
@@ -218,7 +295,11 @@ export const patterns = {
 
   // Server-Side Request Forgery Patterns
   ssrfVulnerability: {
-    pattern: /((axios|fetch|request)\s*\().*(req\.query|req\.params|req\.body)/,
+    /**
+     *  - Looks for axios/fetch/request( ) with user input from req.query/params/body
+     *  - Could still catch some false positives, but helps identify SSRF-ish code
+     */
+    pattern: /\b(?:axios|fetch|request)\s*\(\s*.*req\.(?:query|params|body)/,
     description: 'Potential SSRF vulnerability from user-supplied input in request calls',
     severity: 'CRITICAL',
     category: patternCategories.SSRF,
@@ -228,7 +309,11 @@ export const patterns = {
 
   // API Security Patterns
   insecureAPISetup: {
-    pattern: /app\.use\s*\(\s*['"]\/api['"],\s*[^)]+\)/,
+    /**
+     *  - Looks for app.use('/api', ...) with no mention of "auth" or "authenticate"
+     *  - Minimal check, might need more advanced analysis for real coverage
+     */
+    pattern: /app\.use\s*\(\s*['"]\/api['"],\s*[^)]*(?!auth)/,
     description: 'Potential insecure API setup without proper authentication middleware',
     severity: 'HIGH',
     category: patternCategories.API_SECURITY,
@@ -236,7 +321,7 @@ export const patterns = {
     cwe: '921'
   },
   jwtInURL: {
-    pattern: /jwt=.*[&?]/,
+    pattern: /\bjwt=.*[&?]/,
     description: 'JWT token present in URL instead of headers',
     severity: 'HIGH',
     category: patternCategories.API_SECURITY,
@@ -244,7 +329,7 @@ export const patterns = {
     cwe: '922'
   },
   tokenInURL: {
-    pattern: /token=.*[&?]/,
+    pattern: /\btoken=.*[&?]/,
     description: 'Authentication token present in URL parameters',
     severity: 'HIGH',
     category: patternCategories.API_SECURITY,
@@ -252,6 +337,10 @@ export const patterns = {
     cwe: '923'
   },
   badRateLimit: {
+    /**
+     *  - Looks for “rateLimit: <value>” or “rateLimit: { ... }”
+     *  - Could false-positive if your code has a custom variable named “rateLimit”
+     */
     pattern: /rateLimit\s*:\s*(?:\d+|\{[^}]+\})/,
     description: 'Potentially weak rate limiting configuration in API setup',
     severity: 'MEDIUM',
@@ -268,6 +357,10 @@ export const patterns = {
     cwe: '925'
   },
   insecureMiddleware: {
+    /**
+     *  - Very broad heuristic for “app.use( something, something, something )”
+     *  - Could catch normal multi-middleware usage. Might refine further.
+     */
     pattern: /app\.use\s*\(\s*[^,]+,\s*[^,]+,\s*[^)]+\)/,
     description: 'Insecure middleware setup allowing unauthorized access',
     severity: 'HIGH',
@@ -278,7 +371,10 @@ export const patterns = {
 
   // Dependency Management Patterns
   vulnerableDependency: {
-    pattern: /"dependencies"\s*:\s*{[^}]*}/, // Simplistic pattern; enhanced in scanner logic
+    /**
+     *  - Still a naive approach. You might parse package.json in detail
+     */
+    pattern: /"dependencies"\s*:\s*{[^}]*}/,
     description: 'Vulnerable dependencies detected in package.json',
     severity: 'HIGH',
     category: patternCategories.DEPENDENCY_MANAGEMENT,
@@ -286,7 +382,7 @@ export const patterns = {
     cwe: '925'
   },
   outdatedDependency: {
-    pattern: /"dependencies"\s*:\s*{[^}]*}/, // Simplistic pattern; enhanced in scanner logic
+    pattern: /"dependencies"\s*:\s*{[^}]*}/,
     description: 'Outdated dependencies detected in package.json',
     severity: 'MEDIUM',
     category: patternCategories.DEPENDENCY_MANAGEMENT,
@@ -294,6 +390,8 @@ export const patterns = {
     cwe: '926'
   }
 };
+
+
 // Recommendations
 export const recommendations = {
   evalExecution: {
@@ -308,22 +406,27 @@ code to run in your application, leading to data theft or system compromise.
 
 **Example**:
 Instead of:
-
 \`\`\`javascript
 eval(userInput);
 \`\`\`
 
 Do:
-
 \`\`\`javascript
 const parsed = JSON.parse(userInput); // with validation
 \`\`\`
-
     `,
     references: [
       {
         title: 'CWE-95: Eval Injection',
         url: 'https://cwe.mitre.org/data/definitions/95.html'
+      },
+      {
+        title: 'CAPEC-242: Code Injection',
+        url: 'https://capec.mitre.org/data/definitions/242.html'
+      },
+      {
+        title: 'CVE-2017-5638: (Apache Struts OGNL Injection Example)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-5638'
       }
     ],
     cwe: '95'
@@ -353,6 +456,14 @@ execFile('ls', ['-la', userInput], callback);
       {
         title: 'CWE-77: Command Injection',
         url: 'https://cwe.mitre.org/data/definitions/77.html'
+      },
+      {
+        title: 'CAPEC-248: Command Injection',
+        url: 'https://capec.mitre.org/data/definitions/248.html'
+      },
+      {
+        title: 'CVE-2014-6271: Shellshock (Bash Command Injection)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2014-6271'
       }
     ],
     cwe: '77'
@@ -380,6 +491,14 @@ app.get("/admin", requireAuth, (req, res) => { ... });
       {
         title: 'CWE-306: Missing Authentication',
         url: 'https://cwe.mitre.org/data/definitions/306.html'
+      },
+      {
+        title: 'CAPEC-115: Authentication Bypass',
+        url: 'https://capec.mitre.org/data/definitions/115.html'
+      },
+      {
+        title: 'CVE-2020-26890 (Example of missing auth in IoT devices)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-26890'
       }
     ],
     cwe: '306'
@@ -410,8 +529,12 @@ const password = process.env.DB_PASSWORD;
         url: 'https://cwe.mitre.org/data/definitions/798.html'
       },
       {
-        title: 'OWASP Secure Configuration Guide',
-        url: 'https://owasp.org/www-project-secure-configuration-guide/'
+        title: 'CAPEC-630: Embedding Credentials in Software',
+        url: 'https://capec.mitre.org/data/definitions/630.html'
+      },
+      {
+        title: 'CVE-2017-12794 (HP Printers with hardcoded creds)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-12794'
       }
     ],
     cwe: '798'
@@ -442,8 +565,12 @@ db.query("SELECT * FROM users WHERE id = ?", [userId]);
         url: 'https://cwe.mitre.org/data/definitions/89.html'
       },
       {
-        title: 'OWASP SQL Injection Prevention',
-        url: 'https://owasp.org/www-community/attacks/SQL_Injection'
+        title: 'CAPEC-66: SQL Injection',
+        url: 'https://capec.mitre.org/data/definitions/66.html'
+      },
+      {
+        title: 'CVE-2019-11510 (Pulse Secure SQL injection)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-11510'
       }
     ],
     cwe: '89'
@@ -473,8 +600,12 @@ element.textContent = userInput;
         url: 'https://cwe.mitre.org/data/definitions/79.html'
       },
       {
-        title: 'OWASP XSS Prevention Cheat Sheet',
-        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html'
+        title: 'CAPEC-86: Cross-Site Scripting',
+        url: 'https://capec.mitre.org/data/definitions/86.html'
+      },
+      {
+        title: 'CVE-2022-24675 (Example XSS in WordPress Plugin)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-24675'
       }
     ],
     cwe: '79'
@@ -503,6 +634,14 @@ db.users.find({ password: userSuppliedPassword });
       {
         title: 'CWE-943: Improper Neutralization of Special Elements in Data Query Logic',
         url: 'https://cwe.mitre.org/data/definitions/943.html'
+      },
+      {
+        title: 'CAPEC-400: Data Manipulation via Injection',
+        url: 'https://capec.mitre.org/data/definitions/400.html'
+      },
+      {
+        title: 'CVE-2020-7610 (NoSQL Injection in npm package mongoose)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-7610'
       }
     ],
     cwe: '943'
@@ -530,9 +669,206 @@ crypto.createHash('sha256').update(data).digest('hex');
       {
         title: 'CWE-326: Inadequate Encryption Strength',
         url: 'https://cwe.mitre.org/data/definitions/326.html'
+      },
+      {
+        title: 'CAPEC-246: Cryptanalysis',
+        url: 'https://capec.mitre.org/data/definitions/246.html'
+      },
+      {
+        title: 'CVE-2021-23840 (OpenSSL MD5 collision issue)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-23840'
       }
     ],
     cwe: '326'
+  },
+
+  insecureCryptoUsage: {
+    recommendation: `
+**Why it Matters**: Using deprecated cryptographic functions (like \`crypto.createCipher\` or \`crypto.createDecipher\`) can result in insecure encryption. These older APIs lack modern security features and may allow attackers to decrypt or tamper with data.
+
+**What to Do**:
+1. **Use \`createCipheriv\`**: This allows specifying the algorithm, key, and IV explicitly.
+2. **Choose a Strong Cipher**: Use AES-256-GCM or another well-reviewed cipher.
+3. **Implement Key Management**: Ensure keys and IVs are generated/stored securely.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+const cipher = crypto.createCipher('aes192', 'somePasswordKey');
+\`\`\`
+Do:
+\`\`\`javascript
+const cipher = crypto.createCipheriv('aes-256-gcm', keyBuffer, ivBuffer);
+\`\`\`
+    `,
+    references: [
+      {
+        title: 'CWE-327: Use of a Broken or Risky Cryptographic Algorithm',
+        url: 'https://cwe.mitre.org/data/definitions/327.html'
+      },
+      {
+        title: 'CAPEC-644: Use of a Broken or Risky Cryptographic Algorithm',
+        url: 'https://capec.mitre.org/data/definitions/644.html'
+      },
+      {
+        title: 'CVE-2021-3449 (OpenSSL improper decryption handling)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-3449'
+      }
+    ],
+    cwe: '927'
+  },
+
+  bufferIssue: {
+    recommendation: `
+**Why it Matters**: Using unsafe buffer allocation (like \`Buffer.allocUnsafe\` or the deprecated \`new Buffer\`) can lead to uninitialized memory leaks or potential buffer overflows.
+
+**What to Do**:
+1. **Use Safe Buffer Methods**: Prefer \`Buffer.alloc\` or \`Buffer.from\` instead of unsafe variants.
+2. **Validate Data Length**: Ensure you don’t write more data than the buffer’s capacity.
+3. **Avoid Deprecated Constructors**: \`new Buffer()\` is deprecated since Node.js 6.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+const unsafeBuf = new Buffer(10); // or Buffer.allocUnsafe(10)
+\`\`\`
+Do:
+\`\`\`javascript
+const safeBuf = Buffer.alloc(10); // zero-filled
+\`\`\`
+  `,
+    references: [
+      {
+        title: 'CWE-119: Improper Restriction of Operations within the Bounds of a Memory Buffer',
+        url: 'https://cwe.mitre.org/data/definitions/119.html'
+      },
+      {
+        title: 'CAPEC-100: Buffer Overflow',
+        url: 'https://capec.mitre.org/data/definitions/100.html'
+      },
+      {
+        title: 'CVE-2018-1000001 (Buffer overflow example in various apps)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-1000001'
+      }
+    ],
+    cwe: '119'
+  },
+
+  memoryLeak: {
+    recommendation: `
+**Why it Matters**: Timers, intervals, or event listeners can cause memory leaks if references to large objects or resources are never cleared. Over time, this can degrade performance or cause application crashes.
+
+**What to Do**:
+1. **Track and Clear Intervals**: Store the return from \`setInterval\` and call \`clearInterval\` when you no longer need it.
+2. **Limit Scope**: Avoid capturing large objects in timer callbacks that persist references.
+3. **Check for Orphaned Listeners**: Remove event listeners or intervals in cleanup logic.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+setInterval(() => {
+  // Some operation holding onto a big object
+}, 1000);
+\`\`\`
+Do:
+\`\`\`javascript
+const intervalId = setInterval(() => {
+  // Perform the required operation
+}, 1000);
+
+// Later, when done:
+clearInterval(intervalId);
+\`\`\`
+    `,
+    references: [
+      {
+        title: 'CWE-401: Missing Release of Memory after Effective Lifetime',
+        url: 'https://cwe.mitre.org/data/definitions/401.html'
+      },
+      {
+        title: 'CAPEC-129: Resource Depletion',
+        url: 'https://capec.mitre.org/data/definitions/129.html'
+      },
+      {
+        title: 'CVE-2019-19078 (Linux Kernel memory leak example)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-19078'
+      }
+    ],
+    cwe: '401'
+  },
+
+  sensitiveData: {
+    recommendation: `
+**Why it Matters**: Exposing or mishandling passwords, tokens, or other sensitive data can lead to unauthorized access and data breaches.
+
+**What to Do**:
+1. **Use Strong Encryption**: Encrypt sensitive fields at rest and in transit.
+2. **Limit Access**: Store sensitive data in environment variables or secure vaults.
+3. **Redact Logs**: Never log raw credentials or tokens.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+const password = "supersecret";
+logger.info(\`User password is: \${password}\`);
+\`\`\`
+Do:
+\`\`\`javascript
+const password = process.env.DB_PASSWORD;
+logger.info("User password retrieved securely");
+\`\`\`
+  `,
+    references: [
+      {
+        title: 'CWE-200: Exposure of Sensitive Information',
+        url: 'https://cwe.mitre.org/data/definitions/200.html'
+      },
+      {
+        title: 'CAPEC-118: Data Interception Attacks',
+        url: 'https://capec.mitre.org/data/definitions/118.html'
+      },
+      {
+        title: 'CVE-2021-28663 (Example of sensitive info exposure)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-28663'
+      }
+    ],
+    cwe: '200'
+  },
+
+  insecureTransmission: {
+    recommendation: `
+**Why it Matters**: Transmitting data over HTTP (cleartext) can allow attackers to intercept and read sensitive information.
+
+**What to Do**:
+1. **Use HTTPS**: Always transmit data over TLS/SSL.
+2. **Enforce Strict Transport Security (HSTS)**: Configure your server to require HTTPS connections.
+3. **Avoid Sensitive Data in Query Params**: Even over HTTPS, be cautious with tokens or credentials in URLs.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+fetch('http://example.com/api', { ... });
+\`\`\`
+Do:
+\`\`\`javascript
+fetch('https://example.com/api', { ... });
+\`\`\`
+  `,
+    references: [
+      {
+        title: 'CWE-319: Cleartext Transmission of Sensitive Information',
+        url: 'https://cwe.mitre.org/data/definitions/319.html'
+      },
+      {
+        title: 'CAPEC-9: Man-in-the-Middle Attack',
+        url: 'https://capec.mitre.org/data/definitions/9.html'
+      },
+      {
+        title: 'CVE-2020-12066 (HTTP-based data leak example)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-12066'
+      }
+    ],
+    cwe: '319'
   },
 
   sensitiveErrorInfo: {
@@ -559,6 +895,14 @@ res.status(500).send({ error: "Something went wrong" });
       {
         title: 'CWE-209: Information Exposure Through an Error Message',
         url: 'https://cwe.mitre.org/data/definitions/209.html'
+      },
+      {
+        title: 'CAPEC-125: Exception or Error Message Analysis',
+        url: 'https://capec.mitre.org/data/definitions/125.html'
+      },
+      {
+        title: 'CVE-2018-5210 (Sensitive error exposure in NodeBB)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-5210'
       }
     ],
     cwe: '209'
@@ -588,6 +932,14 @@ fs.readFileSync(safePath);
       {
         title: 'CWE-23: Relative Path Traversal',
         url: 'https://cwe.mitre.org/data/definitions/23.html'
+      },
+      {
+        title: 'CAPEC-126: Path Traversal',
+        url: 'https://capec.mitre.org/data/definitions/126.html'
+      },
+      {
+        title: 'CVE-2021-22986 (Path traversal in F5 BIG-IP)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22986'
       }
     ],
     cwe: '23'
@@ -608,45 +960,28 @@ res.redirect(req.query.url);
 \`\`\`
 Do:
 \`\`\`javascript
-if (allowedUrls.includes(req.query.url)) res.redirect(req.query.url);
-else res.redirect("/error");
+if (allowedUrls.includes(req.query.url)) {
+  res.redirect(req.query.url);
+} else {
+  res.redirect("/error");
+}
 \`\`\`
     `,
     references: [
       {
         title: 'CWE-601: URL Redirection to Untrusted Site',
         url: 'https://cwe.mitre.org/data/definitions/601.html'
+      },
+      {
+        title: 'CAPEC-107: Redirect to Alternate Site',
+        url: 'https://capec.mitre.org/data/definitions/107.html'
+      },
+      {
+        title: 'CVE-2019-16527 (Example open redirect in Jenkins)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-16527'
       }
     ],
     cwe: '601'
-  },
-
-  weakPasswordHash: {
-    recommendation: `
-**Why it Matters**: Using weak password hashes (low cost factor) 
-makes brute-forcing easier.
-
-**What to Do**:
-1. **Use Strong Hashing** like \`bcrypt≥12\`, scrypt, or Argon2.
-2. **Use Salts/Pepper**.
-
-**Example**:
-Instead of:
-\`\`\`javascript
-bcrypt.hash(password, 10);
-\`\`\`
-Do:
-\`\`\`javascript
-bcrypt.hash(password, 12);
-\`\`\`
-    `,
-    references: [
-      {
-        title: 'CWE-916: Use of Password Hash With Insufficient Computational Effort',
-        url: 'https://cwe.mitre.org/data/definitions/916.html'
-      }
-    ],
-    cwe: '916'
   },
 
   ssrfVulnerability: {
@@ -673,8 +1008,16 @@ if (isSafeUrl(req.query.url)) axios.get(req.query.url);
         url: 'https://cwe.mitre.org/data/definitions/918.html'
       },
       {
+        title: 'CAPEC-651: Server-Side Request Forgery (SSRF)',
+        url: 'https://capec.mitre.org/data/definitions/651.html'
+      },
+      {
         title: 'OWASP SSRF Prevention Cheat Sheet',
         url: 'https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html'
+      },
+      {
+        title: 'CVE-2021-3129 (Laravel SSRF example)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-3129'
       }
     ],
     cwe: '918'
@@ -702,6 +1045,14 @@ req.session.regenerate(() => { ... });
       {
         title: 'CWE-384: Session Fixation',
         url: 'https://cwe.mitre.org/data/definitions/384.html'
+      },
+      {
+        title: 'CAPEC-61: Session Fixation',
+        url: 'https://capec.mitre.org/data/definitions/61.html'
+      },
+      {
+        title: 'CVE-2015-0262 (Session fixation in Apache Shiro)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2015-0262'
       }
     ],
     cwe: '384'
@@ -712,9 +1063,9 @@ req.session.regenerate(() => { ... });
 **Why it Matters**: Insecure API setup without proper authentication middleware can expose your endpoints to unauthorized access and potential attacks.
 
 **What to Do**:
-1. **Implement Authentication Middleware**: Ensure that all API routes are protected with robust authentication mechanisms.
-2. **Use Role-Based Access Control (RBAC)**: Define and enforce user roles and permissions.
-3. **Validate API Inputs**: Sanitize and validate all incoming data to prevent injection attacks.
+1. **Implement Authentication Middleware**: Protect all API routes with robust authentication.
+2. **Use Role-Based Access Control (RBAC)**: Enforce user roles and permissions.
+3. **Validate API Inputs**: Sanitize all incoming data.
 
 **Example**:
 Instead of:
@@ -728,12 +1079,16 @@ app.use('/api', authenticateUser, apiHandler);
     `,
     references: [
       {
-        title: 'CWE-921: Improper Authorization',
+        title: 'CWE-921: Improper Restriction of Excessive Authentication Attempts',
         url: 'https://cwe.mitre.org/data/definitions/921.html'
       },
       {
-        title: 'OWASP Authentication Cheat Sheet',
-        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html'
+        title: 'CAPEC-115: Authentication Bypass',
+        url: 'https://capec.mitre.org/data/definitions/115.html'
+      },
+      {
+        title: 'CVE-2022-22965 (Spring4Shell) – though primarily an RCE, it also highlights insecure API endpoints',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-22965'
       }
     ],
     cwe: '921'
@@ -745,8 +1100,8 @@ app.use('/api', authenticateUser, apiHandler);
 
 **What to Do**:
 1. **Transmit JWTs via Headers**: Use the \`Authorization\` header to send JWTs securely.
-2. **Avoid Including Tokens in URLs**: Refrain from appending tokens as query parameters.
-3. **Implement Secure Storage**: Store tokens in secure, HTTP-only cookies or secure storage mechanisms.
+2. **Avoid Including Tokens in URLs**.
+3. **Implement Secure Storage**: Store tokens in secure, HTTP-only cookies or secure storage.
 
 **Example**:
 Instead of:
@@ -762,18 +1117,20 @@ axios.get('https://api.example.com/data', {
     `,
     references: [
       {
-        title: 'CWE-922: Link Following Without Verification of Destination',
+        title: 'CWE-922: Insecure Storage of Sensitive Information',
         url: 'https://cwe.mitre.org/data/definitions/922.html'
       },
       {
-        title: 'OWASP JWT Security Cheat Sheet',
-        url: 'https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_Cheat_Sheet.html'
+        title: 'CAPEC-593: Session Hijacking',
+        url: 'https://capec.mitre.org/data/definitions/593.html'
+      },
+      {
+        title: 'CVE-2018-0114 (JWT in URL example in Cisco devices)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-0114'
       }
     ],
     cwe: '922'
   },
-
-
 
   tokenInURL: {
     recommendation: `
@@ -781,8 +1138,8 @@ axios.get('https://api.example.com/data', {
 
 **What to Do**:
 1. **Use Secure Headers**: Transmit tokens via the \`Authorization\` header.
-2. **Avoid URL Parameters for Sensitive Data**: Do not include tokens or sensitive information in URLs.
-3. **Implement HTTPS**: Ensure all communications are encrypted to protect token transmission.
+2. **Avoid URL Parameters for Sensitive Data**.
+3. **Implement HTTPS**: Ensure all communications are encrypted.
 
 **Example**:
 Instead of:
@@ -798,12 +1155,16 @@ fetch('https://example.com/api', {
     `,
     references: [
       {
-        title: 'CWE-922: Link Following Without Verification of Destination',
-        url: 'https://cwe.mitre.org/data/definitions/922.html'
+        title: 'CWE-923: Improper Restriction of Referer Header or Similar Data in HTTP Request',
+        url: 'https://cwe.mitre.org/data/definitions/923.html'
       },
       {
-        title: 'OWASP JWT Security Cheat Sheet',
-        url: 'https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_Cheat_Sheet.html'
+        title: 'CAPEC-593: Session Hijacking',
+        url: 'https://capec.mitre.org/data/definitions/593.html'
+      },
+      {
+        title: 'CVE-2022-0527 (Sensitive token in URL example)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-0527'
       }
     ],
     cwe: '923'
@@ -815,8 +1176,8 @@ fetch('https://example.com/api', {
 
 **What to Do**:
 1. **Implement Strong Rate Limiting**: Define sensible limits on the number of requests per user/IP.
-2. **Use Distributed Rate Limiting**: Ensure rate limits are enforced across multiple servers or instances.
-3. **Provide Feedback**: Inform users when rate limits are exceeded without revealing sensitive information.
+2. **Use Distributed Rate Limiting** if you have multiple servers.
+3. **Provide Feedback**: Inform users when rate limits are exceeded.
 
 **Example**:
 Instead of:
@@ -827,19 +1188,23 @@ Do:
 \`\`\`javascript
 app.use('/api', rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 100,
   message: "Too many requests from this IP, please try again later."
 }));
 \`\`\`
     `,
     references: [
       {
-        title: 'CWE-924: Improper Enforcement of Business Rules',
+        title: 'CWE-924: Improper Enforcement of Message or Data Structure',
         url: 'https://cwe.mitre.org/data/definitions/924.html'
       },
       {
-        title: 'OWASP Rate Limiting Cheat Sheet',
-        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Rate_Limiting_Cheat_Sheet.html'
+        title: 'CAPEC-129: Resource Depletion (DoS)',
+        url: 'https://capec.mitre.org/data/definitions/129.html'
+      },
+      {
+        title: 'CVE-2019-9512 (Rate limiting bypass in HTTP/2)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-9512'
       }
     ],
     cwe: '924'
@@ -870,8 +1235,12 @@ app.use('/api', cors({
     `,
     references: [
       {
-        title: 'CWE-925: Use of Existing, Secure Components with Known Vulnerabilities',
+        title: 'CWE-925: Improper Verification of Trusted Source',
         url: 'https://cwe.mitre.org/data/definitions/925.html'
+      },
+      {
+        title: 'CAPEC-353: Cross-Domain Attack',
+        url: 'https://capec.mitre.org/data/definitions/353.html'
       },
       {
         title: 'OWASP CORS Cheat Sheet',
@@ -886,9 +1255,9 @@ app.use('/api', cors({
 **Why it Matters**: Insecure middleware setups can inadvertently expose sensitive endpoints or allow unauthorized access, undermining the security of your APIs.
 
 **What to Do**:
-1. **Ensure Authentication Middleware is Properly Placed**: Protect sensitive routes by placing authentication middleware before route handlers.
-2. **Limit Middleware Scope**: Apply middleware only to necessary routes to minimize exposure.
-3. **Regularly Review Middleware Configurations**: Audit middleware settings to ensure they adhere to security best practices.
+1. **Ensure Authentication Middleware is Properly Placed**: Protect sensitive routes before route handlers.
+2. **Limit Middleware Scope**: Apply middleware only to necessary routes.
+3. **Regularly Review Middleware Configurations**.
 
 **Example**:
 Instead of:
@@ -906,54 +1275,25 @@ app.use('/api', authenticateUser, someMiddleware, apiHandler);
         url: 'https://cwe.mitre.org/data/definitions/926.html'
       },
       {
+        title: 'CAPEC-224: Modification of Configuration/Environment',
+        url: 'https://capec.mitre.org/data/definitions/224.html'
+      },
+      {
         title: 'OWASP Secure Headers Project',
         url: 'https://owasp.org/www-project-secure-headers/'
       }
     ],
     cwe: '926'
   },
-  // InsecureTransmission
-insecureTransmission: {
-  recommendation: `
-**Why it Matters**: Transmitting data over HTTP (cleartext) can allow attackers to intercept and read sensitive information.
 
-**What to Do**:
-1. **Use HTTPS**: Always transmit data over TLS/SSL.
-2. **Enforce Strict Transport Security (HSTS)**: Configure your server to require HTTPS connections.
-3. **Avoid Sensitive Data in Query Params**: Even over HTTPS, be cautious with tokens or credentials in URLs.
-
-**Example**:
-Instead of:
-\`\`\`javascript
-fetch('http://example.com/api', { ... });
-\`\`\`
-Do:
-\`\`\`javascript
-fetch('https://example.com/api', { ... });
-\`\`\`
-  `,
-  references: [
-    {
-      title: 'CWE-319: Cleartext Transmission of Sensitive Information',
-      url: 'https://cwe.mitre.org/data/definitions/319.html'
-    },
-    {
-      title: 'OWASP Transport Layer Protection Cheat Sheet',
-      url: 'https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Protection_Cheat_Sheet.html'
-    }
-  ],
-  cwe: '319'
-},
-
-// ResourceLeak
-resourceLeak: {
-  recommendation: `
+  resourceLeak: {
+    recommendation: `
 **Why it Matters**: Synchronous file I/O (or unclosed resources) can cause memory or resource leaks, degrade performance, and potentially block the event loop.
 
 **What to Do**:
-1. **Use Asynchronous Methods**: Prefer async I/O when reading/writing files to avoid blocking.
-2. **Properly Close Resources**: Close file handles, database connections, and sockets.
-3. **Handle Errors**: Ensure error handling paths also close or release resources.
+1. **Use Asynchronous Methods**: Prefer async I/O when reading/writing files.
+2. **Properly Close Resources**: Close file handles, DB connections, etc.
+3. **Handle Errors**: Ensure error paths also close or release resources.
 
 **Example**:
 Instead of:
@@ -968,59 +1308,31 @@ fs.readFile('someLargeFile.txt', (err, data) => {
 });
 \`\`\`
   `,
-  references: [
-    {
-      title: 'CWE-399: Resource Management Errors',
-      url: 'https://cwe.mitre.org/data/definitions/399.html'
-    }
-  ],
-  cwe: '399'
-},
+    references: [
+      {
+        title: 'CWE-399: Resource Management Errors',
+        url: 'https://cwe.mitre.org/data/definitions/399.html'
+      },
+      {
+        title: 'CAPEC-119: Excessive Allocation',
+        url: 'https://capec.mitre.org/data/definitions/119.html'
+      },
+      {
+        title: 'CVE-2021-22555 (Linux Kernel resource management issue)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22555'
+      }
+    ],
+    cwe: '399'
+  },
 
-// SensitiveData
-sensitiveData: {
-  recommendation: `
-**Why it Matters**: Exposing or mishandling passwords, tokens, or other sensitive data can lead to unauthorized access and data breaches.
-
-**What to Do**:
-1. **Use Strong Encryption**: Encrypt sensitive fields at rest (e.g., database) and in transit (HTTPS).
-2. **Limit Access**: Store sensitive data in environment variables or secure vaults.
-3. **Redact Logs**: Never log raw credentials or tokens.
-
-**Example**:
-Instead of:
-\`\`\`javascript
-const password = "supersecret";
-logger.info(\`User password is: \${password}\`);
-\`\`\`
-Do:
-\`\`\`javascript
-const password = process.env.DB_PASSWORD;
-logger.info("User password retrieved securely");
-\`\`\`
-  `,
-  references: [
-    {
-      title: 'CWE-200: Exposure of Sensitive Information to an Unauthorized Actor',
-      url: 'https://cwe.mitre.org/data/definitions/200.html'
-    },
-    {
-      title: 'OWASP Top 10: Sensitive Data Exposure',
-      url: 'https://owasp.org/Top10/A03_2021-Sensitive_Data_Exposure/'
-    }
-  ],
-  cwe: '200'
-},
-
-// UnsanitizedInputUsage
-unsanitizedInputUsage: {
-  recommendation: `
+  unsanitizedInputUsage: {
+    recommendation: `
 **Why it Matters**: Using raw, unsanitized user input in sensitive operations can allow attackers to manipulate configuration, perform injections, or escalate privileges.
 
 **What to Do**:
-1. **Validate Input**: Strictly check that input matches expected formats (e.g., regex, schemas).
+1. **Validate Input**: Strictly check that input matches expected formats.
 2. **Sanitize or Escape**: Remove or escape special characters before using them in file paths, queries, etc.
-3. **Use Safe APIs**: For queries or commands, prefer parameterized methods or built-in safety functions.
+3. **Use Safe APIs**: For queries or commands, prefer parameterized methods or safe libraries.
 
 **Example**:
 Instead of:
@@ -1034,60 +1346,74 @@ if (isValidHostname(req.body.dbHost)) {
 }
 \`\`\`
   `,
-  references: [
-    {
-      title: 'CWE-932: Insecure Mechanism for Updating or Upgrading Software',
-      url: 'https://cwe.mitre.org/data/definitions/932.html'
-    },
-    {
-      title: 'OWASP Input Validation Cheat Sheet',
-      url: 'https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html'
-    }
-  ],
-  cwe: '932'
-},
+    references: [
+      {
+        title: 'CWE-932: Insecure Mechanism for Updating or Upgrading Software',
+        url: 'https://cwe.mitre.org/data/definitions/932.html'
+      },
+      {
+        title: 'CAPEC-400: Manipulation of Data Structures',
+        url: 'https://capec.mitre.org/data/definitions/400.html'
+      },
+      {
+        title: 'OWASP Input Validation Cheat Sheet',
+        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html'
+      }
+    ],
+    cwe: '932'
+  },
 
-// BufferIssue
-bufferIssue: {
-  recommendation: `
-**Why it Matters**: Using unsafe buffer allocation (like \`Buffer.allocUnsafe\` or the deprecated \`new Buffer\`) can lead to uninitialized memory leaks or potential buffer overflows.
+  insecureDirectObjectRef: {
+    recommendation: `
+**Why it Matters**: Insecure Direct Object References (IDOR) allow attackers to manipulate parameters (like user IDs, file IDs, etc.) to access data they shouldn't. Without proper authorization checks, any user can read or modify another user's data.
 
 **What to Do**:
-1. **Use Safe Buffer Methods**: Prefer \`Buffer.alloc\` or \`Buffer.from\` instead of unsafe variants.
-2. **Validate Data Length**: Ensure you don’t write more data than the buffer’s capacity.
-3. **Avoid Deprecated Constructors**: \`new Buffer()\` is deprecated since Node.js 6.
+1. **Enforce Authorization**: Validate that the current user is allowed to access the requested resource.
+2. **Use Indirect References**: Instead of exposing real IDs, map them to tokens or hashed identifiers.
+3. **Check Ownership**: Always confirm the resource belongs to the authenticated user.
 
 **Example**:
 Instead of:
 \`\`\`javascript
-const unsafeBuf = new Buffer(10); // or Buffer.allocUnsafe(10)
+app.get('/document/:id', (req, res) => {
+  return db.getDocument(req.params.id); // No checks
+});
 \`\`\`
 Do:
 \`\`\`javascript
-const safeBuf = Buffer.alloc(10); // zero-filled
+app.get('/document/:id', (req, res) => {
+  if (!userCanAccess(req.user, req.params.id)) {
+    return res.status(403).send('Forbidden');
+  }
+  return db.getDocument(req.params.id);
+});
 \`\`\`
-  `,
-  references: [
-    {
-      title: 'CWE-119: Improper Restriction of Operations within the Bounds of a Memory Buffer',
-      url: 'https://cwe.mitre.org/data/definitions/119.html'
-    },
-    {
-      title: 'Node.js Buffer Documentation',
-      url: 'https://nodejs.org/api/buffer.html'
-    }
-  ],
-  cwe: '119'
-},
+    `,
+    references: [
+      {
+        title: 'CWE-639: Insecure Direct Object Reference (IDOR)',
+        url: 'https://cwe.mitre.org/data/definitions/639.html'
+      },
+      {
+        title: 'CAPEC-714: IDOR Attack Pattern',
+        url: 'https://capec.mitre.org/data/definitions/714.html'
+      },
+      {
+        title: 'CVE-2018-11235 (Git IDOR example)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-11235'
+      }
+    ],
+    cwe: '639'
+  },
 
   vulnerableDependency: {
     recommendation: `
 **Why it Matters**: Vulnerable dependencies can be exploited to compromise your application, leading to data breaches or unauthorized access.
 
 **What to Do**:
-1. **Update Dependencies**: Regularly update dependencies to their latest secure versions.
-2. **Use Automated Tools**: Integrate tools like \`npm audit\`, \`Snyk\`, or \`Dependabot\` to monitor and remediate vulnerabilities.
-3. **Limit Dependencies**: Only include necessary dependencies to reduce the attack surface.
+1. **Update Dependencies**: Regularly update dependencies to secure versions.
+2. **Use Automated Tools**: \`npm audit\`, \`Snyk\`, or \`Dependabot\` to monitor vulnerabilities.
+3. **Limit Dependencies**: Only include what you really need.
 
 **Example**:
 Instead of:
@@ -1105,135 +1431,29 @@ Do:
     `,
     references: [
       {
-        title: 'CWE-925: Use of Existing, Secure Components with Known Vulnerabilities',
+        title: 'CWE-925: Use of Vulnerable Components',
         url: 'https://cwe.mitre.org/data/definitions/925.html'
       },
       {
-        title: 'OWASP Dependency-Check',
-        url: 'https://owasp.org/www-project-dependency-check/'
+        title: 'CAPEC-659: Exploitation of Third-Party Vulnerability',
+        url: 'https://capec.mitre.org/data/definitions/659.html'
+      },
+      {
+        title: 'CVE-2021-23337 (lodash vulnerability example)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-23337'
       }
     ],
     cwe: '925'
   },
-
-  insecureCryptoUsage: {
-    recommendation: `
-  **Why it Matters**: Using deprecated cryptographic functions (like \`crypto.createCipher\` or \`crypto.createDecipher\`) can result in insecure encryption. These older APIs lack modern security features (e.g., authenticated encryption), and may allow attackers to decrypt or tamper with data.
-  
-  **What to Do**:
-  1. **Use \`createCipheriv\`** or similar modern APIs: These allow specifying the algorithm, key, and IV explicitly.
-  2. **Choose a Strong Cipher**: Use AES-256-GCM or another well-reviewed cipher rather than older, weaker algorithms.
-  3. **Implement Key Management**: Ensure keys and IVs are generated/stored securely.
-  
-  **Example**:
-  Instead of:
-  \`\`\`javascript
-  const cipher = crypto.createCipher('aes192', 'somePasswordKey');
-  \`\`\`
-  Do:
-  \`\`\`javascript
-  const cipher = crypto.createCipheriv('aes-256-gcm', keyBuffer, ivBuffer);
-  \`\`\`
-    `,
-    references: [
-      {
-        title: 'CWE-327: Use of a Broken or Risky Cryptographic Algorithm',
-        url: 'https://cwe.mitre.org/data/definitions/327.html'
-      },
-      {
-        title: 'Node.js Crypto Documentation',
-        url: 'https://nodejs.org/api/crypto.html'
-      }
-    ],
-    cwe: '927'
-  },
-  
-  insecureDirectObjectRef: {
-    recommendation: `
-  **Why it Matters**: Insecure Direct Object References (IDOR) allow attackers to manipulate parameters (like user IDs, document IDs, etc.) to access data they shouldn't. Without proper authorization checks, any user can potentially read or modify another user's information.
-  
-  **What to Do**:
-  1. **Enforce Authorization**: Validate that the current user is allowed to access the requested resource. 
-  2. **Use Indirect References**: Instead of exposing real IDs, map them to temporary tokens or hashed identifiers.
-  3. **Check Ownership**: Always confirm the resource belongs to (or is permissible for) the authenticated user.
-  
-  **Example**:
-  Instead of:
-  \`\`\`javascript
-  app.get('/document/:id', (req, res) => {
-    return db.getDocument(req.params.id); // No checks
-  });
-  \`\`\`
-  Do:
-  \`\`\`javascript
-  app.get('/document/:id', (req, res) => {
-    if (!userCanAccess(req.user, req.params.id)) {
-      return res.status(403).send('Forbidden');
-    }
-    return db.getDocument(req.params.id);
-  });
-  \`\`\`
-    `,
-    references: [
-      {
-        title: 'CWE-639: Insecure Direct Object Reference (IDOR)',
-        url: 'https://cwe.mitre.org/data/definitions/639.html'
-      },
-      {
-        title: 'OWASP Broken Access Control',
-        url: 'https://owasp.org/Top10/A01_2021-Broken_Access_Control/'
-      }
-    ],
-    cwe: '639'
-  },
-  memoryLeak: {
-    recommendation: `
-  **Why it Matters**: Timers, intervals, or event listeners can cause memory leaks if references to large objects or resources are never cleared. Over time, this can degrade performance or cause application crashes.
-  
-  **What to Do**:
-  1. **Track and Clear Intervals**: Store the return from \`setInterval\` and call \`clearInterval\` when you no longer need it.
-  2. **Limit Scope**: Avoid capturing large objects in timer callbacks that persist references.
-  3. **Check for Orphaned Listeners**: Remove event listeners or intervals in cleanup logic (e.g., when a component unmounts in React or a route finishes in Express).
-  
-  **Example**:
-  Instead of:
-  \`\`\`javascript
-  setInterval(() => {
-    // Some operation holding onto a big object
-  }, 1000);
-  \`\`\`
-  Do:
-  \`\`\`javascript
-  const intervalId = setInterval(() => {
-    // Perform the required operation
-  }, 1000);
-  
-  // Later, when done:
-  clearInterval(intervalId);
-  \`\`\`
-    `,
-    references: [
-      {
-        title: 'CWE-401: Missing Release of Memory after Effective Lifetime',
-        url: 'https://cwe.mitre.org/data/definitions/401.html'
-      },
-      {
-        title: 'MDN: setInterval() Documentation',
-        url: 'https://developer.mozilla.org/docs/Web/API/WindowOrWorkerGlobalScope/setInterval'
-      }
-    ],
-    cwe: '401'
-  },
-  
 
   outdatedDependency: {
     recommendation: `
 **Why it Matters**: Outdated dependencies may lack the latest security patches, exposing your application to known vulnerabilities.
 
 **What to Do**:
-1. **Regularly Review Dependencies**: Periodically check and update dependencies to their latest versions.
-2. **Automate Updates**: Use tools like \`npm outdated\`, \`Dependabot\`, or \`Renovate\` to automate dependency updates.
-3. **Test After Updates**: Ensure that updates do not break application functionality by implementing comprehensive testing.
+1. **Regularly Review Dependencies**: Periodically check and update dependencies.
+2. **Automate Updates**: Use \`npm outdated\`, \`Dependabot\`, or \`Renovate\`.
+3. **Test After Updates**: Use comprehensive tests to ensure no breakage.
 
 **Example**:
 Instead of:
@@ -1251,14 +1471,57 @@ Do:
     `,
     references: [
       {
-        title: 'CWE-926: Improper Authorization',
+        title: 'CWE-926: Improper Authorization / Use of Outdated Components',
         url: 'https://cwe.mitre.org/data/definitions/926.html'
       },
       {
         title: 'OWASP Dependency-Check',
         url: 'https://owasp.org/www-project-dependency-check/'
+      },
+      {
+        title: 'CVE-2018-18074 (Express outdated version vulnerability)',
+        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-18074'
       }
     ],
     cwe: '926'
+  },
+  improperAuthorizationChecks: {
+    recommendation: `
+  **Why it Matters**: If authorization checks are too simplistic or missing in critical paths, attackers may access privileged functions or data without proper permissions.
+  
+  **What to Do**:
+  1. **Enforce Role/Permission Checks**: Ensure every privileged route or function verifies user roles/permissions explicitly.
+  2. **Use a Centralized Authorization Mechanism**: Avoid ad-hoc checks scattered across the code; rely on a well-tested library or framework feature.
+  3. **Validate Ownership**: For operations on user-specific data (like editing a profile), confirm the authenticated user owns the resource.
+  
+  **Example**:
+  Instead of:
+  \`\`\`javascript
+  if (req.user) {
+    doAdminStuff(); // No role/permission check
   }
+  \`\`\`
+  Use:
+  \`\`\`json
+  if (req.user && req.user.role === 'admin') {
+    doAdminStuff();
+  }
+  \`\`\`
+    `,
+    references: [
+      {
+        title: 'CWE-306: Missing Authentication for Critical Function',
+        url: 'https://cwe.mitre.org/data/definitions/306.html'
+      },
+      {
+        title: 'CAPEC-115: Authentication Bypass',
+        url: 'https://capec.mitre.org/data/definitions/115.html'
+      },
+      {
+        title: 'OWASP Broken Access Control',
+        url: 'https://owasp.org/Top10/A01_2021-Broken_Access_Control/'
+      }
+    ],
+    cwe: '306'
+  }  
 };
