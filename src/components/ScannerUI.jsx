@@ -233,6 +233,7 @@ const ScannerUI = () => {
           </button>
         </div>
 
+       
         {/* SCAN REPO */}
         <div className="bg-gray-800 p-8 rounded-xl shadow-lg mb-8 border border-gray-700">
           <h2 className="text-xl font-semibold text-gray-200 mb-6 flex items-center">
@@ -251,18 +252,23 @@ const ScannerUI = () => {
             </svg>
             Scan Repository
           </h2>
-          <div className="flex gap-4">
+          
+          {/* Responsive Flex Container */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Input Field */}
             <input
               type="text"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="Enter GitHub repository URL"
-              className="flex-1 px-4 py-3 border border-gray-600 rounded-lg bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-600 rounded-lg bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            
+            {/* Button */}
             <button
               onClick={handleUrlScan}
               disabled={scanning || !urlInput}
-              className={`px-6 py-3 rounded-lg text-white font-medium transition-all transform hover:scale-105 ${
+              className={`w-full sm:w-auto px-6 py-3 rounded-lg text-white font-medium transition-all transform hover:scale-105 ${
                 scanning || !urlInput
                   ? 'bg-gray-600 cursor-not-allowed'
                   : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-md'
@@ -272,6 +278,8 @@ const ScannerUI = () => {
             </button>
           </div>
         </div>
+
+
 
         {/* SCAN LOCAL FILES */}
         <div className="bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700">

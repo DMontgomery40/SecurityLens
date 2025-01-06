@@ -75,6 +75,93 @@ class VulnerabilityScanner {
   }
 
   /**
+   * Get repository tree using Git Data API
+   * @private
+   */
+  async getRepoTree(owner, repo, branch) {
+    try {
+      // First get the branch reference
+      const branchRef = branch.replace('refs/heads/', '');
+      console.log(`Getting tree for branch: ${branchRef}`);
+      
+      const branchData = await this.config.octokit.rest.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${branchRef}`
+      });
+
+      // Get the commit SHA that the branch points to
+      const commitSha = branchData.data.object.sha;
+      console.log(`Got commit SHA: ${commitSha}`);
+
+      // Get the commit to find the tree SHA
+      const commitData = await this.config.octokit.rest.git.getCommit({
+        owner,
+        repo,
+        commit_sha: commitSha
+      });
+
+      // Get the full tree recursively
+      const treeData = await this.config.octokit.rest.git.getTree({
+        owner,
+        repo,
+        tree_sha: commitData.data.tree.sha,
+        recursive: true
+      });
+
+      if (treeData.data.truncated) {
+        console.warn('Repository tree was truncated! Falling back to manual traversal...');
+        return await this.getTreeManually(owner, repo, commitData.data.tree.sha);
+      }
+
+      return treeData.data.tree;
+    } catch (error) {
+      console.error('Error fetching repo tree:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Manually traverse the tree when it's too large for a single request
+   * @private
+   */
+  async getTreeManually(owner, repo, treeSha, path = '') {
+    const results = [];
+    
+    try {
+      // Get the current level of the tree
+      const treeData = await this.config.octokit.rest.git.getTree({
+        owner,
+        repo,
+        tree_sha: treeSha
+      });
+
+      for (const item of treeData.data.tree) {
+        if (item.type === 'blob') {
+          results.push({
+            ...item,
+            path: path ? `${path}/${item.path}` : item.path
+          });
+        } else if (item.type === 'tree') {
+          // Recursively get subtree
+          const subtreeItems = await this.getTreeManually(
+            owner,
+            repo,
+            item.sha,
+            path ? `${path}/${item.path}` : item.path
+          );
+          results.push(...subtreeItems);
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error(`Error in manual tree traversal for ${path}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Fetch repository files from GitHub
    * @param {string} url - GitHub repository URL
    * @param {Octokit} octokitInstance - Octokit instance with authentication
@@ -84,7 +171,8 @@ class VulnerabilityScanner {
       this.config.octokit = octokitInstance;
     }
 
-    const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/tree\/([^/]+))?\/?(.*)/;
+    // Enhanced regex to better handle branches and paths
+    const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/(?:tree|blob)\/([^/]+))?(\/.*)?/;
     const match = url.match(githubRegex);
 
     if (!match) {
@@ -92,75 +180,88 @@ class VulnerabilityScanner {
     }
 
     const [, owner, repo, branch = 'main', path = ''] = match;
-    const cacheKey = `${owner}/${repo}/${branch}/${path}`;
+    const cleanPath = path.replace(/^\//, ''); // Remove leading slash
+    
+    console.log(`Scanning repository: ${owner}/${repo}, branch: ${branch}, path: ${cleanPath}`);
+    
+    const cacheKey = `${owner}/${repo}/${branch}/${cleanPath}`;
     const cachedData = repoCache.get(cacheKey);
     if (cachedData) {
       return { ...cachedData, fromCache: true };
     }
 
     try {
-      const rateLimitInfo = await this.getRateLimitInfo();
-      let fileList = [];
+      console.log('Fetching repository tree...');
+      const tree = await this.getRepoTree(owner, repo, branch);
+      
+      // Filter by path if specified
+      const filteredTree = cleanPath ? 
+        tree.filter(item => item.path.startsWith(cleanPath)) : 
+        tree;
 
-      // Recursive function to fetch contents
-      const fetchContents = async (currentPath = '') => {
-        try {
-          const response = await this.config.octokit.rest.repos.getContent({
-            owner,
-            repo,
-            ref: branch,
-            path: currentPath
-          });
+      console.log(`Found ${filteredTree.length} files in repository`);
 
-          if (Array.isArray(response.data)) {
-            for (const item of response.data) {
-              if (item.type === 'file') {
-                fileList.push({ path: item.path, url: item.download_url });
-              } else if (item.type === 'dir') {
-                await fetchContents(item.path);
-              }
-            }
-          }
-        } catch (error) {
-          console.error(`Error fetching contents for path ${currentPath}:`, error);
-          throw error;
-        }
-      };
+      // Get file contents in parallel with chunking to avoid overwhelming
+      const chunkSize = 10; // Process 10 files at a time
+      const chunks = [];
+      
+      for (let i = 0; i < filteredTree.length; i += chunkSize) {
+        const chunk = filteredTree.slice(i, i + chunkSize);
+        chunks.push(chunk);
+      }
 
-      await fetchContents(path);
-
-      // Fetch file contents
       const filesWithContent = [];
-      const totalFiles = fileList.length;
       let processedFiles = 0;
+      const totalFiles = filteredTree.length;
 
-      if (this.config.onProgress) {
-        this.config.onProgress({ current: 0, total: totalFiles });
+      // Process chunks sequentially to maintain progress updates
+      for (const chunk of chunks) {
+        const chunkResults = await Promise.all(
+          chunk
+            .filter(item => item.type === 'blob')
+            .map(async file => {
+              try {
+                // Use raw content URL for better performance
+                const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${file.path}`;
+                const response = await fetch(rawUrl);
+                
+                if (!response.ok) {
+                  console.error(`Failed to fetch ${file.path}: ${response.status}`);
+                  return null;
+                }
+                
+                const content = await response.text();
+                processedFiles++;
+                
+                if (this.config.onProgress) {
+                  this.config.onProgress({ 
+                    current: processedFiles, 
+                    total: totalFiles,
+                    phase: 'fetching'
+                  });
+                }
+                
+                return { path: file.path, content };
+              } catch (error) {
+                console.error(`Error fetching ${file.path}:`, error);
+                processedFiles++;
+                if (this.config.onProgress) {
+                  this.config.onProgress({ 
+                    current: processedFiles, 
+                    total: totalFiles,
+                    phase: 'fetching'
+                  });
+                }
+                return null;
+              }
+            })
+        );
+        
+        filesWithContent.push(...chunkResults.filter(f => f !== null));
       }
 
-      for (const fileInfo of fileList) {
-        try {
-          const response = await fetch(fileInfo.url);
-          if (!response.ok) {
-            console.error(`Failed to fetch ${fileInfo.path}: ${response.status} ${response.statusText}`);
-            continue;
-          }
-          const content = await response.text();
-          filesWithContent.push({ path: fileInfo.path, content });
-        } catch (error) {
-          console.error(`Error fetching content for ${fileInfo.path}:`, error);
-        } finally {
-          processedFiles++;
-          if (this.config.onProgress) {
-            this.config.onProgress({ current: processedFiles, total: totalFiles });
-          }
-        }
-      }
-
-      if (this.config.onProgress) {
-        this.config.onProgress({ current: totalFiles, total: totalFiles });
-      }
-
+      console.log(`Successfully fetched ${filesWithContent.length} files`);
+      
       const result = { files: filesWithContent };
       repoCache.set(cacheKey, result);
       return { ...result, fromCache: false };
