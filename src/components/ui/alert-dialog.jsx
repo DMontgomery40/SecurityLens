@@ -13,7 +13,7 @@ export function AlertDialog({ children, open, onClose }) {
       {/* Inner container (the white box). 
           We stopPropagation so clicks on the white box don't close. */}
       <div
-        className="relative bg-white rounded-lg w-full max-w-3xl max-h-[80vh] overflow-auto p-4"
+        className="relative bg-gray-800 rounded-lg w-full max-w-3xl max-h-[80vh] overflow-auto p-4"
         onClick={e => e.stopPropagation()}
       >
         {/* "Close" button up top-right */}
