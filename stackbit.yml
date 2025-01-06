@@ -1,0 +1,4 @@
+nodeVersion: "18"
+npmVersion: "9"
+devCommand: "npm run dev"  
+buildCommand: "npm run build"  
