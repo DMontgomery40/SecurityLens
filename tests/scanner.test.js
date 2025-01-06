@@ -1,5 +1,5 @@
 // scanner.test.js
-import { scanFile, patterns } from '../src/lib/patterns';
+import { evalExecution, patterns, patternCategories } from '../src/lib/patterns/index.js';
 import { expect } from 'chai';
 
 describe('Security Scanner Tests', () => {
@@ -9,7 +9,7 @@ describe('Security Scanner Tests', () => {
         app.post('/upload', upload.single('file'));
         const upload = multer({ dest: '/uploads' });
       `;
-      const results = await scanFile(code);
+      const results = await evalExecution(code);
       expect(results.matches).to.have.lengthOf.at.least(1);
       expect(results.matches[0].pattern).to.equal('unsafeFileUpload');
     });
@@ -19,7 +19,7 @@ describe('Security Scanner Tests', () => {
         const path = require('../' + userInput);
         fs.readFile('../../config.json');
       `;
-      const results = await scanFile(code);
+      const results = await evalExecution(code);
       expect(results.matches).to.have.lengthOf.at.least(1);
       expect(results.matches[0].pattern).to.equal('pathTraversal');
     });
@@ -31,7 +31,7 @@ describe('Security Scanner Tests', () => {
         eval(userInput);
         new Function(req.body.code)();
       `;
-      const results = await scanFile(code);
+      const results = await evalExecution(code);
       expect(results.matches).to.have.lengthOf.at.least(1);
       expect(results.matches[0].pattern).to.equal('evalExecution');
     });
@@ -43,7 +43,7 @@ describe('Security Scanner Tests', () => {
         app.use(express.static(path));
         app.use(cors());
       `;
-      const results = await scanFile(code);
+      const results = await evalExecution(code);
       expect(results.matches).to.have.lengthOf.at.least(1);
       expect(results.matches[0].pattern).to.equal('expressSecurityMisconfig');
     });
@@ -52,13 +52,13 @@ describe('Security Scanner Tests', () => {
   describe('Performance and Error Handling', () => {
     it('should handle large files', async () => {
       const largeCode = 'const x = 1;\n'.repeat(10000);
-      const results = await scanFile(largeCode);
+      const results = await evalExecution(largeCode);
       expect(results.performance.duration).to.be.lessThan(5000);
     });
 
     it('should handle regex timeouts', async () => {
       const maliciousCode = 'a'.repeat(100000) + '!';
-      const results = await scanFile(maliciousCode);
+      const results = await evalExecution(maliciousCode);
       expect(results.errors).to.have.lengthOf.at.least(0);
     });
   });
@@ -97,7 +97,7 @@ describe('Security Scanner Tests', () => {
       ];
 
       for (const testCase of testCases) {
-        const results = await scanFile(testCase.code);
+        const results = await evalExecution(testCase.code);
         expect(results.matches.some(m => m.pattern === testCase.name),
           `Pattern ${testCase.name} should detect its test case`).to.be.true;
       }
