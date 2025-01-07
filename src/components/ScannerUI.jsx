@@ -221,33 +221,50 @@ const ScannerUI = () => {
   }, [scanResults, searchQuery, activeSeverity]);
 
   return (
-    <div className="p-8 bg-gray-900 text-white min-h-screen">
+    <div className="p-6 bg-gray-900 text-white min-h-screen">
       <div className="max-w-4xl mx-auto">
         {/* HEADER */}
-        <div className="text-center mb-14">
+        <div className="text-center mb-10">
           <h1 className="inline-flex items-center text-4xl font-bold tracking-tight mb-2">
             <Shield className="h-10 w-10 text-blue-400 mr-3" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600">
               SecurityLens
             </span>
           </h1>
-          <p className="text-gray-300 mb-8 max-w-2xl mx-auto leading-relaxed">
+          
+          <p className="text-gray-300 mb-4 max-w-2xl mx-auto leading-relaxed">
             It's sort of like if semgrep-lite and walkbin-lite had a baby.
-            <br /><br />
+          </p>
+          
+          <hr className="my-4 border-gray-700" />
+          
+          <p className="text-gray-300 mb-4 max-w-2xl mx-auto leading-relaxed">
             Just more attractive and easy going, with no upselling, no logins,
             no cookies, no ads, no tracking, no downloads, and no uploads.
           </p>
+          
+          <hr className="my-4 border-gray-700" />
 
-          {/* Info Button */}
+          {/* GitHub Link */}
+          <a
+            href="https://github.com/DMontgomery40/SecurityLens"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 underline hover:text-purple-400 transition-colors"
+          >
+            Please Contribute Your Knowledge
+          </a>
+          <br />
+
+          {/* View Checks Button */}
           <button
             onClick={() => setShowVulnList(true)}
-            className="mt-6 text-sm text-blue-400 hover:text-blue-600 transition-colors"
+            className="mt-4 text-sm text-blue-400 hover:text-purple-400 transition-colors"
           >
             View Full List of Checks
           </button>
         </div>
 
-       
         {/* SCAN REPO */}
         <div className="bg-gray-800 p-8 rounded-xl shadow-lg mb-8 border border-gray-700">
           <h2 className="text-xl font-semibold text-gray-200 mb-6 flex items-center">
@@ -292,8 +309,6 @@ const ScannerUI = () => {
             </button>
           </div>
         </div>
-
-
 
         {/* SCAN LOCAL FILES */}
         <div className="bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700 mb-8">
@@ -534,7 +549,7 @@ const ScannerUI = () => {
             <a
               href="https://github.com/settings/tokens/new"
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="text-sm text-blue-400 hover:underline mt-2 inline-block"
             >
               Generate a token
