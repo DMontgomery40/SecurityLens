@@ -1,7 +1,9 @@
 # SecurityLens 
 An open-source security analysis platform for education and vulnerability discovery.
 
-https://securitylens.netlify.app/
+https://securitylens.io/
+
+![SecurityLens Screenshot](/assets/security-lens-screenshot-2.png)
 
 ## Current Features
 
