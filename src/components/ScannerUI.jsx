@@ -290,7 +290,7 @@ const ScannerUI = () => {
           </h2>
           
           {/* Responsive Flex Container */}
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-2">
             {/* Input Field */}
             <input
               type="text"
@@ -389,7 +389,7 @@ const ScannerUI = () => {
             </svg>
             Scan Firmware/Binary <span className="text-xs text-yellow-400">(Coming Soon!)</span>
           </h2>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-2">
             {/* Firmware Upload Field */}
             <input
               type="file"
