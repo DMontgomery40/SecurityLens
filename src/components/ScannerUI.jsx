@@ -261,7 +261,7 @@ const ScannerUI = () => {
             onClick={() => setShowVulnList(true)}
             className="mt-4 text-sm text-blue-400 hover:text-purple-400 transition-colors"
           >
-            View Full List of Checks
+            View Current Vulnerability List
           </button>
         </div>
 
@@ -605,11 +605,13 @@ const ScannerUI = () => {
           {/* Warning Banner */}
           <div className="bg-yellow-900/50 border border-yellow-600/50 rounded-lg p-4 mb-6 text-sm text-yellow-200">
             <p>
-              <strong>Beta Notice:</strong> SecurityLens is in active development. Please note:
+              <strong>Beta Notice:</strong> SecurityLens is an educational tool. Please note:
             </p>
             <ul className="list-disc pl-5 mt-2 space-y-1">
-              <li>Results may include false positives</li>
-              <li>The dependency vulnerability and outdated dependency checkers are currently in development</li>
+              <li>This tool is designed for educational purposes only; SecurityLens is not intended for production uses</li>
+              <li>Detection patterns are currently bespoke to this project</li>
+              <li>Importing patterns from semgrep, RedCanary, CrowdStrike, etc., are on the todo list</li>
+              <li>Contributions in furthering the above goal are greatly appreciated ✌️ </li>
             </ul>
           </div>
 
