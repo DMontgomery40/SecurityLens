@@ -1,5 +1,3 @@
-// /src/components/ScannerUI.jsx
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { AlertTriangle, Shield } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
@@ -42,6 +40,10 @@ const ScannerUI = () => {
   const [filteredByType, setFilteredByType] = useState([]);
   const [filteredByFile, setFilteredByFile] = useState([]);
 
+  // *** Added: Firmware/Binary Analysis State ***
+  const [includeFirmware, setIncludeFirmware] = useState(false);
+  const [firmwareMessage, setFirmwareMessage] = useState('');
+
   // Handler for Local File Upload
   const handleFileUpload = async (event) => {
     const files = Array.from(event.target.files);
@@ -51,6 +53,7 @@ const ScannerUI = () => {
     setError(null);
     setScanResults(null);
     setProgress({ current: 0, total: files.length });
+    setFirmwareMessage(''); // Reset firmware message
 
     try {
       const scanner = new VulnerabilityScanner({
@@ -68,6 +71,11 @@ const ScannerUI = () => {
         LOW: { uniqueCount: results.summary.lowIssues, instanceCount: results.summary.lowInstances }
       });
       setSuccessMessage(`Successfully scanned ${files.length} files`);
+      
+      // *** Added: Firmware Analysis Placeholder ***
+      if (includeFirmware) {
+        setFirmwareMessage('Firmware/Binary Analysis is coming soon!');
+      }
     } catch (err) {
       console.error('Scan error:', err);
       setError(err.message || 'Error scanning files');
@@ -89,6 +97,7 @@ const ScannerUI = () => {
     setError(null);
     setScanResults(null);
     setUsedCache(false);
+    setFirmwareMessage(''); // Reset firmware message
 
     try {
       const scanner = new VulnerabilityScanner({
@@ -115,6 +124,11 @@ const ScannerUI = () => {
             `${results.summary.mediumIssues} medium, ${results.summary.lowIssues} low)`
         );
         setUsedCache(results.fromCache || false);
+        
+        // *** Added: Firmware Analysis Placeholder ***
+        if (includeFirmware) {
+          setFirmwareMessage('Firmware/Binary Analysis is coming soon!');
+        }
       } else {
         setSuccessMessage(`Found ${results.files.length} files in repository`);
       }
@@ -130,7 +144,7 @@ const ScannerUI = () => {
     } finally {
       setScanning(false);
     }
-  }, [urlInput]);
+  }, [urlInput, includeFirmware]);
 
   // Handler for GitHub Token Submission
   const handleTokenSubmit = async (token) => {
@@ -282,7 +296,7 @@ const ScannerUI = () => {
 
 
         {/* SCAN LOCAL FILES */}
-        <div className="bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700">
+        <div className="bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700 mb-8">
           <h2 className="text-xl font-semibold text-gray-200 mb-6 flex items-center">
             <svg
               className="w-5 h-5 mr-2 text-blue-400"
@@ -309,8 +323,8 @@ const ScannerUI = () => {
             />
             <label
               htmlFor="fileInput"
-              className="group inline-flex flex-col items-center justify-center px-6 py-8 
-                       bg-gray-700 rounded-xl border-2 border-dashed border-gray-600 
+              className="group inline-flex flex-col items-center justify-center px-3 py-4 
+                       bg-gray-700 rounded-md border-2 border-dashed border-gray-600 
                        cursor-pointer hover:bg-gray-600 transition-all 
                        focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-center"
             >
@@ -335,6 +349,80 @@ const ScannerUI = () => {
               </p>
             </label>
           </div>
+        </div>
+
+        {/* *** Added: Firmware/Binary Analysis Section *** */}
+        <div className="bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700 mb-8">
+          <h2 className="text-xl font-semibold text-gray-200 mb-6 flex items-center">
+            <svg
+              className="w-5 h-5 mr-2 text-blue-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Scan Firmware/Binary <span className="text-xs text-yellow-400">(Coming Soon!)</span>
+          </h2>
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Firmware Upload Field */}
+            <input
+              type="file"
+              id="firmwareInput"
+              accept=".bin,.fw,.img,.hex" // Specify firmware file types
+              onChange={(e) => {
+                if (includeFirmware) {
+                  setFirmwareMessage('Firmware/Binary Analysis is coming soon!');
+                }
+              }}
+              className="hidden"
+            />
+            <label
+              htmlFor="firmwareInput"
+              className={`group inline-flex flex-col items-center justify-center px-3 py-4 
+                         bg-gray-700 rounded-md border-2 border-dashed border-gray-600 
+                         cursor-pointer hover:bg-gray-600 transition-all 
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-center ${
+                           includeFirmware ? '' : 'opacity-50 cursor-not-allowed'
+                         }`}
+              onClick={(e) => {
+                if (!includeFirmware) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              <svg
+                className="w-12 h-12 text-gray-400 group-hover:text-blue-400 transition-colors mb-3"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              <p className="text-gray-300 group-hover:text-gray-100 font-medium">
+                Drag and drop firmware files here, or click to select files
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                Supported files: .bin, .fw, .img, .hex
+              </p>
+            </label>
+          </div>
+          {/* Display Coming Soon Message */}
+          {firmwareMessage && (
+            <Alert className="my-4" variant="default">
+              <AlertDescription>{firmwareMessage}</AlertDescription>
+            </Alert>
+          )}
         </div>
 
         {/* PROGRESS BAR */}
@@ -418,7 +506,14 @@ const ScannerUI = () => {
               onRefreshRequest={handleUrlScan}
               showBackToTop={showBackToTop}
               scrollToTop={scrollToTop}
+              includeFirmware={includeFirmware} // *** Added: Pass includeFirmware to ScanResults ***
             />
+            {/* Display Firmware Coming Soon Message */}
+            {firmwareMessage && (
+              <Alert className="my-4" variant="default">
+                <AlertDescription>{firmwareMessage}</AlertDescription>
+              </Alert>
+            )}
           </div>
         )}
 
@@ -705,7 +800,7 @@ const ScannerUI = () => {
             <h2 className="text-lg font-semibold">MIT License</h2>
           </AlertDialogHeader>
           <div className="space-y-4 text-sm">
-            <p>Copyright (c) {new Date().getFullYear()} David Montgomery</p>
+            <p>&copy; {new Date().getFullYear()} David Montgomery</p>
             
             <p>
               Permission is hereby granted, free of charge, to any person obtaining a copy

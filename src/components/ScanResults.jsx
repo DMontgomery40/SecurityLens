@@ -177,7 +177,7 @@ const VulnerabilityCard = ({ vuln }) => {
                   );
                 } else if (section.includes('```')) {
                   // Handle code blocks - extract content between ``` marks
-                  const codeMatch = section.match(/```(?:\w*\n)?([^`]+)```/);
+                  const codeMatch = section.match(/```[\w]*\n([\s\S]*?)```/);
                   return codeMatch ? (
                     <pre key={index} className="bg-gray-800 text-gray-200 p-3 rounded-md my-2 overflow-x-auto">
                       <code>{codeMatch[1].trim()}</code>
@@ -261,11 +261,27 @@ const ScanResults = ({
   scanning,
   onRefreshRequest,
   showBackToTop,
-  scrollToTop
+  scrollToTop,
+  includeFirmware // *** Added: Include Firmware Prop ***
 }) => {
   return (
     <div className="mt-8 relative">
       <div className="bg-gray-900 p-6 rounded-lg shadow-lg border border-gray-700">
+        {/* *** Added: Firmware/Binary Analysis Filter *** */}
+        <div className="flex items-center mb-6">
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={includeFirmware}
+              onChange={(e) => {} /* Handle firmware filter change if needed */}
+              className="form-checkbox h-4 w-4 text-blue-600"
+              disabled // Disable for now since functionality is not implemented
+            />
+            <span className="ml-2 text-gray-300">Include Firmware/Binary Analysis</span>
+          </label>
+          <span className="ml-4 text-xs text-yellow-400">(Coming Soon!)</span>
+        </div>
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(sev => (
