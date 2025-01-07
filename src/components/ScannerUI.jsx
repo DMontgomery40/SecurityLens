@@ -232,10 +232,10 @@ const ScannerUI = () => {
             </span>
           </h1>
           <p className="text-gray-300 mt-8 max-w-2xl mx-auto leading-relaxed">
-            It's sort of like if semgrep-lite and walkbin-lite had a baby. 
-
+            It's sort of like if semgrep-lite and walkbin-lite had a baby. \n
+            \n
             Just more attractive and easy going, with no upselling, no logins,
-            no cookies, no ads, no tracking, and no file uploads.
+            no cookies, no ads, no tracking, no downloads, and no uploads.
           </p>
 
           {/* Info Button */}
