@@ -232,13 +232,13 @@ const ScannerUI = () => {
             </span>
           </h1>
           
-          <p className="text-gray-300 mb-4 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-gray-300 mb-3 max-w-xl mx-auto leading-relaxed">
             An education tool for the next generation of cybersecurity professionals.
           </p>
           
           <hr className="my-4 border-gray-700" />
           
-          <p className="text-gray-300 mb-4 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-gray-300 mb-3 max-w-xl mx-auto leading-relaxed">
             No upselling, no registration, no logins, no cookies, no ads, 
             no tracking, no downloads, and no uploads.
             <br />
