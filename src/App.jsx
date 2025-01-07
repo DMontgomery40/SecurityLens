@@ -16,7 +16,7 @@ function App() {
     if (darkMode) {
       setDarkMode(false);
       localStorage.setItem('theme', 'light');
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('dark');
     } else {
       setDarkMode(true);
       localStorage.setItem('theme', 'dark');

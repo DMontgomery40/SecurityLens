@@ -605,7 +605,7 @@ const ScannerUI = () => {
           {/* Warning Banner */}
           <div className="bg-yellow-900/50 border border-yellow-600/50 rounded-lg p-4 mb-6 text-sm text-yellow-200">
             <p>
-              <strong>Beta Notice:</strong> SecurityLens is an educational tool. Please note:
+              <strong>Notice:</strong> SecurityLens is an educational tool. Please note:
             </p>
             <ul className="list-disc pl-5 mt-2 space-y-1">
               <li>This tool is designed for educational purposes only; SecurityLens is not intended for production uses</li>
