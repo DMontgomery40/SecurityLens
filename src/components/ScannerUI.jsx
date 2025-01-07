@@ -236,13 +236,14 @@ const ScannerUI = () => {
             An education tool for the next generation of cybersecurity professionals.
           </p>
           
-          <hr className="my-4 border-gray-700" />
+        
           
           <p className="text-gray-300 mb-3 max-w-xl mx-auto leading-relaxed">
             Simply drag/drag or copy/paste to scan GitHub repositories, 
             or upload local files, to scan for web vulnerabilities
-            or firmware vulnerabilities.
+            and binary/firmware vulnerabilities.
             <br />
+            <hr className="my-4 border-gray-700" />
             <strong>No upselling, no registration, no logins, no cookies, no ads, 
             no tracking, no downloads, and no uploads.</strong>
           </p>
