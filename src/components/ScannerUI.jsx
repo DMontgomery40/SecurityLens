@@ -224,16 +224,16 @@ const ScannerUI = () => {
     <div className="p-8 bg-gray-900 text-white min-h-screen">
       <div className="max-w-4xl mx-auto">
         {/* HEADER */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-14">
           <h1 className="inline-flex items-center text-4xl font-bold tracking-tight mb-2">
             <Shield className="h-10 w-10 text-blue-400 mr-3" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600">
               SecurityLens
             </span>
           </h1>
-          <p className="text-gray-300 mt-6 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-gray-300 mt-8 max-w-2xl mx-auto leading-relaxed">
             It's sort of like if semgrep-lite and walkbin-lite had a baby. 
-            
+
             Just more attractive and easy going, with no upselling, no logins,
             no cookies, no ads, no tracking, and no file uploads.
           </p>
@@ -241,7 +241,7 @@ const ScannerUI = () => {
           {/* Info Button */}
           <button
             onClick={() => setShowVulnList(true)}
-            className="mt-4 text-sm text-blue-400 hover:text-blue-600 transition-colors"
+            className="mt-6 text-sm text-blue-400 hover:text-blue-600 transition-colors"
           >
             View Full List of Checks
           </button>
