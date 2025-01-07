@@ -615,7 +615,7 @@ const ScannerUI = () => {
             <ul className="list-disc pl-5 mt-2 space-y-1">
               <li>This tool is designed for educational purposes only; SecurityLens is not intended for production uses</li>
               <li>Detection patterns are currently bespoke to this project</li>
-              <li>Importing patterns from semgrep, RedCanary, CrowdStrike, etc., are on the todo list</li>
+              <li>Importing patterns from semgrep, Red Canary, CrowdStrike, etc., are on the todo list</li>
               <li>Contributions in furthering the above goal are greatly appreciated ✌️ </li>
             </ul>
           </div>
