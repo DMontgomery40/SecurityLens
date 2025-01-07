@@ -232,10 +232,10 @@ const ScannerUI = () => {
             </span>
           </h1>
           <p className="text-gray-300 mt-6 max-w-2xl mx-auto leading-relaxed">
-            Scans code for security vulnerabilities including code injection,
-            authentication bypass, SQL injection, XSS, buffer issues,
-            sensitive data exposure, and more. Supports JavaScript, TypeScript,
-            Python, and other languages.
+            It's sort of like if semgrep-lite and walkbin-lite had a baby. 
+            
+            Just more attractive and easy going, with no upselling, no logins,
+            no cookies, no ads, no tracking, and no file uploads.
           </p>
 
           {/* Info Button */}
