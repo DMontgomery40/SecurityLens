@@ -1,26 +1,27 @@
-#!/usr/bin/env bash
+/**  
+##!/usr/bin/env bash
 # ------------------------------------------------------------------------------
 #  Step A: Create a new folder for your merge script (or use existing SecurityLens dir)
 # ------------------------------------------------------------------------------
-mkdir -p /tmp/SecurityLens
-cd /tmp/SecurityLens
+# mkdir -p /tmp/SecurityLens
+# cd /tmp/SecurityLens
 
 # ------------------------------------------------------------------------------
 #  Step B: Initialize a Node project (if you haven't already)
 # ------------------------------------------------------------------------------
-npm init -y
+# npm init -y
 
 # ------------------------------------------------------------------------------
 #  Step C: Install dependencies we'll need
 # ------------------------------------------------------------------------------
-npm install simple-git js-yaml fs-extra
+# npm install simple-git js-yaml fs-extra
 
 # ------------------------------------------------------------------------------
 #  Step D: Create the merge script file
 # ------------------------------------------------------------------------------
-cat << 'EOF' > merge_semgrep_rules.js
+# cat << 'EOF' > merge_semgrep_rules.js
 #!/usr/bin/env node
-
+*/
 /**
  * merge_semgrep_rules.js
  *
@@ -207,10 +208,10 @@ function parseRuleFile(filePath) {
   }
 })();
 EOF
-
+/**
 # ------------------------------------------------------------------------------
 #  Step E: Make it executable & run it
 # ------------------------------------------------------------------------------
-chmod +x merge_semgrep_rules.js
-node merge_semgrep_rules.js
-
+# chmod +x merge_semgrep_rules.js
+# node merge_semgrep_rules.js
+*/
