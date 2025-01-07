@@ -3,7 +3,7 @@ An open-source security analysis platform for education and vulnerability discov
 
 https://securitylens.io/
 
-![SecurityLens Screenshot](/assets/security-lens-screenshot-2.png)
+![SecurityLens Screenshot](/assets/security-lens-screenshot.png)
 
 ## Current Features
 
@@ -76,5 +76,5 @@ Below is the list of vulnerabilities that **SecurityLens** scans for:
 
 ## Current Results Page Example
 
-![SecurityLens Screenshot](/assets/security-lens-screenshot.png)
+![SecurityLens Screenshot](/assets/security-lens-screenshot-2.png)
 {: .text-center }
