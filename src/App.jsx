@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ScannerUI from './components/ScannerUI';
 
 function App() {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
 
   useEffect(() => {
     const storedTheme = localStorage.getItem('theme');

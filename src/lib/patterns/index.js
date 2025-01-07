@@ -828,8 +828,8 @@ logger.info("User password retrieved securely");
         url: 'https://capec.mitre.org/data/definitions/118.html'
       },
       {
-        title: 'CVE-2021-28663 (Example of sensitive info exposure)',
-        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-28663'
+        title: 'CVE-2024-2731 (Example of sensitive info exposure)',
+        url: 'https://www.cve.org/cveRecord?id=CVE-2024-2731'
       }
     ],
     cwe: '200'
