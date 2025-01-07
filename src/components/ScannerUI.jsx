@@ -241,6 +241,10 @@ const ScannerUI = () => {
           <p className="text-gray-300 mb-4 max-w-2xl mx-auto leading-relaxed">
             No upselling, no registration, no logins, no cookies, no ads, 
             no tracking, no downloads, and no uploads.
+            <br />
+            <br />
+            Simply drag/drag or copy/paste to scan GitHub repositories, 
+            or upload local files to scan for potential web-based codevulnerabilities.
           </p>
           
           <hr className="my-4 border-gray-700" />
