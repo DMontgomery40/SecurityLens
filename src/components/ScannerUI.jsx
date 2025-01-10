@@ -4,15 +4,22 @@ import { Alert, AlertDescription } from './ui/alert';
 import VulnerabilityScanner, { scanRepositoryLocally } from '../lib/scanner';
 import ScanResults from './ScanResults';
 import { authManager } from '../lib/githubAuth';
-import {
+import { scanWebPage } from '../lib/apiClient.js';
+import {        
   AlertDialog,
   AlertDialogContent,
   AlertDialogHeader
 } from './ui/alert-dialog';
-import { patterns } from '../lib/patterns'; // Ensure patterns are exported from patterns.index.js
+import { patterns } from '../lib/patterns'; // Ensure patterns are exported
+
+const patternCategories = {
+  CRITICAL_EXECUTION: 'Critical Execution'
+};
 
 const ScannerUI = () => {
-  // State Management
+  // ------------------------------------------------------------------
+  // Global State
+  // ------------------------------------------------------------------
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState(null);
   const [rateLimitInfo, setRateLimitInfo] = useState(null);
@@ -40,11 +47,15 @@ const ScannerUI = () => {
   const [filteredByType, setFilteredByType] = useState([]);
   const [filteredByFile, setFilteredByFile] = useState([]);
 
-  // *** Added: Firmware/Binary Analysis State ***
+  // ------------------------------------------------------------------
+  // Firmware / Binary State
+  // ------------------------------------------------------------------
   const [includeFirmware, setIncludeFirmware] = useState(false);
   const [firmwareMessage, setFirmwareMessage] = useState('');
 
-  // Handler for Local File Upload
+  // ------------------------------------------------------------------
+  // File Upload (Local)
+  // ------------------------------------------------------------------
   const handleFileUpload = async (event) => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
@@ -53,7 +64,7 @@ const ScannerUI = () => {
     setError(null);
     setScanResults(null);
     setProgress({ current: 0, total: files.length });
-    setFirmwareMessage(''); // Reset firmware message
+    setFirmwareMessage('');
 
     try {
       const scanner = new VulnerabilityScanner({
@@ -64,15 +75,29 @@ const ScannerUI = () => {
 
       const results = await scanner.scanLocalFiles(files);
       setScanResults(results);
+
       setSeverityStats({
-        CRITICAL: { uniqueCount: results.summary.criticalIssues, instanceCount: results.summary.criticalInstances },
-        HIGH: { uniqueCount: results.summary.highIssues, instanceCount: results.summary.highInstances },
-        MEDIUM: { uniqueCount: results.summary.mediumIssues, instanceCount: results.summary.mediumInstances },
-        LOW: { uniqueCount: results.summary.lowIssues, instanceCount: results.summary.lowInstances }
+        CRITICAL: {
+          uniqueCount: results.summary.criticalIssues,
+          instanceCount: results.summary.criticalInstances
+        },
+        HIGH: {
+          uniqueCount: results.summary.highIssues,
+          instanceCount: results.summary.highInstances
+        },
+        MEDIUM: {
+          uniqueCount: results.summary.mediumIssues,
+          instanceCount: results.summary.mediumInstances
+        },
+        LOW: {
+          uniqueCount: results.summary.lowIssues,
+          instanceCount: results.summary.lowInstances
+        }
       });
+
       setSuccessMessage(`Successfully scanned ${files.length} files`);
-      
-      // *** Added: Firmware Analysis Placeholder ***
+
+      // Firmware placeholder
       if (includeFirmware) {
         setFirmwareMessage('Firmware/Binary Analysis is coming soon!');
       }
@@ -84,7 +109,9 @@ const ScannerUI = () => {
     }
   };
 
-  // Handler for Repository Scan
+  // ------------------------------------------------------------------
+  // GitHub Repo Scan
+  // ------------------------------------------------------------------
   const handleUrlScan = useCallback(async () => {
     if (!urlInput) return;
 
@@ -97,39 +124,48 @@ const ScannerUI = () => {
     setError(null);
     setScanResults(null);
     setUsedCache(false);
-    setFirmwareMessage(''); // Reset firmware message
+    setFirmwareMessage('');
 
     try {
-      const scanner = new VulnerabilityScanner({
-        onProgress: (progress) => {
-          setProgress(progress);
-        }
-      });
-
       const results = await scanRepositoryLocally(urlInput);
       console.log('Scan results:', results);
 
       if (results.findings && results.summary) {
         setScanResults(results);
         setSeverityStats({
-          CRITICAL: { uniqueCount: results.summary.criticalIssues || 0, instanceCount: results.summary.criticalInstances || 0 },
-          HIGH: { uniqueCount: results.summary.highIssues || 0, instanceCount: results.summary.highInstances || 0 },
-          MEDIUM: { uniqueCount: results.summary.mediumIssues || 0, instanceCount: results.summary.mediumInstances || 0 },
-          LOW: { uniqueCount: results.summary.lowIssues || 0, instanceCount: results.summary.lowInstances || 0 }
+          CRITICAL: {
+            uniqueCount: results.summary.criticalIssues || 0,
+            instanceCount: results.summary.criticalInstances || 0
+          },
+          HIGH: {
+            uniqueCount: results.summary.highIssues || 0,
+            instanceCount: results.summary.highInstances || 0
+          },
+          MEDIUM: {
+            uniqueCount: results.summary.mediumIssues || 0,
+            instanceCount: results.summary.mediumInstances || 0
+          },
+          LOW: {
+            uniqueCount: results.summary.lowIssues || 0,
+            instanceCount: results.summary.lowInstances || 0
+          }
         });
 
         setSuccessMessage(
           `Scan complete! Found ${results.summary.totalIssues} potential vulnerabilities ` +
-            `(${results.summary.criticalIssues} critical, ${results.summary.highIssues} high, ` +
-            `${results.summary.mediumIssues} medium, ${results.summary.lowIssues} low)`
+          `(${results.summary.criticalIssues} critical, ` +
+          `${results.summary.highIssues} high, ` +
+          `${results.summary.mediumIssues} medium, ` +
+          `${results.summary.lowIssues} low)`
         );
+
         setUsedCache(results.fromCache || false);
-        
-        // *** Added: Firmware Analysis Placeholder ***
+
         if (includeFirmware) {
           setFirmwareMessage('Firmware/Binary Analysis is coming soon!');
         }
       } else {
+        // Possibly the repo was empty or something else
         setSuccessMessage(`Found ${results.files.length} files in repository`);
       }
 
@@ -146,10 +182,66 @@ const ScannerUI = () => {
     }
   }, [urlInput, includeFirmware]);
 
-  // Handler for GitHub Token Submission
+  // ------------------------------------------------------------------
+  // Website Scan (HTML + Scripts)
+  // ------------------------------------------------------------------
+  const [websiteUrl, setWebsiteUrl] = useState('');
+
+  const handleWebsiteScan = async () => {
+    setError(null);
+    setScanResults(null);
+    setSuccessMessage('');
+    setProgress({ current: 0, total: 0 });
+    setFirmwareMessage('');
+    setScanning(true);
+
+    try {
+      // Call the function that hits your Netlify (or other) endpoint
+      const data = await scanWebPage(websiteUrl);
+
+      // If your endpoint returns something like: { report: {...}, scriptsScanned: N, etc. }
+      setScanResults(data.report || null);
+
+      // If there's a summary with vulnerabilities, handle them similarly
+      if (data.report?.findings && data.report.summary) {
+        const { summary } = data.report;
+        setSeverityStats({
+          CRITICAL: {
+            uniqueCount: summary.criticalIssues || 0,
+            instanceCount: summary.criticalInstances || 0
+          },
+          HIGH: {
+            uniqueCount: summary.highIssues || 0,
+            instanceCount: summary.highInstances || 0
+          },
+          MEDIUM: {
+            uniqueCount: summary.mediumIssues || 0,
+            instanceCount: summary.mediumInstances || 0
+          },
+          LOW: {
+            uniqueCount: summary.lowIssues || 0,
+            instanceCount: summary.lowInstances || 0
+          }
+        });
+        setSuccessMessage(
+          `Website scan complete! Found ${summary.totalIssues || 0} potential vulnerabilities.`
+        );
+      } else {
+        setSuccessMessage('Website scan completed, but no vulnerabilities reported.');
+      }
+    } catch (err) {
+      console.error('Website scan error:', err);
+      setError(err.response?.data?.error || 'Unexpected error scanning website.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // ------------------------------------------------------------------
+  // Handle GitHub Token Submission
+  // ------------------------------------------------------------------
   const handleTokenSubmit = async (token) => {
     if (!token) return;
-
     setError(null);
 
     if (!authManager.isValidTokenFormat(token)) {
@@ -162,7 +254,7 @@ const ScannerUI = () => {
       setGithubToken(token);
       setShowTokenDialog(false);
 
-      // Trigger scan if URL is present
+      // If user was trying to scan a repo, do it now that we have a token
       if (urlInput) {
         await handleUrlScan();
       }
@@ -174,12 +266,13 @@ const ScannerUI = () => {
     }
   };
 
-  // Scroll to top handler
+  // ------------------------------------------------------------------
+  // Scroll for Back to Top button
+  // ------------------------------------------------------------------
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle scroll for back to top button
   useEffect(() => {
     const handleScroll = () => {
       setShowBackToTop(window.scrollY > 300);
@@ -188,16 +281,22 @@ const ScannerUI = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Filter results based on search and severity
+  // ------------------------------------------------------------------
+  // Filter results by search & severity
+  // ------------------------------------------------------------------
   useEffect(() => {
     if (!scanResults?.findings) return;
 
-    const filtered = scanResults.findings.filter(finding => {
-      const matchesSearch = searchQuery.toLowerCase() === '' ||
+    const filtered = scanResults.findings.filter((finding) => {
+      const matchesSearch =
+        searchQuery.toLowerCase() === '' ||
         finding.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        finding.files.some(file => file.toLowerCase().includes(searchQuery.toLowerCase()));
+        finding.files.some((file) =>
+          file.toLowerCase().includes(searchQuery.toLowerCase())
+        );
 
-      const matchesSeverity = activeSeverity === 'ALL' || finding.severity === activeSeverity;
+      const matchesSeverity =
+        activeSeverity === 'ALL' || finding.severity === activeSeverity;
 
       return matchesSearch && matchesSeverity;
     });
@@ -207,19 +306,24 @@ const ScannerUI = () => {
 
     // Group by file
     const byFile = filtered.reduce((acc, finding) => {
-      finding.files.forEach(file => {
+      finding.files.forEach((file) => {
         if (!acc[file]) acc[file] = [];
         acc[file].push(finding);
       });
       return acc;
     }, {});
 
-    setFilteredByFile(Object.entries(byFile).map(([fileName, vulns]) => ({
-      fileName,
-      vulns
-    })));
+    setFilteredByFile(
+      Object.entries(byFile).map(([fileName, vulns]) => ({
+        fileName,
+        vulns
+      }))
+    );
   }, [scanResults, searchQuery, activeSeverity]);
 
+  // ------------------------------------------------------------------
+  // Render
+  // ------------------------------------------------------------------
   return (
     <div className="p-6 bg-gray-900 text-white min-h-screen">
       <div className="max-w-4xl mx-auto">
@@ -231,26 +335,28 @@ const ScannerUI = () => {
               SecurityLens
             </span>
           </h1>
-          
+
           <p className="text-gray-300 mb-3 max-w-xl mx-auto leading-relaxed">
             An education tool for the next generation of cybersecurity professionals.
           </p>
-          
-        
-          
+
           <p className="text-gray-300 mb-3 max-w-xl mx-auto leading-relaxed">
-            Simply drag/drag or copy/paste to scan GitHub repositories, 
-            or upload local files, to scan for web vulnerabilities
-            and binary/firmware vulnerabilities.
+            Simply drag/drag or copy/paste to scan GitHub repositories,
+            or upload local files, to scan for web vulnerabilities and binary/firmware vulnerabilities.
             <br />
-            <hr className="my-4 border-gray-700" />
-            <strong>No upselling, no registration, no logins, no cookies, no ads, 
-            no tracking, no downloads, and no uploads.</strong>
           </p>
-          
+
+          {/* We move <hr> OUTSIDE the <p> to avoid the nesting warning */}
+          <hr className="my-4 border-gray-700" />
+          <p className="text-gray-300 mb-3 max-w-xl mx-auto leading-relaxed">
+            <strong>
+              No upselling, no registration, no logins, no cookies, no ads, no tracking,
+              no downloads, and no uploads.
+            </strong>
+          </p>
+
           <hr className="my-4 border-gray-700" />
 
-          {/* GitHub Link */}
           <a
             href="https://github.com/DMontgomery40/SecurityLens"
             target="_blank"
@@ -260,8 +366,6 @@ const ScannerUI = () => {
             Please Contribute Your Knowledge
           </a>
           <br />
-
-          {/* View Checks Button */}
           <button
             onClick={() => setShowVulnList(true)}
             className="mt-4 text-sm text-blue-400 hover:text-purple-400 transition-colors"
@@ -270,70 +374,72 @@ const ScannerUI = () => {
           </button>
         </div>
 
-        {/* SCAN REPO */}
-        <div className="bg-gray-800 p-8 rounded-xl shadow-lg mb-8 border border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-200 mb-6 flex items-center">
-            <svg
-              className="w-5 h-5 mr-2 text-blue-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
+        {/* SCAN REPOSITORY */}
+        <div className="bg-gray-800/50 p-4 rounded-lg mb-4">
+          <h2 className="text-lg font-semibold text-gray-200 mb-4 flex items-center">
+            <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
             Scan Repository
           </h2>
-          
-          {/* Responsive Flex Container */}
-          <div className="flex flex-col sm:flex-row gap-2">
-            {/* Input Field */}
+          <div className="flex gap-2">
             <input
               type="text"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="Enter GitHub repository URL"
-              className="w-full px-4 py-3 border border-gray-600 rounded-lg bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg 
+                        focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            
-            {/* Button */}
             <button
               onClick={handleUrlScan}
               disabled={scanning || !urlInput}
-              className={`w-full sm:w-auto px-6 py-3 rounded-lg text-white font-medium transition-all transform hover:scale-105 ${
-                scanning || !urlInput
-                  ? 'bg-gray-600 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-md'
-              }`}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 
+                        disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {scanning ? 'Scanning...' : 'Scan Repository'}
+              Scan Repository
+            </button>
+          </div>
+        </div>
+
+        {/* SCAN WEBSITE */}
+        <div className="bg-gray-800/50 p-4 rounded-lg mb-4">
+          <h2 className="text-lg font-semibold text-gray-200 mb-4 flex items-center">
+            <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M3 12h18" />
+            </svg>
+            Scan Website (HTML + Scripts)
+          </h2>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              placeholder="Enter any website URL (e.g. https://example.com)"
+              className="flex-1 px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg 
+                        focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              onClick={handleWebsiteScan}
+              disabled={scanning || !websiteUrl}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 
+                        disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Scan Website
             </button>
           </div>
         </div>
 
         {/* SCAN LOCAL FILES */}
-        <div className="bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700 mb-8">
-          <h2 className="text-xl font-semibold text-gray-200 mb-6 flex items-center">
-            <svg
-              className="w-5 h-5 mr-2 text-blue-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-              />
+        <div className="bg-gray-800/50 p-4 rounded-lg mb-4">
+          <h2 className="text-lg font-semibold text-gray-200 mb-4 flex items-center">
+            <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h5l2 2h11v10H3z" />
             </svg>
             Scan Local Files
           </h2>
-          <div className="flex justify-center">
+          <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center">
             <input
               type="file"
               id="fileInput"
@@ -343,106 +449,27 @@ const ScannerUI = () => {
             />
             <label
               htmlFor="fileInput"
-              className="group inline-flex flex-col items-center justify-center px-3 py-4 
-                       bg-gray-700 rounded-md border-2 border-dashed border-gray-600 
-                       cursor-pointer hover:bg-gray-600 transition-all 
-                       focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-center"
+              className="block cursor-pointer"
             >
-              <svg
-                className="w-12 h-12 text-gray-400 group-hover:text-blue-400 transition-colors mb-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              <p className="text-gray-300 group-hover:text-gray-100 font-medium">
-                Drag and drop files here, or click to select files
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                Supported files: .js, .jsx, .ts, .tsx, .py, etc.
-              </p>
+              <p className="text-gray-300">Drag and drop files here, or click to select files</p>
+              <p className="text-sm text-gray-500 mt-1">Supported files: .js, .jsx, .ts, .tsx, .py, etc.</p>
             </label>
           </div>
         </div>
 
-        {/* *** Added: Firmware/Binary Analysis Section *** */}
-        <div className="bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700 mb-8">
-          <h2 className="text-xl font-semibold text-gray-200 mb-6 flex items-center">
-            <svg
-              className="w-5 h-5 mr-2 text-blue-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 4v16m8-8H4"
-              />
+        {/* SCAN FIRMWARE/BINARY */}
+        <div className="bg-gray-800/50 p-4 rounded-lg mb-4">
+          <h2 className="text-lg font-semibold text-gray-200 mb-4 flex items-center">
+            <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v2m6-2v2m-3 0a3 3 0 0 0-3 3v2h6V5a3 3 0 0 0-3-3z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 9h2m10 0h2M5 15h2m10 0h2M7 9v6m10-6v6M5 12h14" />
             </svg>
             Scan Firmware/Binary <span className="text-xs text-yellow-400">(Coming Soon!)</span>
           </h2>
-          <div className="flex flex-col sm:flex-row gap-2">
-            {/* Firmware Upload Field */}
-            <input
-              type="file"
-              id="firmwareInput"
-              accept=".bin,.fw,.img,.hex" // Specify firmware file types
-              onChange={(e) => {
-                if (includeFirmware) {
-                  setFirmwareMessage('Firmware/Binary Analysis is coming soon!');
-                }
-              }}
-              className="hidden"
-            />
-            <label
-              htmlFor="firmwareInput"
-              className={`group inline-flex flex-col items-center justify-center px-3 py-4 
-                         bg-gray-700 rounded-md border-2 border-dashed border-gray-600 
-                         cursor-pointer hover:bg-gray-600 transition-all 
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 w-full text-center ${
-                           includeFirmware ? '' : 'opacity-50 cursor-not-allowed'
-                         }`}
-              onClick={(e) => {
-                if (!includeFirmware) {
-                  e.preventDefault();
-                }
-              }}
-            >
-              <svg
-                className="w-12 h-12 text-gray-400 group-hover:text-blue-400 transition-colors mb-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              <p className="text-gray-300 group-hover:text-gray-100 font-medium">
-                Drag and drop firmware files here, or click to select files
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                Supported files: .bin, .fw, .img, .hex
-              </p>
-            </label>
+          <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center">
+            <p className="text-gray-300">Drag and drop firmware files here, or click to select files</p>
+            <p className="text-sm text-gray-500 mt-1">Supported files: .bin, .fw, .img, .hex</p>
           </div>
-          {/* Display Coming Soon Message */}
-          {firmwareMessage && (
-            <Alert className="my-4" variant="default">
-              <AlertDescription>{firmwareMessage}</AlertDescription>
-            </Alert>
-          )}
         </div>
 
         {/* PROGRESS BAR */}
@@ -502,8 +529,8 @@ const ScannerUI = () => {
         {rateLimitInfo && rateLimitInfo.remaining < 10 && (
           <Alert className="my-4" variant="warning">
             <AlertDescription>
-              Rate limit: {rateLimitInfo.remaining} requests remaining.
-              Resets at {new Date(rateLimitInfo.reset * 1000).toLocaleTimeString()}
+              Rate limit: {rateLimitInfo.remaining} requests remaining. Resets at{' '}
+              {new Date(rateLimitInfo.reset * 1000).toLocaleTimeString()}
             </AlertDescription>
           </Alert>
         )}
@@ -526,9 +553,8 @@ const ScannerUI = () => {
               onRefreshRequest={handleUrlScan}
               showBackToTop={showBackToTop}
               scrollToTop={scrollToTop}
-              includeFirmware={includeFirmware} // *** Added: Pass includeFirmware to ScanResults ***
+              includeFirmware={includeFirmware}
             />
-            {/* Display Firmware Coming Soon Message */}
             {firmwareMessage && (
               <Alert className="my-4" variant="default">
                 <AlertDescription>{firmwareMessage}</AlertDescription>
@@ -537,7 +563,7 @@ const ScannerUI = () => {
           </div>
         )}
 
-        {/* GITHUB TOKEN NOTICE */}
+        {/* GITHUB TOKEN NOTICE (if no token) */}
         {!githubToken && (
           <div className="bg-gray-800 p-6 rounded-lg shadow mt-6">
             <h2 className="text-lg font-semibold text-gray-200 mb-4">GitHub Access Token</h2>
@@ -604,23 +630,21 @@ const ScannerUI = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Legal Footer */}
+      {/* FOOTER */}
       <footer className="mt-8 border-t border-gray-700 pt-8 pb-4 bg-gray-900">
         <div className="max-w-4xl mx-auto space-y-4">
-          {/* Warning Banner */}
           <div className="bg-yellow-900/50 border border-yellow-600/50 rounded-lg p-4 mb-6 text-sm text-yellow-200">
             <p>
               <strong>Notice:</strong> SecurityLens is an educational tool. Please note:
             </p>
             <ul className="list-disc pl-5 mt-2 space-y-1">
-              <li>This tool is designed for educational purposes only; SecurityLens is not intended for production uses</li>
+              <li>This tool is designed for educational purposes only</li>
               <li>Detection patterns are currently bespoke to this project</li>
-              <li>Importing patterns from semgrep, walkbin, Ghirdra, Red Canary, CrowdStrike, etc., are on the todo list</li>
-              <li>Contributions in furthering the above goal are greatly appreciated ✌️ </li>
+              <li>Integrating patterns from semgrep, walkbin, Ghirdra, etc. is on the todo list</li>
+              <li>Contributions are greatly appreciated</li>
             </ul>
           </div>
 
-          {/* Links */}
           <div className="flex justify-center space-x-6 text-sm text-gray-300">
             <button
               onClick={() => setShowTerms(true)}
@@ -650,7 +674,6 @@ const ScannerUI = () => {
             </button>
           </div>
 
-          {/* Copyright */}
           <div className="text-center text-sm text-gray-400 mt-4">
             &copy; {new Date().getFullYear()} David Montgomery. MIT License.
           </div>
@@ -672,7 +695,6 @@ const ScannerUI = () => {
             </button>
           </div>
 
-          {/* Scrollable Table */}
           <div className="max-h-[60vh] overflow-auto border rounded-md">
             <table className="w-full text-left border-collapse">
               <thead className="sticky top-0 bg-gray-900">
@@ -684,12 +706,9 @@ const ScannerUI = () => {
                 </tr>
               </thead>
               <tbody className="text-sm text-gray-300">
-                {/* Example Rows */}
                 <tr className="border-b border-gray-700">
                   <td className="py-2 px-4">Dangerous Code Execution</td>
-                  <td className="py-2 px-4">
-                    Dangerous code execution via <code>eval()</code> or Function constructor
-                  </td>
+                  <td className="py-2 px-4">Dangerous code execution via <code>eval()</code></td>
                   <td className="py-2 px-4">CRITICAL</td>
                   <td className="py-2 px-4">
                     <a
@@ -717,7 +736,6 @@ const ScannerUI = () => {
                     </a>
                   </td>
                 </tr>
-                {/* Dynamically Generate Rows from patterns */}
                 {Object.entries(patterns).map(([key, pattern]) => (
                   <tr key={key} className="border-b border-gray-700">
                     <td className="py-2 px-4">{key.replace(/([A-Z])/g, ' $1').trim()}</td>
@@ -786,26 +804,22 @@ const ScannerUI = () => {
             <p>
               By accessing and using SecurityLens, you agree to be bound by these Terms of Service.
             </p>
-
             <h3 className="font-medium">2. Service Description</h3>
             <p>
               SecurityLens is a code scanning tool that helps identify potential security vulnerabilities
               in source code. The service is provided "as is" and "as available".
             </p>
-
             <h3 className="font-medium">3. Use of Service</h3>
             <ul className="list-disc pl-5 space-y-2">
               <li>You must use the service in compliance with all applicable laws</li>
               <li>You are responsible for maintaining the security of your GitHub tokens</li>
               <li>You agree not to misuse or attempt to circumvent the service's limitations</li>
             </ul>
-
             <h3 className="font-medium">4. Limitations of Liability</h3>
             <p>
               SecurityLens and its creators are not liable for any damages arising from the use
               or inability to use the service. Scan results are provided without warranty of any kind.
             </p>
-
             <h3 className="font-medium">5. Changes to Terms</h3>
             <p>
               We reserve the right to modify these terms at any time. Continued use of the service
@@ -823,31 +837,14 @@ const ScannerUI = () => {
           </AlertDialogHeader>
           <div className="space-y-4 text-sm">
             <p>&copy; {new Date().getFullYear()} David Montgomery</p>
-            
             <p>
               Permission is hereby granted, free of charge, to any person obtaining a copy
-              of this software and associated documentation files (the "Software"), to deal
-              in the Software without restriction, including without limitation the rights
-              to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-              copies of the Software, and to permit persons to whom the Software is
-              furnished to do so, subject to the following conditions:
+              of this software and associated documentation files (the "Software"), ...
             </p>
-
             <p>
-              The above copyright notice and this permission notice shall be included in all
-              copies or substantial portions of the Software.
-            </p>
-
-            <p className="text-xs">
               THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-              IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-              FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-              AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-              LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-              OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-              SOFTWARE.
+              IMPLIED...
             </p>
-
             <div className="pt-4 border-t">
               <p>
                 Want to contribute? Visit the{' '}
@@ -872,6 +869,6 @@ const ScannerUI = () => {
       </AlertDialog>
     </div>
   );
-};
+}
 
 export default ScannerUI;

@@ -6,7 +6,7 @@ import { readFile, readdir, stat } from 'fs/promises';
 import { join, relative } from 'path';
 import VulnerabilityScanner from '../lib/scanner.js';
 
-const printReport = (report) => {
+function printReport(report) {
     console.log(chalk.bold('\nVulnerability Scan Report'));
     console.log(chalk.bold('========================'));
     
@@ -18,48 +18,70 @@ const printReport = (report) => {
         console.log(chalk.cyan(`  Resets at: ${resetTime}`));
     }
     
-    console.log(chalk.bold('\nSummary:'));
-    console.log(chalk.red(`Critical Issues: ${report.summary.criticalIssues}`));
-    console.log(chalk.yellow(`High Issues: ${report.summary.highIssues}`));
-    console.log(chalk.blue(`Medium Issues: ${report.summary.mediumIssues}`));
-    console.log(chalk.green(`Low Issues: ${report.summary.lowIssues}`));
-    console.log(chalk.white(`Total Issues: ${report.summary.totalIssues}`));
+    if (!report || !report.findings) {
+        console.log(chalk.yellow('\nNo findings to report.'));
+        return;
+    }
 
-    if (report.findings.byType) {
-        // Print findings by scanner type
-        Object.entries(report.findings.byType).forEach(([scannerType, severityFindings]) => {
-            console.log(chalk.bold(`\n${scannerType.toUpperCase()} Scanner Findings:`));
-            Object.entries(severityFindings).forEach(([severity, findings]) => {
-                if (findings.length > 0) {
-                    console.log(chalk.bold(`\n  ${severity} Severity:`));
-                    findings.forEach(finding => {
-                        console.log(chalk.bold(`\n    ${finding.type}`));
-                        console.log(`    Description: ${finding.description}`);
-                        console.log(`    File: ${finding.file}`);
-                        if (finding.lineNumbers) {
-                            console.log(`    Line(s): ${finding.lineNumbers.join(', ')}`);
-                        }
-                        if (finding.package) {
-                            console.log(`    Package: ${finding.package}`);
-                            console.log(`    Version: ${finding.version || 'unknown'}`);
-                        }
-                    });
-                }
-            });
-        });
-    } else {
-        // Legacy report format
-        Object.entries(report.findings).forEach(([severity, findings]) => {
-            if (findings.length > 0) {
-                console.log(chalk.bold(`\n${severity} Findings:`));
-                findings.forEach(finding => {
-                    console.log(chalk.bold(`\n  ${finding.type}`));
-                    console.log(`  Description: ${finding.description}`);
-                    console.log(`  File: ${finding.file}`);
-                    if (finding.lineNumbers) {
-                        console.log(`  Line(s): ${finding.lineNumbers.join(', ')}`);
-                    }
-                });
+    // Calculate summary
+    const summary = {
+        criticalIssues: 0,
+        highIssues: 0,
+        mediumIssues: 0,
+        lowIssues: 0,
+        criticalInstances: 0,
+        highInstances: 0,
+        mediumInstances: 0,
+        lowInstances: 0,
+        totalIssues: 0
+    };
+
+    // Count issues by severity
+    report.findings.forEach(finding => {
+        switch (finding.severity) {
+            case 'CRITICAL':
+                summary.criticalIssues++;
+                summary.criticalInstances += finding.instances || 1;
+                break;
+            case 'HIGH':
+                summary.highIssues++;
+                summary.highInstances += finding.instances || 1;
+                break;
+            case 'MEDIUM':
+                summary.mediumIssues++;
+                summary.mediumInstances += finding.instances || 1;
+                break;
+            case 'LOW':
+                summary.lowIssues++;
+                summary.lowInstances += finding.instances || 1;
+                break;
+        }
+        summary.totalIssues++;
+    });
+
+    // Add summary to report for front-end compatibility
+    report.summary = summary;
+
+    // Print summary
+    console.log(chalk.bold('\nSummary:'));
+    console.log(chalk.red(`Critical Issues: ${summary.criticalIssues} (${summary.criticalInstances} instances)`));
+    console.log(chalk.yellow(`High Issues: ${summary.highIssues} (${summary.highInstances} instances)`));
+    console.log(chalk.blue(`Medium Issues: ${summary.mediumIssues} (${summary.mediumInstances} instances)`));
+    console.log(chalk.green(`Low Issues: ${summary.lowIssues} (${summary.lowInstances} instances)`));
+    console.log(chalk.white(`Total Unique Issues: ${summary.totalIssues}`));
+
+    // Print detailed findings
+    if (report.findings.length > 0) {
+        console.log(chalk.bold('\nDetailed Findings:'));
+        report.findings.forEach(finding => {
+            console.log(chalk.bold(`\n${finding.type} (${finding.severity})`));
+            console.log(`Description: ${finding.description}`);
+            console.log(`File: ${finding.file}`);
+            if (finding.lineNumbers) {
+                console.log(`Line(s): ${finding.lineNumbers.join(', ')}`);
+            }
+            if (finding.instances > 1) {
+                console.log(`Instances: ${finding.instances}`);
             }
         });
     }
@@ -101,10 +123,10 @@ async function scanPath(path, scanner) {
                 fileCount++;
                 process.stdout.write(`\r${chalk.gray(`Scanning files... (${fileCount} processed)`)}`);
                 const fileFindings = await scanner.scanFile(content, relPath);
-                if (fileFindings.length > 0) {
+                if (fileFindings && fileFindings.length > 0) {
                     process.stdout.write(`\n${chalk.yellow(`Found ${fileFindings.length} issues in ${relPath}`)}\n`);
+                    findings.push(...fileFindings);
                 }
-                findings.push(...fileFindings);
             } catch (error) {
                 console.error(chalk.yellow(`\nWarning: Failed to scan ${file}: ${error.message}`));
             }
@@ -115,7 +137,9 @@ async function scanPath(path, scanner) {
         try {
             const content = await readFile(path, 'utf8');
             const fileFindings = await scanner.scanFile(content, path);
-            findings.push(...fileFindings);
+            if (fileFindings && fileFindings.length > 0) {
+                findings.push(...fileFindings);
+            }
         } catch (error) {
             throw new Error(`Failed to scan ${path}: ${error.message}`);
         }
@@ -217,10 +241,12 @@ program
                     process.stdout.write(`\r${chalk.gray(`Scanning file ${i + 1}/${files.length}: ${file.path}`)}`);
                 }
                 const fileFindings = await scanner.scanFile(file.content, file.path);
-                if (fileFindings.length > 0 && options.verbose) {
+                if (fileFindings && fileFindings.length > 0 && options.verbose) {
                     process.stdout.write(`\n${chalk.yellow(`Found ${fileFindings.length} issues in ${file.path}`)}\n`);
                 }
-                findings.push(...fileFindings);
+                if (fileFindings && fileFindings.length > 0) {
+                    findings.push(...fileFindings);
+                }
             }
             
             if (options.verbose) {

@@ -1,6 +1,9 @@
 [build]
-  functions = "netlify/functions"
-  publish = "dist"
+command = "npm run build && npm run build:functions"
+functions = "netlify/functions"
+publish = "dist"
+
+
 
 [build.environment]
   NODE_VERSION = "18"
@@ -17,6 +20,11 @@
   external_node_modules = ["@octokit/rest"]
 
 [functions.scan-repository]
+  timeout = 30
+  memory = 1024
+  node_bundler = "esbuild"
+
+[functions.scan-webpage]
   timeout = 30
   memory = 1024
   node_bundler = "esbuild"

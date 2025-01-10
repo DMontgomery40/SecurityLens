@@ -7,6 +7,12 @@ class ApiError extends Error {
 }
 
 import { authManager } from './githubAuth';
+import axios from 'axios';
+
+export async function scanWebPage(url) {
+    const response = await axios.post('/.netlify/functions/scan-webpage', {url});
+    return response.data;
+}
 
 export async function scanRepository(url) {
     try {

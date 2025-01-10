@@ -1,10 +1,22 @@
+// githubAuth.js
+
+let localStorageAvailable = true;
+try {
+  localStorage.getItem('test');
+} catch (e) {
+  localStorageAvailable = false;
+}
+
 export class GitHubAuthManager {
   constructor() {
     this.tokenKey = 'security_lens_gh_token';
-    this.token = this.loadToken();
+    this.token = localStorageAvailable ? this.loadToken() : null;
   }
 
   loadToken() {
+    // if localStorageAvailable is false, skip
+    if (!localStorageAvailable) return null;
+
     try {
       return localStorage.getItem(this.tokenKey);
     } catch (error) {
@@ -12,6 +24,9 @@ export class GitHubAuthManager {
       return null;
     }
   }
+
+  // etc...
+
 
   setToken(token) {
     try {
@@ -43,6 +58,9 @@ export class GitHubAuthManager {
   isValidTokenFormat(token) {
     return /^(ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})$/.test(token);
   }
+
+  // etc...
+
 }
 
-export const authManager = new GitHubAuthManager(); 
+export const authManager = new GitHubAuthManager();

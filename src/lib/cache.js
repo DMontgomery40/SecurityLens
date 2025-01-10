@@ -1,11 +1,23 @@
-class RepositoryCache {
-    constructor() {
-        this.CACHE_KEY = 'repo_scan_cache';
-        this.CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-        this.MAX_SIZE = 50 * 1024 * 1024; // 50MB max cache size
-        this.initializeCache();
-    }
+let localStorageAvailable = true;
+try {
+  // test if localStorage is accessible
+  localStorage.getItem('test');
+} catch (e) {
+  localStorageAvailable = false;
+}
 
+class RepositoryCache {
+  constructor() {
+    this.CACHE_KEY = 'repo_scan_cache';
+    this.CACHE_DURATION = 24 * 60 * 60 * 1000;
+    this.MAX_SIZE = 50 * 1024 * 1024;
+    this.cache = {}; // fallback in Node
+    if (localStorageAvailable) {
+      this.initializeCache();
+    } else {
+      console.log('localStorage not available; using in-memory fallback');
+    }
+  }
     initializeCache() {
         try {
             const cached = localStorage.getItem(this.CACHE_KEY);

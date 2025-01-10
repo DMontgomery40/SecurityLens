@@ -1,8 +1,8 @@
 import { Octokit } from '@octokit/core';
 import { restEndpointMethods } from '@octokit/plugin-rest-endpoint-methods';
-import { repoCache } from './cache';
-import { patterns, patternCategories, recommendations } from './patterns';
-import { authManager } from './githubAuth';
+import { repoCache } from './cache.js';
+import { patterns, patternCategories, recommendations } from './patterns/index.js';
+import { authManager } from './githubAuth.js';
 
 // Create an Octokit class with the REST plugin
 const MyOctokit = Octokit.plugin(restEndpointMethods);
@@ -75,23 +75,49 @@ class VulnerabilityScanner {
   }
 
   /**
+   * Get the default branch for a repository
+   * @private
+   */
+  async getDefaultBranch(owner, repo) {
+    try {
+      const repoData = await this.config.octokit.rest.repos.get({
+        owner,
+        repo
+      });
+      return repoData.data.default_branch;
+    } catch (error) {
+      console.error('Error fetching default branch:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get repository tree using Git Data API
    * @private
    */
   async getRepoTree(owner, repo, branch) {
     try {
-      // First get the branch reference
-      const branchRef = branch.replace('refs/heads/', '');
-      console.log(`Getting tree for branch: ${branchRef}`);
+      let targetBranch = branch;
       
-      const branchData = await this.config.octokit.rest.git.getRef({
+      // If no branch specified or branch not found, get the default branch
+      if (!targetBranch || targetBranch === 'main' || targetBranch === 'master') {
+        try {
+          targetBranch = await this.getDefaultBranch(owner, repo);
+          console.log(`Using default branch: ${targetBranch}`);
+        } catch (error) {
+          console.error('Error getting default branch:', error);
+          throw new Error(`Could not determine default branch for ${owner}/${repo}`);
+        }
+      }
+
+      // Get the commit SHA directly using the branch name
+      const { data: refData } = await this.config.octokit.rest.git.getRef({
         owner,
         repo,
-        ref: `heads/${branchRef}`
+        ref: `heads/${targetBranch}`
       });
 
-      // Get the commit SHA that the branch points to
-      const commitSha = branchData.data.object.sha;
+      const commitSha = refData.object.sha;
       console.log(`Got commit SHA: ${commitSha}`);
 
       // Get the commit to find the tree SHA
