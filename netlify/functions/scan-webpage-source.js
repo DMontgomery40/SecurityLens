@@ -64,21 +64,12 @@ export const handler = async (event) => {
         // 5. Filter out known frameworks or unwanted scripts (basic example)
         // Adjust this logic as you see fit:
         const filteredScripts = scripts.filter(script => {
-            // If inline, exclude if it clearly has 'React' or other frameworks
-            if (script.type === 'inline') {
-                const lower = script.content?.toLowerCase() || '';
-                if (lower.includes('react') || lower.includes('vue') || lower.includes('angular')) {
-                    return false;
-                }
-            }
-            // If external, you might skip known CDNs or extension domains, e.g. 'chrome-extension://'
+            const scanner = new VulnerabilityScanner();
             if (script.type === 'external') {
-                if (script.src.startsWith('chrome-extension://')) {
-                    return false;
-                }
-                // Or skip if from a known CDN, e.g. 'cdn.jsdelivr.net'
+                return !scanner.shouldIgnoreScript('', script.src);
+            } else {
+                return !scanner.shouldIgnoreScript(script.content, '');
             }
-            return true;
         });
 
         // 6. Fetch external scripts + prepare final code to pass to the scanner

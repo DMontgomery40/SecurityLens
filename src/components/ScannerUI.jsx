@@ -186,8 +186,21 @@ const ScannerUI = () => {
   // Website Scan (HTML + Scripts)
   // ------------------------------------------------------------------
   const [websiteUrl, setWebsiteUrl] = useState('');
+  const [protocol, setProtocol] = useState('https');
 
-  const handleWebsiteScan = async () => {
+  const normalizeUrl = (url) => {
+    if (!url) return '';
+    
+    // Remove any existing protocol
+    let cleanUrl = url.replace(/^(https?:\/\/)/, '');
+    
+    // Remove any trailing slashes
+    cleanUrl = cleanUrl.replace(/\/+$/, '');
+    
+    return `${protocol}://${cleanUrl}`;
+  };
+
+  const handleWebsiteScan = async (url) => {
     setError(null);
     setScanResults(null);
     setSuccessMessage('');
@@ -196,8 +209,14 @@ const ScannerUI = () => {
     setScanning(true);
 
     try {
-      // Call the function that hits your Netlify (or other) endpoint
-      const data = await scanWebPage(websiteUrl);
+      // Basic URL validation
+      const urlPattern = /^(https?:\/\/)?[a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}(\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=]*)?$/;
+      if (!urlPattern.test(url)) {
+        throw new Error('Please enter a valid website URL');
+      }
+
+      // Call the function that hits your Netlify endpoint
+      const data = await scanWebPage(url);
 
       // If your endpoint returns something like: { report: {...}, scriptsScanned: N, etc. }
       setScanResults(data.report || null);
@@ -231,7 +250,7 @@ const ScannerUI = () => {
       }
     } catch (err) {
       console.error('Website scan error:', err);
-      setError(err.response?.data?.error || 'Unexpected error scanning website.');
+      setError(err.message || 'Error scanning website. Please check the URL and try again.');
     } finally {
       setScanning(false);
     }
@@ -411,23 +430,74 @@ const ScannerUI = () => {
             </svg>
             Scan Website (HTML + Scripts)
           </h2>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={websiteUrl}
-              onChange={(e) => setWebsiteUrl(e.target.value)}
-              placeholder="Enter any website URL (e.g. https://example.com)"
-              className="flex-1 px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg 
-                        focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              onClick={handleWebsiteScan}
-              disabled={scanning || !websiteUrl}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 
-                        disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Scan Website
-            </button>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              {/* Protocol Toggle */}
+              <div className="flex items-center bg-gray-700 rounded-lg p-1">
+                <button
+                  onClick={() => setProtocol('https')}
+                  className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                    protocol === 'https'
+                      ? 'bg-blue-500 text-white'
+                      : 'text-gray-300 hover:text-white'
+                  }`}
+                >
+                  HTTPS
+                </button>
+                <button
+                  onClick={() => setProtocol('http')}
+                  className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                    protocol === 'http'
+                      ? 'bg-blue-500 text-white'
+                      : 'text-gray-300 hover:text-white'
+                  }`}
+                >
+                  HTTP
+                </button>
+              </div>
+              
+              {/* URL Input with Protocol Display */}
+              <div className="flex-1 relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  {protocol}://
+                </div>
+                <input
+                  type="text"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value.replace(/^(https?:\/\/)/, ''))}
+                  placeholder="example.com"
+                  className="w-full pl-[4.5rem] pr-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg 
+                            focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <button
+                onClick={() => {
+                  const normalizedUrl = normalizeUrl(websiteUrl);
+                  if (!websiteUrl.trim()) {
+                    setError('Please enter a website URL');
+                    return;
+                  }
+                  handleWebsiteScan(normalizedUrl);
+                }}
+                disabled={scanning || !websiteUrl.trim()}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 
+                          disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Scan Website
+              </button>
+            </div>
+            
+            {/* URL Validation Message */}
+            {websiteUrl && !websiteUrl.match(/^[a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}/) && (
+              <div className="text-yellow-400 text-sm flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Please enter a valid domain (e.g., example.com)
+              </div>
+            )}
           </div>
         </div>
 

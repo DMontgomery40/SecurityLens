@@ -7,6 +7,77 @@ import { authManager } from './githubAuth.js';
 // Create an Octokit class with the REST plugin
 const MyOctokit = Octokit.plugin(restEndpointMethods);
 
+// Add these constants near the top of the file
+const IGNORED_DOMAINS = [
+  // Analytics & Tracking
+  /google-?analytics?\.com/i,
+  /google-?tag-?manager\.com/i,
+  /google-?optimize\.com/i,
+  /gtag\/js/i,
+  /googletagmanager\.com/i,
+  /analytics?\./i,
+  /doubleclick\.net/i,
+  
+  // Framer
+  /framer\.com/i,
+  /events\.framer\.com/i,
+  
+  // HubSpot
+  /hubspot\.com/i,
+  /hs-?scripts?\.com/i,
+  /hs-?analytics\.net/i,
+  /hsadspixel\.net/i,
+  /hscollectedforms\.net/i,
+  /hs-?banner\.com/i,
+  /hubspot-web-interactives/i,
+  
+  // Other Common Third-Party Services
+  /segment\.com/i,
+  /segment\.io/i,
+  /mixpanel\.com/i,
+  /hotjar\.com/i,
+  /clarity\.ms/i,
+  /facebook\.net/i,
+  /fb\.com/i,
+  /twitter\.com/i,
+  /linkedin\.com/i,
+  /snap\.com/i,
+  /pinterest\.com/i,
+];
+
+const IGNORED_SCRIPT_CONTENT = [
+  // HubSpot Script Patterns
+  /HubSpot Script Loader/i,
+  /hs-script/i,
+  /_hsp\s*=\s*window\._hsp/i,
+  /hsq_\d+/i,
+  /data-hsjs-portal/i,
+  /data-hs-ignore/i,
+  
+  // Google Analytics/Tag Manager
+  /GoogleAnalyticsObject/i,
+  /gtag\s*\(/i,
+  /ga\s*\(\s*['"]create/i,
+  
+  // Generic Analytics/Tracking
+  /tracking-?pixel/i,
+  /pixel-?tracking/i,
+  /tag-?manager/i,
+  /analytics-?loader/i,
+  /analytics-?script/i,
+  
+  // Common Third-Party Script Patterns
+  /'UA-\d{4,10}-\d{1,4}'/i,  // Google Analytics ID pattern
+  /'G-[A-Z0-9]{10,}'/i,      // GA4 ID pattern
+  /data-pixel-id/i,
+  /clearbit/i,
+  /intercom/i,
+  /optimizely/i,
+];
+
+// Export these for use in other files if needed
+export { IGNORED_DOMAINS, IGNORED_SCRIPT_CONTENT };
+
 class VulnerabilityScanner {
   constructor(config = {}) {
     this.config = {
@@ -338,6 +409,12 @@ class VulnerabilityScanner {
    * @param {string} filePath - Path of the file
    */
   async scanFile(fileContent, filePath) {
+    // Early return if it's a third-party script
+    if (this.shouldIgnoreScript(fileContent, filePath)) {
+      console.debug('Skipping third-party script:', filePath);
+      return [];
+    }
+
     console.log(`Scanning file: ${filePath}`, {
       contentProvided: !!fileContent,
       contentLength: fileContent ? fileContent.length : 0,
@@ -533,6 +610,22 @@ class VulnerabilityScanner {
     });
 
     return Array.from(uniqueRecs).map(rec => JSON.parse(rec));
+  }
+
+  shouldIgnoreScript(content, path) {
+    // First check the path/URL against ignored domains
+    if (IGNORED_DOMAINS.some(pattern => pattern.test(path))) {
+      console.debug('Ignoring script from third-party domain:', path);
+      return true;
+    }
+
+    // Then check content against known third-party script patterns
+    if (IGNORED_SCRIPT_CONTENT.some(pattern => pattern.test(content))) {
+      console.debug('Ignoring third-party script content:', path);
+      return true;
+    }
+
+    return false;
   }
 }
 
