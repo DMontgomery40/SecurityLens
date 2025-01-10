@@ -7,25 +7,45 @@ const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 /**
  * Component to display line numbers with expandable functionality
  */
-const FileLineNumbers = ({ lines }) => {
+const FileLineNumbers = ({ vuln, file }) => {
   const [expanded, setExpanded] = React.useState(false);
-  if (lines.length <= 5) {
-    return <span className="text-gray-300">{lines.join(', ')}</span>;
+  
+  // For web scans, show the actual code
+  if (vuln.scanType === 'web' && vuln.codeLines) {
+    const visibleLines = expanded ? vuln.codeLines : vuln.codeLines.slice(0, 3);
+    return (
+      <div className="mt-2 space-y-2 bg-gray-800 p-3 rounded">
+        {visibleLines.map(({ line, code, isMinified, isHtml }) => (
+          <div key={line} className="flex items-start space-x-2">
+            <span className="text-gray-500 select-none w-12 text-right font-mono">{line}</span>
+            <pre 
+              className={`text-gray-300 overflow-x-auto font-mono text-sm whitespace-pre-wrap flex-1 ${
+                isMinified ? 'bg-gray-900/50 p-2 rounded' : ''
+              }`}
+              {...(isHtml ? { dangerouslySetInnerHTML: { __html: code } } : { children: code })}
+            />
+          </div>
+        ))}
+        {!expanded && vuln.codeLines.length > 3 && (
+          <button
+            onClick={() => setExpanded(true)}
+            className="text-blue-400 text-xs hover:underline mt-2"
+          >
+            Show {vuln.codeLines.length - 3} more lines
+          </button>
+        )}
+      </div>
+    );
   }
-  const visible = expanded ? lines : lines.slice(0, 5);
+
+  // For local/GitHub scans, show just the line numbers
+  const lines = vuln.allLineNumbers[file];
+  if (!lines || lines.length === 0) return null;
+  
   return (
-    <>
-      <span className="text-gray-300">{visible.join(', ')}</span>
-      {!expanded && (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="ml-2 text-blue-400 text-xs underline"
-        >
-          Show {lines.length - 5} more
-        </button>
-      )}
-    </>
+    <div className="mt-2">
+      <span className="text-gray-300">Lines: {lines.join(', ')}</span>
+    </div>
   );
 };
 
@@ -109,6 +129,15 @@ const VulnerabilityCard = ({ vuln }) => {
     LOW: 'bg-blue-500 text-white'
   }[vuln.severity] || 'bg-gray-500 text-white';
 
+  // Inside the recommendation section
+  const formatCodeBlock = (text) => {
+    // Use a different delimiter for code blocks, like :::
+    return text.replace(
+      /:::\s*(\w*)\n([\s\S]*?):::/g,
+      '<pre class="bg-gray-800 text-gray-200 p-3 rounded-md my-2"><code>$2</code></pre>'
+    );
+  };
+
   return (
     <div className="border border-gray-700 rounded-lg shadow-sm">
       {/* Clickable Header */}
@@ -153,11 +182,11 @@ const VulnerabilityCard = ({ vuln }) => {
                 key={`${file}-${idx}`}
                 className="file-item border border-gray-600 rounded-md mt-2"
               >
-                <summary className="px-3 py-2 bg-gray-800 rounded-md cursor-pointer">
+                <summary className="px-3 py-2 bg-gray-800 rounded-t-md cursor-pointer hover:bg-gray-700">
                   {file}
                 </summary>
-                <div className="file-content p-3 bg-gray-600 rounded-b-md text-sm text-gray-200">
-                  Lines: <FileLineNumbers lines={vuln.allLineNumbers[file]} />
+                <div className="p-3 bg-gray-700 rounded-b-md">
+                  <FileLineNumbers vuln={vuln} file={file} />
                 </div>
               </details>
             ))}
@@ -405,6 +434,39 @@ const ScanResults = ({
           </svg>
         </button>
       )}
+
+      <style>
+        {`
+          .example-block {
+            margin: 1rem 0;
+            border-radius: 0.5rem;
+            overflow: hidden;
+          }
+
+          .example-label {
+            padding: 0.5rem 1rem;
+            font-weight: 500;
+            background: rgba(0,0,0,0.2);
+          }
+
+          .code-block {
+            margin: 0;
+            padding: 1rem;
+            background: rgba(0,0,0,0.3);
+            font-family: monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+          }
+
+          .code-block.bad {
+            border-left: 4px solid #ef4444;
+          }
+
+          .code-block.good {
+            border-left: 4px solid #22c55e;
+          }
+        `}
+      </style>
     </div>
   );
 };

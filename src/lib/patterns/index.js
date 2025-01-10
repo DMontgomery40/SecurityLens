@@ -35,10 +35,9 @@ export const patterns = {
 
   commandInjection: {
     /**
-     *  - Looks for child_process.exec/spawn/fork/execFile or bare "exec("
-     *  - Avoids partial matches like “executor” or “executeStuff()”
+     * Look for exec() calls but ignore example code
      */
-    pattern: /\b(child_process\.(?:exec|spawn|execFile|fork)\s*\(|exec\s*\()/,
+    pattern: /^(?!.*\/\/.*(?:Vulnerable|Example|Safe):).*\b(child_process\.(?:exec|spawn|execFile|fork)\s*\(|exec\s*\()/gm,
     description: 'Potential command injection vulnerability',
     severity: 'CRITICAL',
     category: patternCategories.CRITICAL_EXECUTION,
@@ -147,18 +146,6 @@ export const patterns = {
     category: patternCategories.MEMORY_BUFFER,
     subcategory: '119',
     cwe: '119'
-  },
-  memoryLeak: {
-    /**
-     *  - Looks for setInterval/setTimeout with arguments that might be storing big references
-     *  - This is still broad, but at least ensures a second argument is present 
-     */
-    pattern: /\b(setInterval|setTimeout)\s*\([^,]+,\s*\d+\s*\)/,
-    description: 'Potential memory leak in timer/interval',
-    severity: 'MEDIUM',
-    category: patternCategories.MEMORY_BUFFER,
-    subcategory: '401',
-    cwe: '401'
   },
 
   // Data Protection Patterns
@@ -382,13 +369,25 @@ export const patterns = {
     cwe: '925'
   },
   outdatedDependency: {
-    pattern: /"dependencies"\s*:\s*{[^}]*}/,
+    pattern: /^(?!.*(?:```|'''|\/\/))(?:.*package\.json).*"dependencies"\s*:\s*{\s*[^}]*"[^"]+"\s*:\s*"[~^]?[0-4]\./m,
     description: 'Outdated dependencies detected in package.json',
     severity: 'MEDIUM',
     category: patternCategories.DEPENDENCY_MANAGEMENT,
     subcategory: '926',
     cwe: '926'
-  }
+  },
+  improperAuthorizationChecks: {
+    /**
+     *  - Checking “if (!req.user.isAdmin || !req.user.hasPermission) ...” 
+     *    can be ambiguous. This is a heuristic at best.
+     */
+    pattern: /if\s*\(\s*(!?req\.user\.isAdmin\s*|\s*!req\.user\.hasPermission)/,
+    description: 'Improper authorization checks allowing unauthorized access',
+    severity: 'CRITICAL',
+    category: patternCategories.ACCESS_CONTROL,
+    subcategory: '306',
+    cwe: '306'
+  }  
 };
 
 
@@ -434,36 +433,35 @@ const parsed = JSON.parse(userInput); // with validation
 
   commandInjection: {
     recommendation: `
-**Why it Matters**: Command injection vulnerabilities let attackers run arbitrary
+Why it Matters: Command injection vulnerabilities let attackers run arbitrary
 system commands, possibly taking full control of the server.
 
-**What to Do**:
-1. **Use \`execFile\`**: Prefer \`child_process.execFile()\` or \`spawn()\` with arguments, 
-   instead of \`exec()\`.
-2. **Validate User Input**: Reject or escape special characters (like ";", "&", "|").
+What to Do:
+1. Never use exec() with user input (whether via concatenation or template literals)
+2. Use child_process.execFile() or spawn() instead
+3. Pass arguments separately rather than as part of the command string
 
-**Example**:
-Instead of:
-\`\`\`javascript
-exec('ls -la ' + userInput);
-\`\`\`
-Do:
-\`\`\`javascript
-execFile('ls', ['-la', userInput], callback);
-\`\`\`
-    `,
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+exec('git ' + input)         // Don't concatenate
+exec('git ' + someVar)       // Don't use variables directly
+    </code>
+  </pre>
+
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good">
+    <code>
+execFile('git', [input])     // Pass as separate arguments
+    </code>
+  </pre>
+</div>
+`,
     references: [
       {
         title: 'CWE-77: Command Injection',
         url: 'https://cwe.mitre.org/data/definitions/77.html'
-      },
-      {
-        title: 'CAPEC-248: Command Injection',
-        url: 'https://capec.mitre.org/data/definitions/248.html'
-      },
-      {
-        title: 'CVE-2014-6271: Shellshock (Bash Command Injection)',
-        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2014-6271'
       }
     ],
     cwe: '77'
@@ -752,49 +750,6 @@ const safeBuf = Buffer.alloc(10); // zero-filled
       }
     ],
     cwe: '119'
-  },
-
-  memoryLeak: {
-    recommendation: `
-**Why it Matters**: Timers, intervals, or event listeners can cause memory leaks if references to large objects or resources are never cleared. Over time, this can degrade performance or cause application crashes.
-
-**What to Do**:
-1. **Track and Clear Intervals**: Store the return from \`setInterval\` and call \`clearInterval\` when you no longer need it.
-2. **Limit Scope**: Avoid capturing large objects in timer callbacks that persist references.
-3. **Check for Orphaned Listeners**: Remove event listeners or intervals in cleanup logic.
-
-**Example**:
-Instead of:
-\`\`\`javascript
-setInterval(() => {
-  // Some operation holding onto a big object
-}, 1000);
-\`\`\`
-Do:
-\`\`\`javascript
-const intervalId = setInterval(() => {
-  // Perform the required operation
-}, 1000);
-
-// Later, when done:
-clearInterval(intervalId);
-\`\`\`
-    `,
-    references: [
-      {
-        title: 'CWE-401: Missing Release of Memory after Effective Lifetime',
-        url: 'https://cwe.mitre.org/data/definitions/401.html'
-      },
-      {
-        title: 'CAPEC-129: Resource Depletion',
-        url: 'https://capec.mitre.org/data/definitions/129.html'
-      },
-      {
-        title: 'CVE-2019-19078 (Linux Kernel memory leak example)',
-        url: 'https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-19078'
-      }
-    ],
-    cwe: '401'
   },
 
   sensitiveData: {
@@ -1487,26 +1442,26 @@ Do:
   },
   improperAuthorizationChecks: {
     recommendation: `
-  **Why it Matters**: If authorization checks are too simplistic or missing in critical paths, attackers may access privileged functions or data without proper permissions.
-  
-  **What to Do**:
-  1. **Enforce Role/Permission Checks**: Ensure every privileged route or function verifies user roles/permissions explicitly.
-  2. **Use a Centralized Authorization Mechanism**: Avoid ad-hoc checks scattered across the code; rely on a well-tested library or framework feature.
-  3. **Validate Ownership**: For operations on user-specific data (like editing a profile), confirm the authenticated user owns the resource.
-  
-  **Example**:
-  Instead of:
-  \`\`\`javascript
-  if (req.user) {
-    doAdminStuff(); // No role/permission check
-  }
-  \`\`\`
-  Use:
-  \`\`\`json
-  if (req.user && req.user.role === 'admin') {
-    doAdminStuff();
-  }
-  \`\`\`
+**Why it Matters**: If authorization checks are too simplistic or missing in critical paths, attackers may access privileged functions or data without proper permissions.
+
+**What to Do**:
+1. **Enforce Role/Permission Checks**: Ensure every privileged route or function verifies user roles/permissions explicitly.
+2. **Use a Centralized Authorization Mechanism**: Avoid ad-hoc checks scattered across the code; rely on a well-tested library or framework feature.
+3. **Validate Ownership**: For operations on user-specific data (like editing a profile), confirm the authenticated user owns the resource.
+
+**Example**:
+Instead of:
+\`\`\`javascript
+if (req.user) {
+  doAdminStuff(); // No role/permission check
+}
+\`\`\`
+Use:
+\`\`\`javascript
+if (req.user && req.user.role === 'admin') {
+  doAdminStuff();
+}
+\`\`\`
     `,
     references: [
       {

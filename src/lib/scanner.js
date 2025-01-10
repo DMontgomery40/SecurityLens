@@ -408,7 +408,7 @@ class VulnerabilityScanner {
    * @param {string} fileContent - Content of the file
    * @param {string} filePath - Path of the file
    */
-  async scanFile(fileContent, filePath) {
+  async scanFile(fileContent, filePath, options = {}) {
     // Early return if it's a third-party script
     if (this.shouldIgnoreScript(fileContent, filePath)) {
       console.debug('Skipping third-party script:', filePath);
@@ -461,6 +461,7 @@ class VulnerabilityScanner {
 
           const regex = new RegExp(vulnInfo.pattern, 'g');
           const matches = new Set();
+          const matchInfo = new Map(); // Store match information for each line
 
           let match;
           while ((match = regex.exec(fileContent)) !== null) {
@@ -475,6 +476,13 @@ class VulnerabilityScanner {
             }
             lineNumber--;
             matches.add(lineNumber);
+            
+            // Store the match information for this line
+            matchInfo.set(lineNumber, {
+              matchText: match[0],
+              matchIndex: match.index,
+              length: match[0].length
+            });
           }
 
           if (matches.size > 0) {
@@ -487,7 +495,8 @@ class VulnerabilityScanner {
               lineNumbers: Array.from(matches).sort((a, b) => a - b),
               category: vulnInfo.category,
               subcategory: vulnInfo.subcategory,
-              cwe: vulnInfo.cwe
+              cwe: vulnInfo.cwe,
+              matchInfo: matchInfo // Add match information to finding
             });
           }
         } catch (error) {
@@ -501,6 +510,47 @@ class VulnerabilityScanner {
         subcategory: f.subcategory,
         lineCount: f.lineNumbers.length
       })));
+
+      // Add scan type to findings
+      findings.forEach(finding => {
+        finding.scanType = options.scanType || 'local';
+        
+        if (options.scanType === 'web' && options.sourceContent) {
+          const lines = options.sourceContent.split('\n');
+          finding.codeLines = finding.lineNumbers.map(lineNum => {
+            const code = lines[lineNum - 1] || '';
+            const matchDetails = finding.matchInfo.get(lineNum);
+            
+            // Check if this is likely minified code
+            if (code.length > 500) {
+              if (matchDetails) {
+                const contextSize = 50; // Characters of context to show
+                const start = Math.max(0, matchDetails.matchIndex - contextSize);
+                const end = Math.min(code.length, matchDetails.matchIndex + matchDetails.length + contextSize);
+                
+                // Extract the relevant portion and highlight the match
+                const before = code.substring(start, matchDetails.matchIndex);
+                const matched = code.substring(matchDetails.matchIndex, matchDetails.matchIndex + matchDetails.length);
+                const after = code.substring(matchDetails.matchIndex + matchDetails.length, end);
+                
+                return {
+                  line: lineNum,
+                  code: `...${before}<mark class="bg-yellow-500/20 text-white px-1 rounded">${matched}</mark>${after}...`,
+                  isMinified: true,
+                  isHtml: true
+                };
+              }
+            }
+            
+            return {
+              line: lineNum,
+              code: code.trim() || '',
+              isMinified: false,
+              isHtml: false
+            };
+          });
+        }
+      });
 
       return findings;
     } catch (error) {
@@ -529,6 +579,8 @@ class VulnerabilityScanner {
           subcategory: finding.subcategory,
           files: [],
           allLineNumbers: {},
+          codeLines: finding.codeLines,
+          scanType: finding.scanType,
           cwe: finding.cwe
         };
       }
@@ -552,6 +604,8 @@ class VulnerabilityScanner {
       subcategory: data.subcategory,
       files: data.files,
       allLineNumbers: data.allLineNumbers,
+      codeLines: data.codeLines,
+      scanType: data.scanType,
       cwe: data.cwe
     }));
 

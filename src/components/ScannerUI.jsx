@@ -209,50 +209,70 @@ const ScannerUI = () => {
     setScanning(true);
 
     try {
-      // Basic URL validation
-      const urlPattern = /^(https?:\/\/)?[a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}(\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=]*)?$/;
-      if (!urlPattern.test(url)) {
-        throw new Error('Please enter a valid website URL');
-      }
+        // Basic URL validation
+        const urlPattern = /^(https?:\/\/)?[a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}(\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=]*)?$/;
+        if (!urlPattern.test(url)) {
+            throw new Error('Please enter a valid website URL');
+        }
 
-      // Call the function that hits your Netlify endpoint
-      const data = await scanWebPage(url);
+        // Call the function that hits your Netlify endpoint
+        const data = await scanWebPage(url);
 
-      // If your endpoint returns something like: { report: {...}, scriptsScanned: N, etc. }
-      setScanResults(data.report || null);
+        // Process the raw findings and report together
+        if (data.findings && data.report) {
+            // Merge the raw findings data (which has code lines) with the processed report
+            const mergedFindings = data.report.findings.map(finding => {
+                // Find matching raw finding to get code lines
+                const rawFinding = data.findings.find(f => 
+                    f.type === finding.type && f.file === finding.files[0]
+                );
+                return {
+                    ...finding,
+                    codeLines: rawFinding?.codeLines || [],
+                    scanType: 'web'
+                };
+            });
 
-      // If there's a summary with vulnerabilities, handle them similarly
-      if (data.report?.findings && data.report.summary) {
-        const { summary } = data.report;
-        setSeverityStats({
-          CRITICAL: {
-            uniqueCount: summary.criticalIssues || 0,
-            instanceCount: summary.criticalInstances || 0
-          },
-          HIGH: {
-            uniqueCount: summary.highIssues || 0,
-            instanceCount: summary.highInstances || 0
-          },
-          MEDIUM: {
-            uniqueCount: summary.mediumIssues || 0,
-            instanceCount: summary.mediumInstances || 0
-          },
-          LOW: {
-            uniqueCount: summary.lowIssues || 0,
-            instanceCount: summary.lowInstances || 0
-          }
-        });
-        setSuccessMessage(
-          `Website scan complete! Found ${summary.totalIssues || 0} potential vulnerabilities.`
-        );
-      } else {
-        setSuccessMessage('Website scan completed, but no vulnerabilities reported.');
-      }
+            // Update the report with merged findings
+            const finalReport = {
+                ...data.report,
+                findings: mergedFindings
+            };
+
+            setScanResults(finalReport);
+
+            // Update severity stats
+            const { summary } = finalReport;
+            setSeverityStats({
+                CRITICAL: {
+                    uniqueCount: summary.criticalIssues || 0,
+                    instanceCount: summary.criticalInstances || 0
+                },
+                HIGH: {
+                    uniqueCount: summary.highIssues || 0,
+                    instanceCount: summary.highInstances || 0
+                },
+                MEDIUM: {
+                    uniqueCount: summary.mediumIssues || 0,
+                    instanceCount: summary.mediumInstances || 0
+                },
+                LOW: {
+                    uniqueCount: summary.lowIssues || 0,
+                    instanceCount: summary.lowInstances || 0
+                }
+            });
+
+            setSuccessMessage(
+                `Website scan complete! Found ${summary.totalIssues || 0} potential vulnerabilities.`
+            );
+        } else {
+            setSuccessMessage('Website scan completed, but no vulnerabilities reported.');
+        }
     } catch (err) {
-      console.error('Website scan error:', err);
-      setError(err.message || 'Error scanning website. Please check the URL and try again.');
+        console.error('Website scan error:', err);
+        setError(err.message || 'Error scanning website. Please check the URL and try again.');
     } finally {
-      setScanning(false);
+        setScanning(false);
     }
   };
 

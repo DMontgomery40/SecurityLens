@@ -9,7 +9,7 @@ class ApiError extends Error {
 import { authManager } from './githubAuth';
 import axios from 'axios';
 
-export const scanWebPage = async (url) => {
+export async function scanWebPage(url) {
     try {
         const response = await fetch('/.netlify/functions/scan-webpage-source', {
             method: 'POST',
@@ -28,7 +28,7 @@ export const scanWebPage = async (url) => {
         console.error('Error scanning webpage:', error);
         throw error;
     }
-};
+}
 
 export async function scanRepository(url) {
     try {

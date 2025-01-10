@@ -15,111 +15,129 @@ import VulnerabilityScanner from '../../src/lib/scanner.js';
  */
 
 export const handler = async (event) => {
-    // 1. Check HTTP method
-    if (event.httpMethod !== 'POST') {
+    // Add CORS headers
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    };
+
+    // Handle preflight requests
+    if (event.httpMethod === 'OPTIONS') {
         return {
-            statusCode: 405,
-            body: JSON.stringify({ error: 'Method Not Allowed' }),
+            statusCode: 204,
+            headers
         };
     }
 
     try {
-        // 2. Parse incoming body
         const { url } = JSON.parse(event.body || '{}');
         if (!url) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'No URL provided' }),
+                headers,
+                body: JSON.stringify({ error: 'No URL provided' })
             };
         }
 
-        // (Optional) Validate token, rate-limit, etc.
-        // const isValid = validateToken(event.headers.authorization);
-        // if (!isValid) return { statusCode: 401, body: JSON.stringify({ error: 'Invalid token' }) };
-        // await rateLimiter('scanWebpage', /* some user/ip identifier */);
+        console.log('Attempting to scan URL:', url);
 
-        // 3. Fetch the webpage HTML
-        const response = await axios.get(url, {
-            // A user-agent helps avoid some sites blocking default requests
-            headers: { 'User-Agent': 'SecurityLens/1.0' },
-        });
+        // Fetch the webpage
+        let response;
+        try {
+            response = await axios.get(url);
+        } catch (fetchError) {
+            console.error('Error fetching URL:', fetchError.message);
+            return {
+                statusCode: 400,
+                headers,
+                body: JSON.stringify({ 
+                    error: 'Failed to fetch URL',
+                    details: fetchError.message 
+                })
+            };
+        }
+
         const html = response.data;
+        console.log('Successfully fetched HTML, parsing scripts...');
 
-        // 4. Parse HTML with Cheerio to extract script tags
+        // Parse HTML with Cheerio
         const $ = cheerio.load(html);
+        const scripts = [];
 
         // Collect inline scripts and external script URLs
-        const scripts = [];
         $('script').each((i, elem) => {
-            const srcAttr = $(elem).attr('src');
-            if (srcAttr) {
-                // External script
-                scripts.push({ type: 'external', src: srcAttr });
+            const src = $(elem).attr('src');
+            if (src) {
+                scripts.push({ type: 'external', src });
             } else {
-                // Inline script
                 scripts.push({ type: 'inline', content: $(elem).html() });
             }
         });
 
-        // 5. Filter out known frameworks or unwanted scripts (basic example)
-        // Adjust this logic as you see fit:
-        const filteredScripts = scripts.filter(script => {
-            const scanner = new VulnerabilityScanner();
-            if (script.type === 'external') {
-                return !scanner.shouldIgnoreScript('', script.src);
-            } else {
-                return !scanner.shouldIgnoreScript(script.content, '');
-            }
-        });
-
-        // 6. Fetch external scripts + prepare final code to pass to the scanner
+        // Initialize scanner
+        const scanner = new VulnerabilityScanner({});
         const scriptContents = [];
-        for (const script of filteredScripts) {
+
+        // Process scripts
+        for (const script of scripts) {
             if (script.type === 'inline') {
-                scriptContents.push({ filename: 'inline-script', content: script.content });
+                scriptContents.push({ 
+                    filename: 'inline-script', 
+                    content: script.content 
+                });
             } else {
-                // external script -> fetch content
                 try {
-                    // Convert relative paths to absolute if needed
                     const absoluteUrl = new URL(script.src, url).href;
-                    const externalResp = await axios.get(absoluteUrl);
-                    scriptContents.push({ filename: absoluteUrl, content: externalResp.data });
+                    const scriptResponse = await axios.get(absoluteUrl);
+                    scriptContents.push({ 
+                        filename: absoluteUrl, 
+                        content: scriptResponse.data 
+                    });
                 } catch (err) {
-                    // If fail to fetch, skip or log an error
-                    console.error(`Failed fetching script at ${script.src}:`, err.message);
+                    console.error(`Failed to fetch script: ${script.src}`, err);
                 }
             }
         }
 
-        // 7. Use your VulnerabilityScanner to scan each script’s content
-        const scanner = new VulnerabilityScanner({});
+        // Scan scripts
         const allFindings = [];
         for (const { filename, content } of scriptContents) {
             try {
-                const fileFindings = await scanner.scanFile(content, filename);
+                const fileFindings = await scanner.scanFile(content, filename, { 
+                    scanType: 'web',
+                    sourceContent: content
+                });
                 allFindings.push(...fileFindings);
             } catch (err) {
-                console.error(`Error scanning script ${filename}`, err.message);
+                console.error(`Error scanning script ${filename}`, err);
             }
         }
 
-        // 8. Build a final report (assuming your scanner has generateReport, etc.)
+        // Generate report
         const report = scanner.generateReport(allFindings);
 
-        // Return successful response
         return {
             statusCode: 200,
+            headers,
             body: JSON.stringify({
                 message: 'Scan complete',
                 scriptsScanned: scriptContents.length,
                 report,
-            }),
+                findings: allFindings
+            })
         };
+
     } catch (err) {
         console.error('Scan error:', err);
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: 'Internal server error' }),
+            headers,
+            body: JSON.stringify({ 
+                error: 'Internal server error',
+                details: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            })
         };
     }
-}
+};
