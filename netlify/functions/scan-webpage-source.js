@@ -1,13 +1,6 @@
-// netlify/functions/scan-webpage-source.mjs
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import VulnerabilityScanner from '../../src/lib/scanner.js';
-
-// Utilities (if you need them):
-// import validateToken from './utils/validate-token.js';
-// import rateLimiter from './utils/rateLimiter.js';
-// import secureToken from './utils/secureToken.js';
-
 /**
  * Netlify serverless function to scan an arbitrary webpage URL.
  * 
