@@ -1,80 +1,118 @@
-# SecurityLens 
-An open-source security analysis platform for education and vulnerability discovery.
+# SecurityLens
+[//]: # (01001000 01101001 01101110 01110100 00111010 00100000 01000011 01101000 01100101 01100011 01101011 00100000 01110100 01101000 01100101 00100000 01100110 01101111 01101111 01110100 01100101 01110010)
+**Because everyone should be able to explore cybersecurity—no fancy tools or gatekeeping required.**
 
-https://securitylens.io/
+> **Your Journey into Security Starts Here!**  
+<!-- Looking for secrets? Try reading between the lines... -->
 
-![SecurityLens Screenshot](/assets/security-lens-screenshot.png)
+> Ever wondered how hackers find vulnerabilities? Want to learn how to protect websites and apps? You're in the right place! Drop in your code or website, and let's discover security together in a way that’s fun, practical, and *totally* beginner-friendly.
 
-## Current Features
+---
 
-- Static code analysis for common security vulnerabilities
-- Pattern-based vulnerability detection
-- Detailed explanations and recommendations
-- Detection of 32 vulnerabilities (full list and detection pattern below)
-- View by Severity Level, further filter by Vulnerability Type or File
+## What is SecurityLens?
+[//]: # (Hint 2: URLs aren't just for websites...)
 
-## Detected Vulnerabilities
+SecurityLens is an educational tool designed to **bridge the gap** between curious minds and real-world security concepts. No need for advanced command-line skills or pricey security suites. If you can paste a link or drag a file, you’re good to go!
 
-Below is the list of vulnerabilities that **SecurityLens** scans for:
+### Why This Matters
+- **Security should be accessible**: Tools like Kali Linux or Burp Suite can feel daunting to a newcomer.
+- **Hands-on learning**: We believe you learn better by *trying* things, not just reading about them.
+- **Next-gen security pros**: We need more people (of all ages!) excited about protecting digital spaces.
 
-| **Vulnerability**                           | **Description**                                                                                   | **Severity** | **CWE**   |
-|---------------------------------------------|---------------------------------------------------------------------------------------------------|--------------|-----------|
-| **Dangerous Code Execution**                | Dangerous code execution via `eval()` or Function constructor                                   | CRITICAL     | CWE-95    |
-| **Command Injection**                       | Potential command injection vulnerability                                                        | CRITICAL     | CWE-77    |
-| **Authentication Bypass**                   | Authentication bypass or missing authentication                                                 | CRITICAL     | CWE-306   |
-| **Hardcoded Credentials**                   | Hardcoded credentials detected                                                                    | CRITICAL     | CWE-798   |
-| **SQL Injection**                           | Potential SQL injection vulnerability                                                            | CRITICAL     | CWE-89    |
-| **Cross-site Scripting (XSS)**              | Cross-site scripting vulnerability                                                               | HIGH         | CWE-79    |
-| **NoSQL Injection**                         | Potential NoSQL injection vulnerability                                                          | CRITICAL     | CWE-943   |
-| **Weak Cryptographic Hash**                 | Use of weak cryptographic hash function                                                          | HIGH         | CWE-326   |
-| **Deprecated Cryptographic Functions**      | Use of deprecated cryptographic functions                                                        | HIGH         | CWE-927   |
-| **Unsafe Buffer Allocation**                | Unsafe buffer allocation                                                                          | HIGH         | CWE-119   |
-| **Memory Leak in Timer/Interval**           | Potential memory leak in timer/interval                                                           | MEDIUM       | CWE-401   |
-| **Sensitive Data Exposure**                 | Sensitive data exposure                                                                           | HIGH         | CWE-200   |
-| **Insecure Data Transmission**              | Potential insecure data transmission                                                              | MEDIUM       | CWE-319   |
-| **Sensitive Information in Errors**         | Potential sensitive information in error messages                                                | MEDIUM       | CWE-209   |
-| **Insecure Direct Object Reference (IDOR)**  | Potential Insecure Direct Object Reference (IDOR)                                                 | HIGH         | CWE-639   |
-| **Improper Authorization Checks**           | Improper authorization checks allowing unauthorized access                                       | CRITICAL     | CWE-306   |
-| **Path Traversal**                          | Potential path traversal vulnerability                                                           | HIGH         | CWE-23    |
-| **Unsanitized Input Usage**                 | Unsanitized user input used in sensitive operations                                              | HIGH         | CWE-932   |
-| **Open Redirect**                           | Potential open redirect vulnerability                                                             | MEDIUM       | CWE-601   |
-| **Resource Leak**                           | Potential resource leak due to synchronous file operations                                       | MEDIUM       | CWE-399   |
-| **Session Fixation**                        | Potential session fixation vulnerability allowing attacker to set session ID                      | HIGH         | CWE-384   |
-| **Insecure Session Storage**                | Insecure session storage without secure flags                                                     | HIGH         | CWE-925   |
-| **Server-Side Request Forgery (SSRF)**      | Potential SSRF vulnerability from user-supplied input in request calls                           | CRITICAL     | CWE-918   |
-| **Insecure API Setup**                      | Potential insecure API setup without proper authentication middleware                             | HIGH         | CWE-921   |
-| **JWT in URL**                              | JWT token present in URL instead of headers                                                        | HIGH         | CWE-922   |
-| **Token in URL**                            | Authentication token present in URL parameters                                                    | HIGH         | CWE-923   |
-| **Weak Rate Limiting**                      | Potentially weak rate limiting configuration in API setup                                         | MEDIUM       | CWE-924   |
-| **Missing or Misconfigured CORS**           | Missing or misconfigured CORS in API setup                                                        | MEDIUM       | CWE-925   |
-| **Insecure Middleware Setup**               | Insecure middleware setup allowing unauthorized access                                            | HIGH         | CWE-926   |
-| **Vulnerable Dependencies**                 | Vulnerable dependencies detected in `package.json`                                                | HIGH         | CWE-925   |
-| **Outdated Dependencies**                   | Outdated dependencies detected in `package.json`                                                  | MEDIUM       | CWE-926   |
+---
+
+## How It Works
+
+1. **Scan a GitHub Repo**: Paste in the URL of an open-source project or your personal repo.
+2. **Check a Live Website**: Curious if a site has potential issues? Enter the address—no special setup needed.
+3. **Analyze Local Code**: Drag and drop files from your machine to see what might be lurking in your own projects.
+4. **Firmware/Binary (Coming Soon!)**: We’re working on a mini-lab approach to help you peek inside binaries without advanced tools.
+
+---
+
+## Understanding Your Discoveries
+
+When you run a scan, you’ll see potential issues sorted by **severity**:
+
+- **CRITICAL**:  
+  Whoa! Immediate attention needed—like leaving your front door wide open!  
+- **HIGH**:  
+  Serious stuff—like a weak lock that a determined intruder could easily crack.  
+- **MEDIUM**:  
+  Worth fixing—think of it as upgrading old locks to sturdier ones.  
+- **LOW**:  
+  Good practice—like adding a camera to an already secure house. Always nice to have.
+
+Each finding includes a quick explanation of **why** it matters, some **code examples**, multipe **references** to learn more,and **tips** to fix it—so you can learn and apply that knowledge going forward.
+
+---
+
+## Pro Tips for Young Security Researchers
+
+- **Look deeper**: Don’t just stop at the first warning. Real security experts always ask *“Why?”*  
+- **Examine the code**: Our examples show you *exactly* where vulnerabilities might lurk.  
+- **Explore solutions**: We provide “safe” snippets or pointers to help you patch issues effectively.  
+- **No gatekeeping**: If you don’t know a term, no worries! That’s why we’re here—to make it clear and approachable.
+
+---
+
+## Quick Start (Local Dev)
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/DMontgomery40/SecurityLens.git
+
+# 2. Install dependencies
+npm install
+
+# 3. Run the development server
+npm run dev
+
+# 4. Build for production
+npm run build
+```
+
+Open the app in your browser, and you’re off to the races. No advanced CLI wizardry needed—just your curiosity!
+
+---
 
 ## Roadmap
 
-### Phase 1 (Current)
-{: .no_toc }
+### Now
+- Basic vulnerability scanning  
+- Educational how-to-fix guides  
+- GitHub integration  
 
-- [x] Basic vulnerability scanning
-- [x] CVE database integration
-- [ ] Dependency vulnerability checking
+### Up Next
+- Firmware/binary scanning in a mini-lab environment  
+- Interactive tutorials & challenges  
+- More advanced patterns & “cheat codes” for security  
 
-### Phase 2 (Future)
-{: .no_toc }
+---
 
-- [ ] Binary analysis capabilities
-- [ ] Integration with reverse engineering tools
-- [ ] Interactive learning modules
+## Contributing & Community
 
-### Phase 3 (Long-term)
-{: .no_toc }
+We want your input—whether you’re a seasoned dev or just got your first “Hello, World!”:
 
-- [ ] Collaborative analysis features
-- [ ] Integration with additional security tools
-- [ ] Advanced binary analysis
+- Have ideas for new vulnerability checks? Let us know!  
+- Found a bug? [Open an issue](https://github.com/DMontgomery40/SecurityLens/issues).  
+- Want to make it better? PRs welcome.
 
-## Current Results Page Example
+Check out our [CONTRIBUTING.md](CONTRIBUTING.md) for more on how to get involved.
 
-![SecurityLens Screenshot](/assets/security-lens-screenshot-2.png)
-{: .text-center }
+---
+
+## License
+
+Distributed under the [MIT License](LICENSE). Because knowledge—and security—should be free for everyone.
+
+---
+
+<p align="center">
+  Built by people who remember what it's like to be beginners, 
+  for the next generation of security heroes.
+</p>  
+
+[//]: # (https://securitylens.io/decode?secret=)
+
+[//]: # (Q29uZ3JhdHMhIFlvdSd2ZSBmb3VuZCB0aGUgc2VjcmV0IG1lc3NhZ2UuIFlvdSdyZSB0aGlua2luZyBsaWtlIGEgc2VjdXJpdHkgcmVzZWFyY2hlciBhbHJlYWR5ISA8MyBLZWVwIGV4cGxvcmluZy4uLg==)
