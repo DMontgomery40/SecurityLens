@@ -1,5 +1,6 @@
 import React from 'react';
 import { patterns, patternCategories, recommendations } from '../lib/patterns';
+import { Shield } from 'lucide-react';
 
 // Severity sort order
 const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
@@ -114,7 +115,7 @@ const FloatingNav = ({ activeSeverity, setActiveSeverity, severityStats }) => (
 /**
  * Vulnerability Card Component
  */
-const VulnerabilityCard = ({ vuln }) => {
+const VulnerabilityCard = ({ vuln, onViewProtection }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
 
   // Retrieve recommendation and references
@@ -272,6 +273,15 @@ const VulnerabilityCard = ({ vuln }) => {
           )}
         </div>
       )}
+
+      {/* Add mobile protection guide button */}
+      <button 
+        className="lg:hidden mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+        onClick={() => onViewProtection(vuln)}
+      >
+        <Shield className="w-4 h-4" />
+        View Protection Guide
+      </button>
     </div>
   );
 };
@@ -291,7 +301,8 @@ const ScanResults = ({
   onRefreshRequest,
   showBackToTop,
   scrollToTop,
-  includeFirmware // *** Added: Include Firmware Prop ***
+  includeFirmware,
+  onViewProtection
 }) => {
   return (
     <div className="mt-8 relative">
@@ -379,7 +390,11 @@ const ScanResults = ({
           filteredByType.length ? (
             <div className="space-y-4">
               {filteredByType.map((vuln, idx) => (
-                <VulnerabilityCard key={idx} vuln={vuln} />
+                <VulnerabilityCard 
+                  key={idx} 
+                  vuln={vuln} 
+                  onViewProtection={onViewProtection} 
+                />
               ))}
             </div>
           ) : (
@@ -394,7 +409,7 @@ const ScanResults = ({
                 <h3 className="text-lg font-semibold mb-3 text-gray-100">{fileName}</h3>
                 <div className="space-y-4">
                   {vulns.map((v, idx) => (
-                    <VulnerabilityCard key={idx} vuln={v} />
+                    <VulnerabilityCard key={idx} vuln={v} onViewProtection={onViewProtection} />
                   ))}
                 </div>
               </div>
