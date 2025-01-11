@@ -18,7 +18,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: undefined,
-      }
+      },
+      external: ['axios'],
+    },
+    commonjsOptions: {
+      esmExternals: true,
     }
   },
   resolve: {
