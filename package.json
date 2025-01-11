@@ -43,7 +43,8 @@
     "semver": "^7.6.3",
     "simple-git": "^3.27.0",
     "tailwind-merge": "1.14.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "axios": "^1.6.0"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",

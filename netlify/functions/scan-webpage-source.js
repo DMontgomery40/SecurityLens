@@ -1,5 +1,5 @@
 // netlify/functions/scan-webpage-source.mjs
-import axios from 'axios';
+import axios from 'https://esm.sh/axios';
 import * as cheerio from 'cheerio';
 import VulnerabilityScanner from '../../src/lib/scanner.js';
 
