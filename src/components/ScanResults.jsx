@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { patterns, patternCategories, recommendations } from '../lib/patterns';
 import { Shield } from 'lucide-react';
 
@@ -10,39 +10,49 @@ const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
  */
 const FileLineNumbers = ({ vuln, file }) => {
   const [expanded, setExpanded] = React.useState(false);
-  
-  // For web scans, show the actual code
-  if (vuln.scanType === 'web' && vuln.codeLines) {
-    const visibleLines = expanded ? vuln.codeLines : vuln.codeLines.slice(0, 3);
+
+  // Safely handle codeLines
+  const codeLinesArray = Array.isArray(vuln.codeLines) ? vuln.codeLines : [];
+
+  // If we have code lines (web scans, local scans, or repo scans that actually included lines)
+  if (codeLinesArray.length > 0) {
+    const visibleLines = expanded ? codeLinesArray : codeLinesArray.slice(0, 3);
+
     return (
       <div className="mt-2 space-y-2 bg-gray-800 p-3 rounded">
         {visibleLines.map(({ line, code, isMinified, isHtml }) => (
           <div key={line} className="flex items-start space-x-2">
-            <span className="text-gray-500 select-none w-12 text-right font-mono">{line}</span>
+            <span className="text-gray-500 select-none w-12 text-right font-mono">
+              {line}
+            </span>
             <pre 
               className={`text-gray-300 overflow-x-auto font-mono text-sm whitespace-pre-wrap flex-1 ${
                 isMinified ? 'bg-gray-900/50 p-2 rounded' : ''
               }`}
-              {...(isHtml ? { dangerouslySetInnerHTML: { __html: code } } : { children: code })}
+              {...(isHtml
+                ? { dangerouslySetInnerHTML: { __html: code } }
+                : { children: code }
+              )}
             />
           </div>
         ))}
-        {!expanded && vuln.codeLines.length > 3 && (
+        {!expanded && codeLinesArray.length > 3 && (
           <button
             onClick={() => setExpanded(true)}
             className="text-blue-400 text-xs hover:underline mt-2"
           >
-            Show {vuln.codeLines.length - 3} more lines
+            Show {codeLinesArray.length - 3} more lines
           </button>
         )}
       </div>
     );
   }
 
-  // For local/GitHub scans, show just the line numbers
-  const lines = vuln.allLineNumbers[file];
-  if (!lines || lines.length === 0) return null;
-  
+  // Otherwise, if we have standard line numbers from allLineNumbers (local/GitHub) but no code content:
+  const lines = vuln.allLineNumbers?.[file];
+  if (!lines || lines.length === 0) {
+    return null;
+  }
   return (
     <div className="mt-2">
       <span className="text-gray-300">Lines: {lines.join(', ')}</span>
@@ -89,7 +99,7 @@ const FloatingNav = ({ activeSeverity, setActiveSeverity, severityStats }) => (
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          setActiveSeverity(activeSeverity === sev ? 'ALL' : sev);
+          setActiveSeverity(prev => (prev === sev ? 'ALL' : sev));
         }}
         className={`flex items-center gap-2 px-3 py-2 rounded-md w-full mb-1 last:mb-0 transition-colors ${
           activeSeverity === sev ? 'bg-gray-700' : 'hover:bg-gray-600'
@@ -115,12 +125,40 @@ const FloatingNav = ({ activeSeverity, setActiveSeverity, severityStats }) => (
 /**
  * Vulnerability Card Component
  */
-const VulnerabilityCard = ({ vuln, onViewProtection }) => {
+const VulnerabilityCard = ({ vuln, onViewProtection, id, isMobile }) => {
+  const cardRef = useRef(null);
   const [isExpanded, setIsExpanded] = React.useState(false);
+
+  useEffect(() => {
+    // Only run IntersectionObserver if desktop
+    if (!cardRef.current || isMobile) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            // When the card is visible, update the info panel position if needed
+            const infoPanel = document.getElementById('infoPanel');
+            if (infoPanel) {
+              const cardTop = entry.boundingClientRect.top;
+              infoPanel.style.top = `${Math.max(16, cardTop)}px`;
+            }
+          }
+        });
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '-16px 0px 0px 0px'
+      }
+    );
+
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, [isMobile]);
 
   // Retrieve recommendation and references
   const rec = recommendations[vuln.type];
-  const matchedPattern = patterns[vuln.type] ? patterns[vuln.type].pattern.toString() : '';
+  const matchedPattern = patterns[vuln.type]?.pattern.toString() || '';
 
   // Style severity badge based on severity
   const severityBadge = {
@@ -130,7 +168,7 @@ const VulnerabilityCard = ({ vuln, onViewProtection }) => {
     LOW: 'bg-blue-500 text-white'
   }[vuln.severity] || 'bg-gray-500 text-white';
 
-  // Inside the recommendation section
+  // Format code blocks in recommendation text
   const formatCodeBlock = (text) => {
     // Use a different delimiter for code blocks, like :::
     return text.replace(
@@ -140,33 +178,57 @@ const VulnerabilityCard = ({ vuln, onViewProtection }) => {
   };
 
   return (
-    <div className="border border-gray-700 rounded-lg shadow-sm">
-      {/* Clickable Header */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full p-4 text-left flex items-center justify-between bg-gray-800 hover:bg-gray-700 transition-colors"
-      >
-        <div className="flex-1">
-          <span className={`text-xs font-semibold py-1 px-2 rounded-full uppercase ${severityBadge}`}>
-            {vuln.severity}
-          </span>
-          <h3 className="text-lg font-medium mt-2">{vuln.description}</h3>
-          <div className="text-sm text-gray-400 mt-1">
-            Found in {vuln.files.length} file(s)
+    <div 
+      ref={cardRef}
+      id={id} 
+      className="border border-gray-700 rounded-lg shadow-sm"
+    >
+      {/* Header Section with Title and Protection Guide */}
+      <div className="p-4 bg-gray-800">
+        {/* Severity and Title Row */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <span className={`text-xs font-semibold py-1 px-2 rounded-full uppercase ${severityBadge}`}>
+              {vuln.severity}
+            </span>
+            <h3 className="text-lg font-medium mt-2">{vuln.description}</h3>
+            <div className="text-sm text-gray-400 mt-1">
+              Found in {vuln.files.length} file(s)
+            </div>
           </div>
+          
+          {/* Protection Guide Button */}
+          <button 
+            className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 whitespace-nowrap"
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent expanding card when clicking button
+              onViewProtection(vuln);
+            }}
+          >
+            <Shield className="w-4 h-4" />
+            View Guide
+          </button>
         </div>
-        <svg
-          className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+
+        {/* Expand/Collapse Button */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full flex items-center justify-center text-gray-400 hover:text-gray-300"
         >
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </button>
+          <span className="text-sm mr-2">{isExpanded ? 'Show Less' : 'Show More'}</span>
+          <svg
+            className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+      </div>
 
       {/* Expandable Content */}
       {isExpanded && (
@@ -209,7 +271,10 @@ const VulnerabilityCard = ({ vuln, onViewProtection }) => {
                   // Handle code blocks - extract content between ``` marks
                   const codeMatch = section.match(/```[\w]*\n([\s\S]*?)```/);
                   return codeMatch ? (
-                    <pre key={index} className="bg-gray-800 text-gray-200 p-3 rounded-md my-2 overflow-x-auto">
+                    <pre
+                      key={index}
+                      className="bg-gray-800 text-gray-200 p-3 rounded-md my-2 overflow-x-auto"
+                    >
                       <code>{codeMatch[1].trim()}</code>
                     </pre>
                   ) : null;
@@ -257,12 +322,12 @@ const VulnerabilityCard = ({ vuln, onViewProtection }) => {
                   <pre className="bg-gray-800 p-2 text-xs text-gray-200 rounded overflow-auto">
                     {matchedPattern}
                   </pre>
-                  {vuln.category || vuln.subcategory ? (
+                  {(vuln.category || vuln.subcategory) && (
                     <p className="text-xs text-gray-400 mt-2">
                       Category: {Object.keys(patternCategories).find(k => patternCategories[k] === vuln.category)} ({vuln.category})<br />
                       Subcategory: {vuln.subcategory}
                     </p>
-                  ) : null}
+                  )}
                 </div>
               )}
             </div>
@@ -273,15 +338,6 @@ const VulnerabilityCard = ({ vuln, onViewProtection }) => {
           )}
         </div>
       )}
-
-      {/* Add mobile protection guide button */}
-      <button 
-        className="lg:hidden mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-        onClick={() => onViewProtection(vuln)}
-      >
-        <Shield className="w-4 h-4" />
-        View Protection Guide
-      </button>
     </div>
   );
 };
@@ -302,20 +358,21 @@ const ScanResults = ({
   showBackToTop,
   scrollToTop,
   includeFirmware,
+  isMobile,
   onViewProtection
 }) => {
   return (
     <div className="mt-8 relative">
       <div className="bg-gray-900 p-6 rounded-lg shadow-lg border border-gray-700">
-        {/* *** Added: Firmware/Binary Analysis Filter *** */}
+        {/* Firmware/Binary Analysis Filter (not functional) */}
         <div className="flex items-center mb-6">
           <label className="flex items-center">
             <input
               type="checkbox"
               checked={includeFirmware}
-              onChange={(e) => {} /* Handle firmware filter change if needed */}
+              onChange={() => {} /* No-op */}
               className="form-checkbox h-4 w-4 text-blue-600"
-              disabled // Disable for now since functionality is not implemented
+              disabled
             />
             <span className="ml-2 text-gray-300">Include Firmware/Binary Analysis</span>
           </label>
@@ -331,7 +388,9 @@ const ScanResults = ({
               count={severityStats[sev].uniqueCount}
               totalInstances={severityStats[sev].instanceCount}
               isActive={activeSeverity === sev}
-              onClick={() => setActiveSeverity(activeSeverity === sev ? 'ALL' : sev)}
+              onClick={() =>
+                setActiveSeverity(activeSeverity === sev ? 'ALL' : sev)
+              }
             />
           ))}
         </div>
@@ -354,12 +413,14 @@ const ScanResults = ({
           </div>
         )}
 
-        {/* Toggle Buttons */}
+        {/* Toggle Buttons (View by Type vs. File) */}
         <div className="flex gap-1 bg-gray-800 rounded-md p-1 w-fit mb-4">
           <button
             onClick={() => setViewMode('type')}
             className={`px-4 py-2 text-sm rounded ${
-              viewMode === 'type' ? 'bg-gray-700 text-white font-medium' : 'bg-gray-800 text-gray-300'
+              viewMode === 'type'
+                ? 'bg-gray-700 text-white font-medium'
+                : 'bg-gray-800 text-gray-300'
             }`}
           >
             View by Vulnerability Type
@@ -367,7 +428,9 @@ const ScanResults = ({
           <button
             onClick={() => setViewMode('file')}
             className={`px-4 py-2 text-sm rounded ${
-              viewMode === 'file' ? 'bg-gray-700 text-white font-medium' : 'bg-gray-800 text-gray-300'
+              viewMode === 'file'
+                ? 'bg-gray-700 text-white font-medium'
+                : 'bg-gray-800 text-gray-300'
             }`}
           >
             View by File
@@ -391,9 +454,11 @@ const ScanResults = ({
             <div className="space-y-4">
               {filteredByType.map((vuln, idx) => (
                 <VulnerabilityCard 
-                  key={idx} 
-                  vuln={vuln} 
-                  onViewProtection={onViewProtection} 
+                  key={idx}
+                  vuln={vuln}
+                  onViewProtection={onViewProtection}
+                  id={`vuln-${vuln.type}-${vuln.files[0]}`}
+                  isMobile={isMobile}
                 />
               ))}
             </div>
@@ -405,11 +470,19 @@ const ScanResults = ({
         ) : filteredByFile.length ? (
           <div className="space-y-4">
             {filteredByFile.map(({ fileName, vulns }) => (
-              <div key={fileName} className="border border-gray-700 rounded-lg p-4 bg-gray-800">
+              <div
+                key={fileName}
+                className="border border-gray-700 rounded-lg p-4 bg-gray-800"
+              >
                 <h3 className="text-lg font-semibold mb-3 text-gray-100">{fileName}</h3>
                 <div className="space-y-4">
                   {vulns.map((v, idx) => (
-                    <VulnerabilityCard key={idx} vuln={v} onViewProtection={onViewProtection} />
+                    <VulnerabilityCard
+                      key={idx}
+                      vuln={v}
+                      onViewProtection={onViewProtection}
+                      isMobile={isMobile}
+                    />
                   ))}
                 </div>
               </div>
@@ -422,7 +495,7 @@ const ScanResults = ({
         )}
       </div>
 
-      <FloatingNav 
+      <FloatingNav
         activeSeverity={activeSeverity}
         setActiveSeverity={setActiveSeverity}
         severityStats={severityStats}
@@ -457,13 +530,11 @@ const ScanResults = ({
             border-radius: 0.5rem;
             overflow: hidden;
           }
-
           .example-label {
             padding: 0.5rem 1rem;
             font-weight: 500;
             background: rgba(0,0,0,0.2);
           }
-
           .code-block {
             margin: 0;
             padding: 1rem;
@@ -472,11 +543,9 @@ const ScanResults = ({
             font-size: 0.9rem;
             overflow-x: auto;
           }
-
           .code-block.bad {
             border-left: 4px solid #ef4444;
           }
-
           .code-block.good {
             border-left: 4px solid #22c55e;
           }

@@ -57,6 +57,9 @@ const ScannerUI = () => {
   const [includeFirmware, setIncludeFirmware] = useState(false);
   const [firmwareMessage, setFirmwareMessage] = useState('');
 
+  // We'll define isMobile here, so we can pass it down
+  const isMobile = window.innerWidth < 1024;
+
   // ------------------------------------------------------------------
   // File Upload (Local)
   // ------------------------------------------------------------------
@@ -191,6 +194,7 @@ const ScannerUI = () => {
   // ------------------------------------------------------------------
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [protocol, setProtocol] = useState('https');
+  const [port, setPort] = useState('');
 
   const normalizeUrl = (url) => {
     if (!url) return '';
@@ -198,10 +202,39 @@ const ScannerUI = () => {
     // Remove any existing protocol
     let cleanUrl = url.replace(/^(https?:\/\/)/, '');
     
-    // Remove any trailing slashes
-    cleanUrl = cleanUrl.replace(/\/+$/, '');
+    // Split URL into host and path parts (if any)
+    const [hostPart, ...pathParts] = cleanUrl.split('/');
     
-    return `${protocol}://${cleanUrl}`;
+    // Split host into hostname and port (if any)
+    const [hostname, existingPort] = hostPart.split(':');
+    
+    // Use existing port if present, otherwise use the port state
+    const portNumber = existingPort || port;
+    
+    // Reconstruct the URL
+    let normalizedUrl = `${protocol}://${hostname}`;
+    if (portNumber) {
+      normalizedUrl += `:${portNumber}`;
+    }
+    if (pathParts.length > 0) {
+      normalizedUrl += '/' + pathParts.join('/');
+    }
+    
+    return normalizedUrl;
+  };
+
+  const isValidUrlOrIp = (input) => {
+    const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+    const domainRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const hostWithPortRegex = /^[a-zA-Z0-9.-]+:\d+$/;
+    const ipWithPortRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/;
+    
+    return ipRegex.test(input) || 
+           domainRegex.test(input) || 
+           hostWithPortRegex.test(input) || 
+           ipWithPortRegex.test(input) ||
+           input.split('/')[0].match(ipRegex) ||  // IP with path
+           input.split('/')[0].match(ipWithPortRegex); // IP:port with path
   };
 
   const handleWebsiteScan = async (url) => {
@@ -213,70 +246,64 @@ const ScannerUI = () => {
     setScanning(true);
 
     try {
-        // Basic URL validation
-        const urlPattern = /^(https?:\/\/)?[a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}(\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=]*)?$/;
-        if (!urlPattern.test(url)) {
-            throw new Error('Please enter a valid website URL');
-        }
+      // Call the function that hits your Netlify endpoint
+      const data = await scanWebPage(url);
 
-        // Call the function that hits your Netlify endpoint
-        const data = await scanWebPage(url);
+      // Process the raw findings and report together
+      if (data.findings && data.report) {
+        // Merge the raw findings data (which has code lines) with the processed report
+        const mergedFindings = data.report.findings.map(finding => {
+          // Find matching raw finding to get code lines
+          const rawFinding = data.findings.find(f => 
+            f.type === finding.type && f.file === finding.files[0]
+          );
+          return {
+            ...finding,
+            codeLines: rawFinding?.codeLines || [],
+            scanType: 'web'
+          };
+        });
 
-        // Process the raw findings and report together
-        if (data.findings && data.report) {
-            // Merge the raw findings data (which has code lines) with the processed report
-            const mergedFindings = data.report.findings.map(finding => {
-                // Find matching raw finding to get code lines
-                const rawFinding = data.findings.find(f => 
-                    f.type === finding.type && f.file === finding.files[0]
-                );
-                return {
-                    ...finding,
-                    codeLines: rawFinding?.codeLines || [],
-                    scanType: 'web'
-                };
-            });
+        // Update the report with merged findings
+        const finalReport = {
+          ...data.report,
+          findings: mergedFindings
+        };
 
-            // Update the report with merged findings
-            const finalReport = {
-                ...data.report,
-                findings: mergedFindings
-            };
+        setScanResults(finalReport);
 
-            setScanResults(finalReport);
+        // Update severity stats
+        const { summary } = finalReport;
+        setSeverityStats({
+          CRITICAL: {
+            uniqueCount: summary.criticalIssues || 0,
+            instanceCount: summary.criticalInstances || 0
+          },
+          HIGH: {
+            uniqueCount: summary.highIssues || 0,
+            instanceCount: summary.highInstances || 0
+          },
+          MEDIUM: {
+            uniqueCount: summary.mediumIssues || 0,
+            instanceCount: summary.mediumInstances || 0
+          },
+          LOW: {
+            uniqueCount: summary.lowIssues || 0,
+            instanceCount: summary.lowInstances || 0
+          }
+        });
 
-            // Update severity stats
-            const { summary } = finalReport;
-            setSeverityStats({
-                CRITICAL: {
-                    uniqueCount: summary.criticalIssues || 0,
-                    instanceCount: summary.criticalInstances || 0
-                },
-                HIGH: {
-                    uniqueCount: summary.highIssues || 0,
-                    instanceCount: summary.highInstances || 0
-                },
-                MEDIUM: {
-                    uniqueCount: summary.mediumIssues || 0,
-                    instanceCount: summary.mediumInstances || 0
-                },
-                LOW: {
-                    uniqueCount: summary.lowIssues || 0,
-                    instanceCount: summary.lowInstances || 0
-                }
-            });
-
-            setSuccessMessage(
-                `Website scan complete! Found ${summary.totalIssues || 0} potential vulnerabilities.`
-            );
-        } else {
-            setSuccessMessage('Website scan completed, but no vulnerabilities reported.');
-        }
+        setSuccessMessage(
+          `Website scan complete! Found ${summary.totalIssues || 0} potential vulnerabilities.`
+        );
+      } else {
+        setSuccessMessage('Website scan completed, but no vulnerabilities reported.');
+      }
     } catch (err) {
-        console.error('Website scan error:', err);
-        setError(err.message || 'Error scanning website. Please check the URL and try again.');
+      console.error('Website scan error:', err);
+      setError(err.message || 'Error scanning website. Please check the URL and try again.');
     } finally {
-        setScanning(false);
+      setScanning(false);
     }
   };
 
@@ -365,6 +392,20 @@ const ScannerUI = () => {
   }, [scanResults, searchQuery, activeSeverity]);
 
   // ------------------------------------------------------------------
+  // onViewProtection for Vulnerabilities
+  // ------------------------------------------------------------------
+  const handleViewProtection = (vuln) => {
+    setSelectedVulnerability(vuln);
+    // If mobile, automatically scroll to the InfoPanel
+    if (isMobile) {
+      document.getElementById('infoPanel')?.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  };
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const scanResultProps = {
@@ -383,15 +424,9 @@ const ScannerUI = () => {
     showBackToTop,
     scrollToTop,
     includeFirmware,
-    onViewProtection: (vuln) => {
-      setSelectedVulnerability(vuln);
-      if (window.innerWidth < 1024) {
-        document.getElementById('infoPanel')?.scrollIntoView({ 
-          behavior: 'smooth',
-          block: 'start'
-        });
-      }
-    }
+    // Pass isMobile so VulnerabilityCard can read it
+    isMobile,
+    onViewProtection: handleViewProtection
   };
 
   return (
@@ -488,7 +523,7 @@ const ScannerUI = () => {
                   <circle cx="12" cy="12" r="9" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M3 12h18" />
                 </svg>
-                Scan Website (HTML + Scripts)
+                Scan Website/URL
               </h2>
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
@@ -525,17 +560,32 @@ const ScannerUI = () => {
                       type="text"
                       value={websiteUrl}
                       onChange={(e) => setWebsiteUrl(e.target.value.replace(/^(https?:\/\/)/, ''))}
-                      placeholder="example.com"
+                      placeholder="example.com/path or IP:port/path"
                       className="w-full pl-[4.5rem] pr-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg 
                                 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+
+                  {/* Port Input */}
+                  <input
+                    type="text"
+                    value={port}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^\d]/g, '');
+                      if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 65535)) {
+                        setPort(value);
+                      }
+                    }}
+                    placeholder="Port"
+                    className="w-20 px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-lg 
+                              focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                   
                   <button
                     onClick={() => {
                       const normalizedUrl = normalizeUrl(websiteUrl);
                       if (!websiteUrl.trim()) {
-                        setError('Please enter a website URL');
+                        setError('Please enter a URL');
                         return;
                       }
                       handleWebsiteScan(normalizedUrl);
@@ -544,18 +594,18 @@ const ScannerUI = () => {
                     className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 
                               disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Scan Website
+                    Scan URL
                   </button>
                 </div>
                 
                 {/* URL Validation Message */}
-                {websiteUrl && !websiteUrl.match(/^[a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}/) && (
+                {websiteUrl && !isValidUrlOrIp(websiteUrl.split('/')[0]) && (
                   <div className="text-yellow-400 text-sm flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                             d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
-                    Please enter a valid domain (e.g., example.com)
+                    Please enter a valid URL (e.g., example.com/path, 192.168.1.1:8080/api)
                   </div>
                 )}
               </div>
@@ -667,7 +717,7 @@ const ScannerUI = () => {
 
             {/* SCAN RESULTS */}
             {scanResults && (
-              <div className="mt-6">
+              <div id="scanResults" className="mt-6">
                 <ScanResults {...scanResultProps} />
                 {firmwareMessage && (
                   <Alert className="my-4" variant="default">
@@ -708,6 +758,7 @@ const ScannerUI = () => {
             <InfoPanel 
               selectedVulnerability={selectedVulnerability}
               isScanning={scanning}
+              // This callback does the "scroll back" to #scanResults
               onBackToResults={() => {
                 setSelectedVulnerability(null);
                 document.getElementById('scanResults')?.scrollIntoView({ 
@@ -715,7 +766,8 @@ const ScannerUI = () => {
                   block: 'start'
                 });
               }}
-              isMobile={window.innerWidth < 1024}
+              // Also pass isMobile here
+              isMobile={isMobile}
             />
           </div>
         </div>
@@ -1000,6 +1052,6 @@ const ScannerUI = () => {
       </AlertDialog>
     </div>
   );
-}
+};
 
 export default ScannerUI;

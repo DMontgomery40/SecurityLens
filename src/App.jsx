@@ -1,19 +1,17 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import ScannerUI from './components/ScannerUI';
+import Decoder from './components/Decoder';
 
-function App() {
-  useEffect(() => {
-    // Ensure dark mode is always active
-    document.documentElement.classList.add('dark');
-  }, []);
-
+const App = () => {
   return (
-    <div className="min-h-screen bg-gray-900 transition-colors duration-200">
-      <div className="container mx-auto px-4">
-        <ScannerUI />
-      </div>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<ScannerUI />} />
+        <Route path="/secret" element={<Decoder />} />
+      </Routes>
+    </BrowserRouter>
   );
-}
+};
 
 export default App;

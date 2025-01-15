@@ -113,6 +113,13 @@ Distributed under the [MIT License](LICENSE). Because knowledgeâ€”and securityâ€
   for the next generation of security heroes.
 </p>  
 
-[//]: # (https://securitylens.io/decode?secret=)
-
+[//]: # (https://securitylens.io/secret?message=)
+[//]: #                    / \
+[//]: #                   /   \
+[//]: #                     |
+[//]: #                     |
+[//]: #                     |
 [//]: # (Q29uZ3JhdHMhIFlvdSd2ZSBmb3VuZCB0aGUgc2VjcmV0IG1lc3NhZ2UuIFlvdSdyZSB0aGlua2luZyBsaWtlIGEgc2VjdXJpdHkgcmVzZWFyY2hlciBhbHJlYWR5ISA8MyBLZWVwIGV4cGxvcmluZy4uLg==)
+
+[//]: # (VGhpcyBpcyBvbmx5IHRoZSBmaXJzdCBzdGVwISBUYWtlIHRoaXMgY29kZTogU0VDUkVUX0tFWV8yMDI0XzEzMzcgYW5kIHVzZSBpdCBpbiB0aGUgZGVjb2RlciBhdCBodHRwczovL3NlY3VyaXR5bGVucy5pby9zZWNyZXQ=)
+

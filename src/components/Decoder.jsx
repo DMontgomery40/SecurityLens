@@ -1,24 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 const Decoder = () => {
+  const [searchParams] = useSearchParams();
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [showLink, setShowLink] = useState(false);
 
+  // Get message from URL parameter on component mount
+  useEffect(() => {
+    const message = searchParams.get('message');
+    if (message) {
+      setInput(message);
+    }
+  }, [searchParams]);
+
   const handleDecode = () => {
     try {
-      // Attempt to decode Base64
       const decoded = atob(input);
-
-      /* 
+         /* 
         Greg -
         Thanks again for our conversation. 
         This final step in the scavenger hunt 
-        shows I can be fun + technically solid 
-        while staying kid-friendly.
+        let's build some other cool educational tools.
+         together!
 
         – David
       */
+      // Check if this is the special key from the README
+      if (decoded.includes('SECRET_KEY_2024_1337')) {
+        // Show special success message and next encoded challenge
+        setInput('VGltZSB0byBsZXZlbCB1cCEgWW91J3ZlIHByb3ZlbiB5b3UgY2FuIGZpbmQgaGlkZGVuIG1lc3NhZ2VzLiBOb3cgbGV0J3Mgc2VlIGlmIHlvdSBjYW4gdGhpbmsgbGlrZSBhIHJlYWwgc2VjdXJpdHkgcmVzZWFyY2hlci4uLg==');
+        setOutput('Access granted! A new message has appeared...');
+        return;
+      }
 
       // Terminal-like output sequence
       setOutput(
@@ -113,3 +128,4 @@ const Decoder = () => {
     </div>
   );
 };
+export default Decoder;

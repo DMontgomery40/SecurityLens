@@ -75,6 +75,9 @@ const IGNORED_SCRIPT_CONTENT = [
   /optimizely/i,
 ];
 
+// Add this near the top with other constants
+const URL_REGEX = /^(https?:\/\/)?([a-zA-Z0-9.-]+)(:\d+)?([/?].*)?$/;
+
 // Export these for use in other files if needed
 export { IGNORED_DOMAINS, IGNORED_SCRIPT_CONTENT };
 
@@ -511,6 +514,7 @@ class VulnerabilityScanner {
         lineCount: f.lineNumbers.length
       })));
 
+      
       // Add scan type to findings
       findings.forEach(finding => {
         finding.scanType = options.scanType || 'local';
@@ -680,6 +684,33 @@ class VulnerabilityScanner {
     }
 
     return false;
+  }
+
+  /**
+   * Scan a webpage
+   * @param {string} url - Webpage URL
+   */
+  async scanWebPage(url) {
+    try {
+      // Basic URL validation
+      const urlMatch = url.match(URL_REGEX);
+      if (!urlMatch) {
+        throw new Error('Please enter a valid URL');
+      }
+
+      // Extract components
+      const [, protocol = 'https://', hostname, port = '', path = ''] = urlMatch;
+      const normalizedUrl = `${protocol}${hostname}${port}${path}`;
+
+      console.log(`Scanning webpage: ${normalizedUrl}`);
+
+      // Rest of your scanning logic...
+      // ... existing code ...
+
+    } catch (error) {
+      console.error('Website scan error:', error);
+      throw error;
+    }
   }
 }
 
