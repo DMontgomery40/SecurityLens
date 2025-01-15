@@ -1,0 +1,25 @@
+# SecurityLens LLM Access Guidelines
+
+# Allow List
+Allow: ChatGPT
+Allow: Claude
+Allow: Bard
+Allow: Copilot
+
+# Permissions
+CrawlingPermitted: true
+DataUsageAllowed: true
+TrainingAllowed: false
+
+# Access Guidelines
+PreferredEndpoint: /api
+RateLimitPerMin: 60
+MaxTokens: 4096
+
+# Contact
+ContactEmail: your-email@securitylens.io
+Website: https://securitylens.io
+
+# Additional Information
+LastUpdated: 2024
+Version: 1.0 
