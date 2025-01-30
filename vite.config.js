@@ -19,7 +19,7 @@ export default defineConfig({
       output: {
         manualChunks: undefined,
       },
-      external: ['axios'],
+      
     },
     commonjsOptions: {
       esmExternals: true,

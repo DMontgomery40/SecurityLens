@@ -4,20 +4,19 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
   get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
 }) : x)(function(x) {
   if (typeof require !== "undefined")
     return require.apply(this, arguments);
-  throw new Error('Dynamic require of "' + x + '" is not supported');
+  throw Error('Dynamic require of "' + x + '" is not supported');
 });
 var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
+var __export = (target, all3) => {
+  for (var name in all3)
+    __defProp(target, name, { get: all3[name], enumerable: true });
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
@@ -28,13 +27,10769 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
   isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
   mod
 ));
-var __publicField = (obj, key, value) => {
-  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-  return value;
-};
+
+// node_modules/delayed-stream/lib/delayed_stream.js
+var require_delayed_stream = __commonJS({
+  "node_modules/delayed-stream/lib/delayed_stream.js"(exports, module) {
+    var Stream = __require("stream").Stream;
+    var util3 = __require("util");
+    module.exports = DelayedStream;
+    function DelayedStream() {
+      this.source = null;
+      this.dataSize = 0;
+      this.maxDataSize = 1024 * 1024;
+      this.pauseStream = true;
+      this._maxDataSizeExceeded = false;
+      this._released = false;
+      this._bufferedEvents = [];
+    }
+    util3.inherits(DelayedStream, Stream);
+    DelayedStream.create = function(source, options) {
+      var delayedStream = new this();
+      options = options || {};
+      for (var option in options) {
+        delayedStream[option] = options[option];
+      }
+      delayedStream.source = source;
+      var realEmit = source.emit;
+      source.emit = function() {
+        delayedStream._handleEmit(arguments);
+        return realEmit.apply(source, arguments);
+      };
+      source.on("error", function() {
+      });
+      if (delayedStream.pauseStream) {
+        source.pause();
+      }
+      return delayedStream;
+    };
+    Object.defineProperty(DelayedStream.prototype, "readable", {
+      configurable: true,
+      enumerable: true,
+      get: function() {
+        return this.source.readable;
+      }
+    });
+    DelayedStream.prototype.setEncoding = function() {
+      return this.source.setEncoding.apply(this.source, arguments);
+    };
+    DelayedStream.prototype.resume = function() {
+      if (!this._released) {
+        this.release();
+      }
+      this.source.resume();
+    };
+    DelayedStream.prototype.pause = function() {
+      this.source.pause();
+    };
+    DelayedStream.prototype.release = function() {
+      this._released = true;
+      this._bufferedEvents.forEach(function(args) {
+        this.emit.apply(this, args);
+      }.bind(this));
+      this._bufferedEvents = [];
+    };
+    DelayedStream.prototype.pipe = function() {
+      var r = Stream.prototype.pipe.apply(this, arguments);
+      this.resume();
+      return r;
+    };
+    DelayedStream.prototype._handleEmit = function(args) {
+      if (this._released) {
+        this.emit.apply(this, args);
+        return;
+      }
+      if (args[0] === "data") {
+        this.dataSize += args[1].length;
+        this._checkIfMaxDataSizeExceeded();
+      }
+      this._bufferedEvents.push(args);
+    };
+    DelayedStream.prototype._checkIfMaxDataSizeExceeded = function() {
+      if (this._maxDataSizeExceeded) {
+        return;
+      }
+      if (this.dataSize <= this.maxDataSize) {
+        return;
+      }
+      this._maxDataSizeExceeded = true;
+      var message = "DelayedStream#maxDataSize of " + this.maxDataSize + " bytes exceeded.";
+      this.emit("error", new Error(message));
+    };
+  }
+});
+
+// node_modules/combined-stream/lib/combined_stream.js
+var require_combined_stream = __commonJS({
+  "node_modules/combined-stream/lib/combined_stream.js"(exports, module) {
+    var util3 = __require("util");
+    var Stream = __require("stream").Stream;
+    var DelayedStream = require_delayed_stream();
+    module.exports = CombinedStream;
+    function CombinedStream() {
+      this.writable = false;
+      this.readable = true;
+      this.dataSize = 0;
+      this.maxDataSize = 2 * 1024 * 1024;
+      this.pauseStreams = true;
+      this._released = false;
+      this._streams = [];
+      this._currentStream = null;
+      this._insideLoop = false;
+      this._pendingNext = false;
+    }
+    util3.inherits(CombinedStream, Stream);
+    CombinedStream.create = function(options) {
+      var combinedStream = new this();
+      options = options || {};
+      for (var option in options) {
+        combinedStream[option] = options[option];
+      }
+      return combinedStream;
+    };
+    CombinedStream.isStreamLike = function(stream5) {
+      return typeof stream5 !== "function" && typeof stream5 !== "string" && typeof stream5 !== "boolean" && typeof stream5 !== "number" && !Buffer.isBuffer(stream5);
+    };
+    CombinedStream.prototype.append = function(stream5) {
+      var isStreamLike = CombinedStream.isStreamLike(stream5);
+      if (isStreamLike) {
+        if (!(stream5 instanceof DelayedStream)) {
+          var newStream = DelayedStream.create(stream5, {
+            maxDataSize: Infinity,
+            pauseStream: this.pauseStreams
+          });
+          stream5.on("data", this._checkDataSize.bind(this));
+          stream5 = newStream;
+        }
+        this._handleErrors(stream5);
+        if (this.pauseStreams) {
+          stream5.pause();
+        }
+      }
+      this._streams.push(stream5);
+      return this;
+    };
+    CombinedStream.prototype.pipe = function(dest, options) {
+      Stream.prototype.pipe.call(this, dest, options);
+      this.resume();
+      return dest;
+    };
+    CombinedStream.prototype._getNext = function() {
+      this._currentStream = null;
+      if (this._insideLoop) {
+        this._pendingNext = true;
+        return;
+      }
+      this._insideLoop = true;
+      try {
+        do {
+          this._pendingNext = false;
+          this._realGetNext();
+        } while (this._pendingNext);
+      } finally {
+        this._insideLoop = false;
+      }
+    };
+    CombinedStream.prototype._realGetNext = function() {
+      var stream5 = this._streams.shift();
+      if (typeof stream5 == "undefined") {
+        this.end();
+        return;
+      }
+      if (typeof stream5 !== "function") {
+        this._pipeNext(stream5);
+        return;
+      }
+      var getStream = stream5;
+      getStream(function(stream6) {
+        var isStreamLike = CombinedStream.isStreamLike(stream6);
+        if (isStreamLike) {
+          stream6.on("data", this._checkDataSize.bind(this));
+          this._handleErrors(stream6);
+        }
+        this._pipeNext(stream6);
+      }.bind(this));
+    };
+    CombinedStream.prototype._pipeNext = function(stream5) {
+      this._currentStream = stream5;
+      var isStreamLike = CombinedStream.isStreamLike(stream5);
+      if (isStreamLike) {
+        stream5.on("end", this._getNext.bind(this));
+        stream5.pipe(this, { end: false });
+        return;
+      }
+      var value = stream5;
+      this.write(value);
+      this._getNext();
+    };
+    CombinedStream.prototype._handleErrors = function(stream5) {
+      var self2 = this;
+      stream5.on("error", function(err) {
+        self2._emitError(err);
+      });
+    };
+    CombinedStream.prototype.write = function(data2) {
+      this.emit("data", data2);
+    };
+    CombinedStream.prototype.pause = function() {
+      if (!this.pauseStreams) {
+        return;
+      }
+      if (this.pauseStreams && this._currentStream && typeof this._currentStream.pause == "function")
+        this._currentStream.pause();
+      this.emit("pause");
+    };
+    CombinedStream.prototype.resume = function() {
+      if (!this._released) {
+        this._released = true;
+        this.writable = true;
+        this._getNext();
+      }
+      if (this.pauseStreams && this._currentStream && typeof this._currentStream.resume == "function")
+        this._currentStream.resume();
+      this.emit("resume");
+    };
+    CombinedStream.prototype.end = function() {
+      this._reset();
+      this.emit("end");
+    };
+    CombinedStream.prototype.destroy = function() {
+      this._reset();
+      this.emit("close");
+    };
+    CombinedStream.prototype._reset = function() {
+      this.writable = false;
+      this._streams = [];
+      this._currentStream = null;
+    };
+    CombinedStream.prototype._checkDataSize = function() {
+      this._updateDataSize();
+      if (this.dataSize <= this.maxDataSize) {
+        return;
+      }
+      var message = "DelayedStream#maxDataSize of " + this.maxDataSize + " bytes exceeded.";
+      this._emitError(new Error(message));
+    };
+    CombinedStream.prototype._updateDataSize = function() {
+      this.dataSize = 0;
+      var self2 = this;
+      this._streams.forEach(function(stream5) {
+        if (!stream5.dataSize) {
+          return;
+        }
+        self2.dataSize += stream5.dataSize;
+      });
+      if (this._currentStream && this._currentStream.dataSize) {
+        this.dataSize += this._currentStream.dataSize;
+      }
+    };
+    CombinedStream.prototype._emitError = function(err) {
+      this._reset();
+      this.emit("error", err);
+    };
+  }
+});
+
+// node_modules/mime-db/db.json
+var require_db = __commonJS({
+  "node_modules/mime-db/db.json"(exports, module) {
+    module.exports = {
+      "application/1d-interleaved-parityfec": {
+        source: "iana"
+      },
+      "application/3gpdash-qoe-report+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/3gpp-ims+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/3gpphal+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/3gpphalforms+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/a2l": {
+        source: "iana"
+      },
+      "application/ace+cbor": {
+        source: "iana"
+      },
+      "application/activemessage": {
+        source: "iana"
+      },
+      "application/activity+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-costmap+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-costmapfilter+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-directory+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-endpointcost+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-endpointcostparams+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-endpointprop+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-endpointpropparams+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-error+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-networkmap+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-networkmapfilter+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-updatestreamcontrol+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/alto-updatestreamparams+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/aml": {
+        source: "iana"
+      },
+      "application/andrew-inset": {
+        source: "iana",
+        extensions: ["ez"]
+      },
+      "application/applefile": {
+        source: "iana"
+      },
+      "application/applixware": {
+        source: "apache",
+        extensions: ["aw"]
+      },
+      "application/at+jwt": {
+        source: "iana"
+      },
+      "application/atf": {
+        source: "iana"
+      },
+      "application/atfx": {
+        source: "iana"
+      },
+      "application/atom+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["atom"]
+      },
+      "application/atomcat+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["atomcat"]
+      },
+      "application/atomdeleted+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["atomdeleted"]
+      },
+      "application/atomicmail": {
+        source: "iana"
+      },
+      "application/atomsvc+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["atomsvc"]
+      },
+      "application/atsc-dwd+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["dwd"]
+      },
+      "application/atsc-dynamic-event-message": {
+        source: "iana"
+      },
+      "application/atsc-held+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["held"]
+      },
+      "application/atsc-rdt+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/atsc-rsat+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rsat"]
+      },
+      "application/atxml": {
+        source: "iana"
+      },
+      "application/auth-policy+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/bacnet-xdd+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/batch-smtp": {
+        source: "iana"
+      },
+      "application/bdoc": {
+        compressible: false,
+        extensions: ["bdoc"]
+      },
+      "application/beep+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/calendar+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/calendar+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xcs"]
+      },
+      "application/call-completion": {
+        source: "iana"
+      },
+      "application/cals-1840": {
+        source: "iana"
+      },
+      "application/captive+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cbor": {
+        source: "iana"
+      },
+      "application/cbor-seq": {
+        source: "iana"
+      },
+      "application/cccex": {
+        source: "iana"
+      },
+      "application/ccmp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/ccxml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ccxml"]
+      },
+      "application/cdfx+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["cdfx"]
+      },
+      "application/cdmi-capability": {
+        source: "iana",
+        extensions: ["cdmia"]
+      },
+      "application/cdmi-container": {
+        source: "iana",
+        extensions: ["cdmic"]
+      },
+      "application/cdmi-domain": {
+        source: "iana",
+        extensions: ["cdmid"]
+      },
+      "application/cdmi-object": {
+        source: "iana",
+        extensions: ["cdmio"]
+      },
+      "application/cdmi-queue": {
+        source: "iana",
+        extensions: ["cdmiq"]
+      },
+      "application/cdni": {
+        source: "iana"
+      },
+      "application/cea": {
+        source: "iana"
+      },
+      "application/cea-2018+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cellml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cfw": {
+        source: "iana"
+      },
+      "application/city+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/clr": {
+        source: "iana"
+      },
+      "application/clue+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/clue_info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cms": {
+        source: "iana"
+      },
+      "application/cnrp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/coap-group+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/coap-payload": {
+        source: "iana"
+      },
+      "application/commonground": {
+        source: "iana"
+      },
+      "application/conference-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cose": {
+        source: "iana"
+      },
+      "application/cose-key": {
+        source: "iana"
+      },
+      "application/cose-key-set": {
+        source: "iana"
+      },
+      "application/cpl+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["cpl"]
+      },
+      "application/csrattrs": {
+        source: "iana"
+      },
+      "application/csta+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cstadata+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/csvm+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/cu-seeme": {
+        source: "apache",
+        extensions: ["cu"]
+      },
+      "application/cwt": {
+        source: "iana"
+      },
+      "application/cybercash": {
+        source: "iana"
+      },
+      "application/dart": {
+        compressible: true
+      },
+      "application/dash+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mpd"]
+      },
+      "application/dash-patch+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mpp"]
+      },
+      "application/dashdelta": {
+        source: "iana"
+      },
+      "application/davmount+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["davmount"]
+      },
+      "application/dca-rft": {
+        source: "iana"
+      },
+      "application/dcd": {
+        source: "iana"
+      },
+      "application/dec-dx": {
+        source: "iana"
+      },
+      "application/dialog-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/dicom": {
+        source: "iana"
+      },
+      "application/dicom+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/dicom+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/dii": {
+        source: "iana"
+      },
+      "application/dit": {
+        source: "iana"
+      },
+      "application/dns": {
+        source: "iana"
+      },
+      "application/dns+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/dns-message": {
+        source: "iana"
+      },
+      "application/docbook+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["dbk"]
+      },
+      "application/dots+cbor": {
+        source: "iana"
+      },
+      "application/dskpp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/dssc+der": {
+        source: "iana",
+        extensions: ["dssc"]
+      },
+      "application/dssc+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xdssc"]
+      },
+      "application/dvcs": {
+        source: "iana"
+      },
+      "application/ecmascript": {
+        source: "iana",
+        compressible: true,
+        extensions: ["es", "ecma"]
+      },
+      "application/edi-consent": {
+        source: "iana"
+      },
+      "application/edi-x12": {
+        source: "iana",
+        compressible: false
+      },
+      "application/edifact": {
+        source: "iana",
+        compressible: false
+      },
+      "application/efi": {
+        source: "iana"
+      },
+      "application/elm+json": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/elm+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.cap+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/emergencycalldata.comment+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.control+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.deviceinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.ecall.msd": {
+        source: "iana"
+      },
+      "application/emergencycalldata.providerinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.serviceinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.subscriberinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emergencycalldata.veds+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/emma+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["emma"]
+      },
+      "application/emotionml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["emotionml"]
+      },
+      "application/encaprtp": {
+        source: "iana"
+      },
+      "application/epp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/epub+zip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["epub"]
+      },
+      "application/eshop": {
+        source: "iana"
+      },
+      "application/exi": {
+        source: "iana",
+        extensions: ["exi"]
+      },
+      "application/expect-ct-report+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/express": {
+        source: "iana",
+        extensions: ["exp"]
+      },
+      "application/fastinfoset": {
+        source: "iana"
+      },
+      "application/fastsoap": {
+        source: "iana"
+      },
+      "application/fdt+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["fdt"]
+      },
+      "application/fhir+json": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/fhir+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/fido.trusted-apps+json": {
+        compressible: true
+      },
+      "application/fits": {
+        source: "iana"
+      },
+      "application/flexfec": {
+        source: "iana"
+      },
+      "application/font-sfnt": {
+        source: "iana"
+      },
+      "application/font-tdpfr": {
+        source: "iana",
+        extensions: ["pfr"]
+      },
+      "application/font-woff": {
+        source: "iana",
+        compressible: false
+      },
+      "application/framework-attributes+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/geo+json": {
+        source: "iana",
+        compressible: true,
+        extensions: ["geojson"]
+      },
+      "application/geo+json-seq": {
+        source: "iana"
+      },
+      "application/geopackage+sqlite3": {
+        source: "iana"
+      },
+      "application/geoxacml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/gltf-buffer": {
+        source: "iana"
+      },
+      "application/gml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["gml"]
+      },
+      "application/gpx+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["gpx"]
+      },
+      "application/gxf": {
+        source: "apache",
+        extensions: ["gxf"]
+      },
+      "application/gzip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["gz"]
+      },
+      "application/h224": {
+        source: "iana"
+      },
+      "application/held+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/hjson": {
+        extensions: ["hjson"]
+      },
+      "application/http": {
+        source: "iana"
+      },
+      "application/hyperstudio": {
+        source: "iana",
+        extensions: ["stk"]
+      },
+      "application/ibe-key-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/ibe-pkg-reply+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/ibe-pp-data": {
+        source: "iana"
+      },
+      "application/iges": {
+        source: "iana"
+      },
+      "application/im-iscomposing+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/index": {
+        source: "iana"
+      },
+      "application/index.cmd": {
+        source: "iana"
+      },
+      "application/index.obj": {
+        source: "iana"
+      },
+      "application/index.response": {
+        source: "iana"
+      },
+      "application/index.vnd": {
+        source: "iana"
+      },
+      "application/inkml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ink", "inkml"]
+      },
+      "application/iotp": {
+        source: "iana"
+      },
+      "application/ipfix": {
+        source: "iana",
+        extensions: ["ipfix"]
+      },
+      "application/ipp": {
+        source: "iana"
+      },
+      "application/isup": {
+        source: "iana"
+      },
+      "application/its+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["its"]
+      },
+      "application/java-archive": {
+        source: "apache",
+        compressible: false,
+        extensions: ["jar", "war", "ear"]
+      },
+      "application/java-serialized-object": {
+        source: "apache",
+        compressible: false,
+        extensions: ["ser"]
+      },
+      "application/java-vm": {
+        source: "apache",
+        compressible: false,
+        extensions: ["class"]
+      },
+      "application/javascript": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["js", "mjs"]
+      },
+      "application/jf2feed+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/jose": {
+        source: "iana"
+      },
+      "application/jose+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/jrd+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/jscalendar+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/json": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["json", "map"]
+      },
+      "application/json-patch+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/json-seq": {
+        source: "iana"
+      },
+      "application/json5": {
+        extensions: ["json5"]
+      },
+      "application/jsonml+json": {
+        source: "apache",
+        compressible: true,
+        extensions: ["jsonml"]
+      },
+      "application/jwk+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/jwk-set+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/jwt": {
+        source: "iana"
+      },
+      "application/kpml-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/kpml-response+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/ld+json": {
+        source: "iana",
+        compressible: true,
+        extensions: ["jsonld"]
+      },
+      "application/lgr+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["lgr"]
+      },
+      "application/link-format": {
+        source: "iana"
+      },
+      "application/load-control+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/lost+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["lostxml"]
+      },
+      "application/lostsync+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/lpf+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/lxf": {
+        source: "iana"
+      },
+      "application/mac-binhex40": {
+        source: "iana",
+        extensions: ["hqx"]
+      },
+      "application/mac-compactpro": {
+        source: "apache",
+        extensions: ["cpt"]
+      },
+      "application/macwriteii": {
+        source: "iana"
+      },
+      "application/mads+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mads"]
+      },
+      "application/manifest+json": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["webmanifest"]
+      },
+      "application/marc": {
+        source: "iana",
+        extensions: ["mrc"]
+      },
+      "application/marcxml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mrcx"]
+      },
+      "application/mathematica": {
+        source: "iana",
+        extensions: ["ma", "nb", "mb"]
+      },
+      "application/mathml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mathml"]
+      },
+      "application/mathml-content+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mathml-presentation+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-associated-procedure-description+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-deregister+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-envelope+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-msk+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-msk-response+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-protection-description+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-reception-report+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-register+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-register-response+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-schedule+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbms-user-service-description+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mbox": {
+        source: "iana",
+        extensions: ["mbox"]
+      },
+      "application/media-policy-dataset+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mpf"]
+      },
+      "application/media_control+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mediaservercontrol+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mscml"]
+      },
+      "application/merge-patch+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/metalink+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["metalink"]
+      },
+      "application/metalink4+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["meta4"]
+      },
+      "application/mets+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mets"]
+      },
+      "application/mf4": {
+        source: "iana"
+      },
+      "application/mikey": {
+        source: "iana"
+      },
+      "application/mipc": {
+        source: "iana"
+      },
+      "application/missing-blocks+cbor-seq": {
+        source: "iana"
+      },
+      "application/mmt-aei+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["maei"]
+      },
+      "application/mmt-usd+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["musd"]
+      },
+      "application/mods+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mods"]
+      },
+      "application/moss-keys": {
+        source: "iana"
+      },
+      "application/moss-signature": {
+        source: "iana"
+      },
+      "application/mosskey-data": {
+        source: "iana"
+      },
+      "application/mosskey-request": {
+        source: "iana"
+      },
+      "application/mp21": {
+        source: "iana",
+        extensions: ["m21", "mp21"]
+      },
+      "application/mp4": {
+        source: "iana",
+        extensions: ["mp4s", "m4p"]
+      },
+      "application/mpeg4-generic": {
+        source: "iana"
+      },
+      "application/mpeg4-iod": {
+        source: "iana"
+      },
+      "application/mpeg4-iod-xmt": {
+        source: "iana"
+      },
+      "application/mrb-consumer+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/mrb-publish+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/msc-ivr+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/msc-mixer+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/msword": {
+        source: "iana",
+        compressible: false,
+        extensions: ["doc", "dot"]
+      },
+      "application/mud+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/multipart-core": {
+        source: "iana"
+      },
+      "application/mxf": {
+        source: "iana",
+        extensions: ["mxf"]
+      },
+      "application/n-quads": {
+        source: "iana",
+        extensions: ["nq"]
+      },
+      "application/n-triples": {
+        source: "iana",
+        extensions: ["nt"]
+      },
+      "application/nasdata": {
+        source: "iana"
+      },
+      "application/news-checkgroups": {
+        source: "iana",
+        charset: "US-ASCII"
+      },
+      "application/news-groupinfo": {
+        source: "iana",
+        charset: "US-ASCII"
+      },
+      "application/news-transmission": {
+        source: "iana"
+      },
+      "application/nlsml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/node": {
+        source: "iana",
+        extensions: ["cjs"]
+      },
+      "application/nss": {
+        source: "iana"
+      },
+      "application/oauth-authz-req+jwt": {
+        source: "iana"
+      },
+      "application/oblivious-dns-message": {
+        source: "iana"
+      },
+      "application/ocsp-request": {
+        source: "iana"
+      },
+      "application/ocsp-response": {
+        source: "iana"
+      },
+      "application/octet-stream": {
+        source: "iana",
+        compressible: false,
+        extensions: ["bin", "dms", "lrf", "mar", "so", "dist", "distz", "pkg", "bpk", "dump", "elc", "deploy", "exe", "dll", "deb", "dmg", "iso", "img", "msi", "msp", "msm", "buffer"]
+      },
+      "application/oda": {
+        source: "iana",
+        extensions: ["oda"]
+      },
+      "application/odm+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/odx": {
+        source: "iana"
+      },
+      "application/oebps-package+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["opf"]
+      },
+      "application/ogg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["ogx"]
+      },
+      "application/omdoc+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["omdoc"]
+      },
+      "application/onenote": {
+        source: "apache",
+        extensions: ["onetoc", "onetoc2", "onetmp", "onepkg"]
+      },
+      "application/opc-nodeset+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/oscore": {
+        source: "iana"
+      },
+      "application/oxps": {
+        source: "iana",
+        extensions: ["oxps"]
+      },
+      "application/p21": {
+        source: "iana"
+      },
+      "application/p21+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/p2p-overlay+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["relo"]
+      },
+      "application/parityfec": {
+        source: "iana"
+      },
+      "application/passport": {
+        source: "iana"
+      },
+      "application/patch-ops-error+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xer"]
+      },
+      "application/pdf": {
+        source: "iana",
+        compressible: false,
+        extensions: ["pdf"]
+      },
+      "application/pdx": {
+        source: "iana"
+      },
+      "application/pem-certificate-chain": {
+        source: "iana"
+      },
+      "application/pgp-encrypted": {
+        source: "iana",
+        compressible: false,
+        extensions: ["pgp"]
+      },
+      "application/pgp-keys": {
+        source: "iana",
+        extensions: ["asc"]
+      },
+      "application/pgp-signature": {
+        source: "iana",
+        extensions: ["asc", "sig"]
+      },
+      "application/pics-rules": {
+        source: "apache",
+        extensions: ["prf"]
+      },
+      "application/pidf+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/pidf-diff+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/pkcs10": {
+        source: "iana",
+        extensions: ["p10"]
+      },
+      "application/pkcs12": {
+        source: "iana"
+      },
+      "application/pkcs7-mime": {
+        source: "iana",
+        extensions: ["p7m", "p7c"]
+      },
+      "application/pkcs7-signature": {
+        source: "iana",
+        extensions: ["p7s"]
+      },
+      "application/pkcs8": {
+        source: "iana",
+        extensions: ["p8"]
+      },
+      "application/pkcs8-encrypted": {
+        source: "iana"
+      },
+      "application/pkix-attr-cert": {
+        source: "iana",
+        extensions: ["ac"]
+      },
+      "application/pkix-cert": {
+        source: "iana",
+        extensions: ["cer"]
+      },
+      "application/pkix-crl": {
+        source: "iana",
+        extensions: ["crl"]
+      },
+      "application/pkix-pkipath": {
+        source: "iana",
+        extensions: ["pkipath"]
+      },
+      "application/pkixcmp": {
+        source: "iana",
+        extensions: ["pki"]
+      },
+      "application/pls+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["pls"]
+      },
+      "application/poc-settings+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/postscript": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ai", "eps", "ps"]
+      },
+      "application/ppsp-tracker+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/problem+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/problem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/provenance+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["provx"]
+      },
+      "application/prs.alvestrand.titrax-sheet": {
+        source: "iana"
+      },
+      "application/prs.cww": {
+        source: "iana",
+        extensions: ["cww"]
+      },
+      "application/prs.cyn": {
+        source: "iana",
+        charset: "7-BIT"
+      },
+      "application/prs.hpub+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/prs.nprend": {
+        source: "iana"
+      },
+      "application/prs.plucker": {
+        source: "iana"
+      },
+      "application/prs.rdf-xml-crypt": {
+        source: "iana"
+      },
+      "application/prs.xsf+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/pskc+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["pskcxml"]
+      },
+      "application/pvd+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/qsig": {
+        source: "iana"
+      },
+      "application/raml+yaml": {
+        compressible: true,
+        extensions: ["raml"]
+      },
+      "application/raptorfec": {
+        source: "iana"
+      },
+      "application/rdap+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/rdf+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rdf", "owl"]
+      },
+      "application/reginfo+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rif"]
+      },
+      "application/relax-ng-compact-syntax": {
+        source: "iana",
+        extensions: ["rnc"]
+      },
+      "application/remote-printing": {
+        source: "iana"
+      },
+      "application/reputon+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/resource-lists+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rl"]
+      },
+      "application/resource-lists-diff+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rld"]
+      },
+      "application/rfc+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/riscos": {
+        source: "iana"
+      },
+      "application/rlmi+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/rls-services+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rs"]
+      },
+      "application/route-apd+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rapd"]
+      },
+      "application/route-s-tsid+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["sls"]
+      },
+      "application/route-usd+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rusd"]
+      },
+      "application/rpki-ghostbusters": {
+        source: "iana",
+        extensions: ["gbr"]
+      },
+      "application/rpki-manifest": {
+        source: "iana",
+        extensions: ["mft"]
+      },
+      "application/rpki-publication": {
+        source: "iana"
+      },
+      "application/rpki-roa": {
+        source: "iana",
+        extensions: ["roa"]
+      },
+      "application/rpki-updown": {
+        source: "iana"
+      },
+      "application/rsd+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["rsd"]
+      },
+      "application/rss+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["rss"]
+      },
+      "application/rtf": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rtf"]
+      },
+      "application/rtploopback": {
+        source: "iana"
+      },
+      "application/rtx": {
+        source: "iana"
+      },
+      "application/samlassertion+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/samlmetadata+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sarif+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sarif-external-properties+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sbe": {
+        source: "iana"
+      },
+      "application/sbml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["sbml"]
+      },
+      "application/scaip+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/scim+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/scvp-cv-request": {
+        source: "iana",
+        extensions: ["scq"]
+      },
+      "application/scvp-cv-response": {
+        source: "iana",
+        extensions: ["scs"]
+      },
+      "application/scvp-vp-request": {
+        source: "iana",
+        extensions: ["spq"]
+      },
+      "application/scvp-vp-response": {
+        source: "iana",
+        extensions: ["spp"]
+      },
+      "application/sdp": {
+        source: "iana",
+        extensions: ["sdp"]
+      },
+      "application/secevent+jwt": {
+        source: "iana"
+      },
+      "application/senml+cbor": {
+        source: "iana"
+      },
+      "application/senml+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/senml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["senmlx"]
+      },
+      "application/senml-etch+cbor": {
+        source: "iana"
+      },
+      "application/senml-etch+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/senml-exi": {
+        source: "iana"
+      },
+      "application/sensml+cbor": {
+        source: "iana"
+      },
+      "application/sensml+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sensml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["sensmlx"]
+      },
+      "application/sensml-exi": {
+        source: "iana"
+      },
+      "application/sep+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sep-exi": {
+        source: "iana"
+      },
+      "application/session-info": {
+        source: "iana"
+      },
+      "application/set-payment": {
+        source: "iana"
+      },
+      "application/set-payment-initiation": {
+        source: "iana",
+        extensions: ["setpay"]
+      },
+      "application/set-registration": {
+        source: "iana"
+      },
+      "application/set-registration-initiation": {
+        source: "iana",
+        extensions: ["setreg"]
+      },
+      "application/sgml": {
+        source: "iana"
+      },
+      "application/sgml-open-catalog": {
+        source: "iana"
+      },
+      "application/shf+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["shf"]
+      },
+      "application/sieve": {
+        source: "iana",
+        extensions: ["siv", "sieve"]
+      },
+      "application/simple-filter+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/simple-message-summary": {
+        source: "iana"
+      },
+      "application/simplesymbolcontainer": {
+        source: "iana"
+      },
+      "application/sipc": {
+        source: "iana"
+      },
+      "application/slate": {
+        source: "iana"
+      },
+      "application/smil": {
+        source: "iana"
+      },
+      "application/smil+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["smi", "smil"]
+      },
+      "application/smpte336m": {
+        source: "iana"
+      },
+      "application/soap+fastinfoset": {
+        source: "iana"
+      },
+      "application/soap+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sparql-query": {
+        source: "iana",
+        extensions: ["rq"]
+      },
+      "application/sparql-results+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["srx"]
+      },
+      "application/spdx+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/spirits-event+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/sql": {
+        source: "iana"
+      },
+      "application/srgs": {
+        source: "iana",
+        extensions: ["gram"]
+      },
+      "application/srgs+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["grxml"]
+      },
+      "application/sru+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["sru"]
+      },
+      "application/ssdl+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["ssdl"]
+      },
+      "application/ssml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ssml"]
+      },
+      "application/stix+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/swid+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["swidtag"]
+      },
+      "application/tamp-apex-update": {
+        source: "iana"
+      },
+      "application/tamp-apex-update-confirm": {
+        source: "iana"
+      },
+      "application/tamp-community-update": {
+        source: "iana"
+      },
+      "application/tamp-community-update-confirm": {
+        source: "iana"
+      },
+      "application/tamp-error": {
+        source: "iana"
+      },
+      "application/tamp-sequence-adjust": {
+        source: "iana"
+      },
+      "application/tamp-sequence-adjust-confirm": {
+        source: "iana"
+      },
+      "application/tamp-status-query": {
+        source: "iana"
+      },
+      "application/tamp-status-response": {
+        source: "iana"
+      },
+      "application/tamp-update": {
+        source: "iana"
+      },
+      "application/tamp-update-confirm": {
+        source: "iana"
+      },
+      "application/tar": {
+        compressible: true
+      },
+      "application/taxii+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/td+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/tei+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["tei", "teicorpus"]
+      },
+      "application/tetra_isi": {
+        source: "iana"
+      },
+      "application/thraud+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["tfi"]
+      },
+      "application/timestamp-query": {
+        source: "iana"
+      },
+      "application/timestamp-reply": {
+        source: "iana"
+      },
+      "application/timestamped-data": {
+        source: "iana",
+        extensions: ["tsd"]
+      },
+      "application/tlsrpt+gzip": {
+        source: "iana"
+      },
+      "application/tlsrpt+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/tnauthlist": {
+        source: "iana"
+      },
+      "application/token-introspection+jwt": {
+        source: "iana"
+      },
+      "application/toml": {
+        compressible: true,
+        extensions: ["toml"]
+      },
+      "application/trickle-ice-sdpfrag": {
+        source: "iana"
+      },
+      "application/trig": {
+        source: "iana",
+        extensions: ["trig"]
+      },
+      "application/ttml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ttml"]
+      },
+      "application/tve-trigger": {
+        source: "iana"
+      },
+      "application/tzif": {
+        source: "iana"
+      },
+      "application/tzif-leap": {
+        source: "iana"
+      },
+      "application/ubjson": {
+        compressible: false,
+        extensions: ["ubj"]
+      },
+      "application/ulpfec": {
+        source: "iana"
+      },
+      "application/urc-grpsheet+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/urc-ressheet+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rsheet"]
+      },
+      "application/urc-targetdesc+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["td"]
+      },
+      "application/urc-uisocketdesc+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vcard+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vcard+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vemmi": {
+        source: "iana"
+      },
+      "application/vividence.scriptfile": {
+        source: "apache"
+      },
+      "application/vnd.1000minds.decision-model+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["1km"]
+      },
+      "application/vnd.3gpp-prose+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp-prose-pc3ch+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp-v2x-local-service-information": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.5gnas": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.access-transfer-events+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.bsf+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.gmop+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.gtpc": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.interworking-data": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.lpp": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.mc-signalling-ear": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.mcdata-affiliation-command+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcdata-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcdata-payload": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.mcdata-service-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcdata-signalling": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.mcdata-ue-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcdata-user-profile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-affiliation-command+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-floor-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-location-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-mbms-usage-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-service-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-signed+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-ue-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-ue-init-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcptt-user-profile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-affiliation-command+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-affiliation-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-location-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-mbms-usage-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-service-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-transmission-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-ue-config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mcvideo-user-profile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.mid-call+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.ngap": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.pfcp": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.pic-bw-large": {
+        source: "iana",
+        extensions: ["plb"]
+      },
+      "application/vnd.3gpp.pic-bw-small": {
+        source: "iana",
+        extensions: ["psb"]
+      },
+      "application/vnd.3gpp.pic-bw-var": {
+        source: "iana",
+        extensions: ["pvb"]
+      },
+      "application/vnd.3gpp.s1ap": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.sms": {
+        source: "iana"
+      },
+      "application/vnd.3gpp.sms+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.srvcc-ext+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.srvcc-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.state-and-event-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp.ussd+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp2.bcmcsinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.3gpp2.sms": {
+        source: "iana"
+      },
+      "application/vnd.3gpp2.tcap": {
+        source: "iana",
+        extensions: ["tcap"]
+      },
+      "application/vnd.3lightssoftware.imagescal": {
+        source: "iana"
+      },
+      "application/vnd.3m.post-it-notes": {
+        source: "iana",
+        extensions: ["pwn"]
+      },
+      "application/vnd.accpac.simply.aso": {
+        source: "iana",
+        extensions: ["aso"]
+      },
+      "application/vnd.accpac.simply.imp": {
+        source: "iana",
+        extensions: ["imp"]
+      },
+      "application/vnd.acucobol": {
+        source: "iana",
+        extensions: ["acu"]
+      },
+      "application/vnd.acucorp": {
+        source: "iana",
+        extensions: ["atc", "acutc"]
+      },
+      "application/vnd.adobe.air-application-installer-package+zip": {
+        source: "apache",
+        compressible: false,
+        extensions: ["air"]
+      },
+      "application/vnd.adobe.flash.movie": {
+        source: "iana"
+      },
+      "application/vnd.adobe.formscentral.fcdt": {
+        source: "iana",
+        extensions: ["fcdt"]
+      },
+      "application/vnd.adobe.fxp": {
+        source: "iana",
+        extensions: ["fxp", "fxpl"]
+      },
+      "application/vnd.adobe.partial-upload": {
+        source: "iana"
+      },
+      "application/vnd.adobe.xdp+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xdp"]
+      },
+      "application/vnd.adobe.xfdf": {
+        source: "iana",
+        extensions: ["xfdf"]
+      },
+      "application/vnd.aether.imp": {
+        source: "iana"
+      },
+      "application/vnd.afpc.afplinedata": {
+        source: "iana"
+      },
+      "application/vnd.afpc.afplinedata-pagedef": {
+        source: "iana"
+      },
+      "application/vnd.afpc.cmoca-cmresource": {
+        source: "iana"
+      },
+      "application/vnd.afpc.foca-charset": {
+        source: "iana"
+      },
+      "application/vnd.afpc.foca-codedfont": {
+        source: "iana"
+      },
+      "application/vnd.afpc.foca-codepage": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-cmtable": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-formdef": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-mediummap": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-objectcontainer": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-overlay": {
+        source: "iana"
+      },
+      "application/vnd.afpc.modca-pagesegment": {
+        source: "iana"
+      },
+      "application/vnd.age": {
+        source: "iana",
+        extensions: ["age"]
+      },
+      "application/vnd.ah-barcode": {
+        source: "iana"
+      },
+      "application/vnd.ahead.space": {
+        source: "iana",
+        extensions: ["ahead"]
+      },
+      "application/vnd.airzip.filesecure.azf": {
+        source: "iana",
+        extensions: ["azf"]
+      },
+      "application/vnd.airzip.filesecure.azs": {
+        source: "iana",
+        extensions: ["azs"]
+      },
+      "application/vnd.amadeus+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.amazon.ebook": {
+        source: "apache",
+        extensions: ["azw"]
+      },
+      "application/vnd.amazon.mobi8-ebook": {
+        source: "iana"
+      },
+      "application/vnd.americandynamics.acc": {
+        source: "iana",
+        extensions: ["acc"]
+      },
+      "application/vnd.amiga.ami": {
+        source: "iana",
+        extensions: ["ami"]
+      },
+      "application/vnd.amundsen.maze+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.android.ota": {
+        source: "iana"
+      },
+      "application/vnd.android.package-archive": {
+        source: "apache",
+        compressible: false,
+        extensions: ["apk"]
+      },
+      "application/vnd.anki": {
+        source: "iana"
+      },
+      "application/vnd.anser-web-certificate-issue-initiation": {
+        source: "iana",
+        extensions: ["cii"]
+      },
+      "application/vnd.anser-web-funds-transfer-initiation": {
+        source: "apache",
+        extensions: ["fti"]
+      },
+      "application/vnd.antix.game-component": {
+        source: "iana",
+        extensions: ["atx"]
+      },
+      "application/vnd.apache.arrow.file": {
+        source: "iana"
+      },
+      "application/vnd.apache.arrow.stream": {
+        source: "iana"
+      },
+      "application/vnd.apache.thrift.binary": {
+        source: "iana"
+      },
+      "application/vnd.apache.thrift.compact": {
+        source: "iana"
+      },
+      "application/vnd.apache.thrift.json": {
+        source: "iana"
+      },
+      "application/vnd.api+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.aplextor.warrp+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.apothekende.reservation+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.apple.installer+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mpkg"]
+      },
+      "application/vnd.apple.keynote": {
+        source: "iana",
+        extensions: ["key"]
+      },
+      "application/vnd.apple.mpegurl": {
+        source: "iana",
+        extensions: ["m3u8"]
+      },
+      "application/vnd.apple.numbers": {
+        source: "iana",
+        extensions: ["numbers"]
+      },
+      "application/vnd.apple.pages": {
+        source: "iana",
+        extensions: ["pages"]
+      },
+      "application/vnd.apple.pkpass": {
+        compressible: false,
+        extensions: ["pkpass"]
+      },
+      "application/vnd.arastra.swi": {
+        source: "iana"
+      },
+      "application/vnd.aristanetworks.swi": {
+        source: "iana",
+        extensions: ["swi"]
+      },
+      "application/vnd.artisan+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.artsquare": {
+        source: "iana"
+      },
+      "application/vnd.astraea-software.iota": {
+        source: "iana",
+        extensions: ["iota"]
+      },
+      "application/vnd.audiograph": {
+        source: "iana",
+        extensions: ["aep"]
+      },
+      "application/vnd.autopackage": {
+        source: "iana"
+      },
+      "application/vnd.avalon+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.avistar+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.balsamiq.bmml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["bmml"]
+      },
+      "application/vnd.balsamiq.bmpr": {
+        source: "iana"
+      },
+      "application/vnd.banana-accounting": {
+        source: "iana"
+      },
+      "application/vnd.bbf.usp.error": {
+        source: "iana"
+      },
+      "application/vnd.bbf.usp.msg": {
+        source: "iana"
+      },
+      "application/vnd.bbf.usp.msg+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.bekitzur-stech+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.bint.med-content": {
+        source: "iana"
+      },
+      "application/vnd.biopax.rdf+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.blink-idb-value-wrapper": {
+        source: "iana"
+      },
+      "application/vnd.blueice.multipass": {
+        source: "iana",
+        extensions: ["mpm"]
+      },
+      "application/vnd.bluetooth.ep.oob": {
+        source: "iana"
+      },
+      "application/vnd.bluetooth.le.oob": {
+        source: "iana"
+      },
+      "application/vnd.bmi": {
+        source: "iana",
+        extensions: ["bmi"]
+      },
+      "application/vnd.bpf": {
+        source: "iana"
+      },
+      "application/vnd.bpf3": {
+        source: "iana"
+      },
+      "application/vnd.businessobjects": {
+        source: "iana",
+        extensions: ["rep"]
+      },
+      "application/vnd.byu.uapi+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cab-jscript": {
+        source: "iana"
+      },
+      "application/vnd.canon-cpdl": {
+        source: "iana"
+      },
+      "application/vnd.canon-lips": {
+        source: "iana"
+      },
+      "application/vnd.capasystems-pg+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cendio.thinlinc.clientconf": {
+        source: "iana"
+      },
+      "application/vnd.century-systems.tcp_stream": {
+        source: "iana"
+      },
+      "application/vnd.chemdraw+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["cdxml"]
+      },
+      "application/vnd.chess-pgn": {
+        source: "iana"
+      },
+      "application/vnd.chipnuts.karaoke-mmd": {
+        source: "iana",
+        extensions: ["mmd"]
+      },
+      "application/vnd.ciedi": {
+        source: "iana"
+      },
+      "application/vnd.cinderella": {
+        source: "iana",
+        extensions: ["cdy"]
+      },
+      "application/vnd.cirpack.isdn-ext": {
+        source: "iana"
+      },
+      "application/vnd.citationstyles.style+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["csl"]
+      },
+      "application/vnd.claymore": {
+        source: "iana",
+        extensions: ["cla"]
+      },
+      "application/vnd.cloanto.rp9": {
+        source: "iana",
+        extensions: ["rp9"]
+      },
+      "application/vnd.clonk.c4group": {
+        source: "iana",
+        extensions: ["c4g", "c4d", "c4f", "c4p", "c4u"]
+      },
+      "application/vnd.cluetrust.cartomobile-config": {
+        source: "iana",
+        extensions: ["c11amc"]
+      },
+      "application/vnd.cluetrust.cartomobile-config-pkg": {
+        source: "iana",
+        extensions: ["c11amz"]
+      },
+      "application/vnd.coffeescript": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.document": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.document-template": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.presentation": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.presentation-template": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.spreadsheet": {
+        source: "iana"
+      },
+      "application/vnd.collabio.xodocuments.spreadsheet-template": {
+        source: "iana"
+      },
+      "application/vnd.collection+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.collection.doc+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.collection.next+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.comicbook+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.comicbook-rar": {
+        source: "iana"
+      },
+      "application/vnd.commerce-battelle": {
+        source: "iana"
+      },
+      "application/vnd.commonspace": {
+        source: "iana",
+        extensions: ["csp"]
+      },
+      "application/vnd.contact.cmsg": {
+        source: "iana",
+        extensions: ["cdbcmsg"]
+      },
+      "application/vnd.coreos.ignition+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cosmocaller": {
+        source: "iana",
+        extensions: ["cmc"]
+      },
+      "application/vnd.crick.clicker": {
+        source: "iana",
+        extensions: ["clkx"]
+      },
+      "application/vnd.crick.clicker.keyboard": {
+        source: "iana",
+        extensions: ["clkk"]
+      },
+      "application/vnd.crick.clicker.palette": {
+        source: "iana",
+        extensions: ["clkp"]
+      },
+      "application/vnd.crick.clicker.template": {
+        source: "iana",
+        extensions: ["clkt"]
+      },
+      "application/vnd.crick.clicker.wordbank": {
+        source: "iana",
+        extensions: ["clkw"]
+      },
+      "application/vnd.criticaltools.wbs+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wbs"]
+      },
+      "application/vnd.cryptii.pipe+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.crypto-shade-file": {
+        source: "iana"
+      },
+      "application/vnd.cryptomator.encrypted": {
+        source: "iana"
+      },
+      "application/vnd.cryptomator.vault": {
+        source: "iana"
+      },
+      "application/vnd.ctc-posml": {
+        source: "iana",
+        extensions: ["pml"]
+      },
+      "application/vnd.ctct.ws+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cups-pdf": {
+        source: "iana"
+      },
+      "application/vnd.cups-postscript": {
+        source: "iana"
+      },
+      "application/vnd.cups-ppd": {
+        source: "iana",
+        extensions: ["ppd"]
+      },
+      "application/vnd.cups-raster": {
+        source: "iana"
+      },
+      "application/vnd.cups-raw": {
+        source: "iana"
+      },
+      "application/vnd.curl": {
+        source: "iana"
+      },
+      "application/vnd.curl.car": {
+        source: "apache",
+        extensions: ["car"]
+      },
+      "application/vnd.curl.pcurl": {
+        source: "apache",
+        extensions: ["pcurl"]
+      },
+      "application/vnd.cyan.dean.root+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cybank": {
+        source: "iana"
+      },
+      "application/vnd.cyclonedx+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.cyclonedx+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.d2l.coursepackage1p0+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.d3m-dataset": {
+        source: "iana"
+      },
+      "application/vnd.d3m-problem": {
+        source: "iana"
+      },
+      "application/vnd.dart": {
+        source: "iana",
+        compressible: true,
+        extensions: ["dart"]
+      },
+      "application/vnd.data-vision.rdz": {
+        source: "iana",
+        extensions: ["rdz"]
+      },
+      "application/vnd.datapackage+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dataresource+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dbf": {
+        source: "iana",
+        extensions: ["dbf"]
+      },
+      "application/vnd.debian.binary-package": {
+        source: "iana"
+      },
+      "application/vnd.dece.data": {
+        source: "iana",
+        extensions: ["uvf", "uvvf", "uvd", "uvvd"]
+      },
+      "application/vnd.dece.ttml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["uvt", "uvvt"]
+      },
+      "application/vnd.dece.unspecified": {
+        source: "iana",
+        extensions: ["uvx", "uvvx"]
+      },
+      "application/vnd.dece.zip": {
+        source: "iana",
+        extensions: ["uvz", "uvvz"]
+      },
+      "application/vnd.denovo.fcselayout-link": {
+        source: "iana",
+        extensions: ["fe_launch"]
+      },
+      "application/vnd.desmume.movie": {
+        source: "iana"
+      },
+      "application/vnd.dir-bi.plate-dl-nosuffix": {
+        source: "iana"
+      },
+      "application/vnd.dm.delegation+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dna": {
+        source: "iana",
+        extensions: ["dna"]
+      },
+      "application/vnd.document+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dolby.mlp": {
+        source: "apache",
+        extensions: ["mlp"]
+      },
+      "application/vnd.dolby.mobile.1": {
+        source: "iana"
+      },
+      "application/vnd.dolby.mobile.2": {
+        source: "iana"
+      },
+      "application/vnd.doremir.scorecloud-binary-document": {
+        source: "iana"
+      },
+      "application/vnd.dpgraph": {
+        source: "iana",
+        extensions: ["dpg"]
+      },
+      "application/vnd.dreamfactory": {
+        source: "iana",
+        extensions: ["dfac"]
+      },
+      "application/vnd.drive+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ds-keypoint": {
+        source: "apache",
+        extensions: ["kpxx"]
+      },
+      "application/vnd.dtg.local": {
+        source: "iana"
+      },
+      "application/vnd.dtg.local.flash": {
+        source: "iana"
+      },
+      "application/vnd.dtg.local.html": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ait": {
+        source: "iana",
+        extensions: ["ait"]
+      },
+      "application/vnd.dvb.dvbisl+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.dvbj": {
+        source: "iana"
+      },
+      "application/vnd.dvb.esgcontainer": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ipdcdftnotifaccess": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ipdcesgaccess": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ipdcesgaccess2": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ipdcesgpdd": {
+        source: "iana"
+      },
+      "application/vnd.dvb.ipdcroaming": {
+        source: "iana"
+      },
+      "application/vnd.dvb.iptv.alfec-base": {
+        source: "iana"
+      },
+      "application/vnd.dvb.iptv.alfec-enhancement": {
+        source: "iana"
+      },
+      "application/vnd.dvb.notif-aggregate-root+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-container+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-generic+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-ia-msglist+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-ia-registration-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-ia-registration-response+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.notif-init+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.dvb.pfr": {
+        source: "iana"
+      },
+      "application/vnd.dvb.service": {
+        source: "iana",
+        extensions: ["svc"]
+      },
+      "application/vnd.dxr": {
+        source: "iana"
+      },
+      "application/vnd.dynageo": {
+        source: "iana",
+        extensions: ["geo"]
+      },
+      "application/vnd.dzr": {
+        source: "iana"
+      },
+      "application/vnd.easykaraoke.cdgdownload": {
+        source: "iana"
+      },
+      "application/vnd.ecdis-update": {
+        source: "iana"
+      },
+      "application/vnd.ecip.rlp": {
+        source: "iana"
+      },
+      "application/vnd.eclipse.ditto+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ecowin.chart": {
+        source: "iana",
+        extensions: ["mag"]
+      },
+      "application/vnd.ecowin.filerequest": {
+        source: "iana"
+      },
+      "application/vnd.ecowin.fileupdate": {
+        source: "iana"
+      },
+      "application/vnd.ecowin.series": {
+        source: "iana"
+      },
+      "application/vnd.ecowin.seriesrequest": {
+        source: "iana"
+      },
+      "application/vnd.ecowin.seriesupdate": {
+        source: "iana"
+      },
+      "application/vnd.efi.img": {
+        source: "iana"
+      },
+      "application/vnd.efi.iso": {
+        source: "iana"
+      },
+      "application/vnd.emclient.accessrequest+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.enliven": {
+        source: "iana",
+        extensions: ["nml"]
+      },
+      "application/vnd.enphase.envoy": {
+        source: "iana"
+      },
+      "application/vnd.eprints.data+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.epson.esf": {
+        source: "iana",
+        extensions: ["esf"]
+      },
+      "application/vnd.epson.msf": {
+        source: "iana",
+        extensions: ["msf"]
+      },
+      "application/vnd.epson.quickanime": {
+        source: "iana",
+        extensions: ["qam"]
+      },
+      "application/vnd.epson.salt": {
+        source: "iana",
+        extensions: ["slt"]
+      },
+      "application/vnd.epson.ssf": {
+        source: "iana",
+        extensions: ["ssf"]
+      },
+      "application/vnd.ericsson.quickcall": {
+        source: "iana"
+      },
+      "application/vnd.espass-espass+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.eszigno3+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["es3", "et3"]
+      },
+      "application/vnd.etsi.aoc+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.asic-e+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.etsi.asic-s+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.etsi.cug+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvcommand+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvdiscovery+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvprofile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvsad-bc+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvsad-cod+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvsad-npvr+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvservice+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvsync+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.iptvueprofile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.mcid+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.mheg5": {
+        source: "iana"
+      },
+      "application/vnd.etsi.overload-control-policy-dataset+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.pstn+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.sci+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.simservs+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.timestamp-token": {
+        source: "iana"
+      },
+      "application/vnd.etsi.tsl+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.etsi.tsl.der": {
+        source: "iana"
+      },
+      "application/vnd.eu.kasparian.car+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.eudora.data": {
+        source: "iana"
+      },
+      "application/vnd.evolv.ecig.profile": {
+        source: "iana"
+      },
+      "application/vnd.evolv.ecig.settings": {
+        source: "iana"
+      },
+      "application/vnd.evolv.ecig.theme": {
+        source: "iana"
+      },
+      "application/vnd.exstream-empower+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.exstream-package": {
+        source: "iana"
+      },
+      "application/vnd.ezpix-album": {
+        source: "iana",
+        extensions: ["ez2"]
+      },
+      "application/vnd.ezpix-package": {
+        source: "iana",
+        extensions: ["ez3"]
+      },
+      "application/vnd.f-secure.mobile": {
+        source: "iana"
+      },
+      "application/vnd.familysearch.gedcom+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.fastcopy-disk-image": {
+        source: "iana"
+      },
+      "application/vnd.fdf": {
+        source: "iana",
+        extensions: ["fdf"]
+      },
+      "application/vnd.fdsn.mseed": {
+        source: "iana",
+        extensions: ["mseed"]
+      },
+      "application/vnd.fdsn.seed": {
+        source: "iana",
+        extensions: ["seed", "dataless"]
+      },
+      "application/vnd.ffsns": {
+        source: "iana"
+      },
+      "application/vnd.ficlab.flb+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.filmit.zfc": {
+        source: "iana"
+      },
+      "application/vnd.fints": {
+        source: "iana"
+      },
+      "application/vnd.firemonkeys.cloudcell": {
+        source: "iana"
+      },
+      "application/vnd.flographit": {
+        source: "iana",
+        extensions: ["gph"]
+      },
+      "application/vnd.fluxtime.clip": {
+        source: "iana",
+        extensions: ["ftc"]
+      },
+      "application/vnd.font-fontforge-sfd": {
+        source: "iana"
+      },
+      "application/vnd.framemaker": {
+        source: "iana",
+        extensions: ["fm", "frame", "maker", "book"]
+      },
+      "application/vnd.frogans.fnc": {
+        source: "iana",
+        extensions: ["fnc"]
+      },
+      "application/vnd.frogans.ltf": {
+        source: "iana",
+        extensions: ["ltf"]
+      },
+      "application/vnd.fsc.weblaunch": {
+        source: "iana",
+        extensions: ["fsc"]
+      },
+      "application/vnd.fujifilm.fb.docuworks": {
+        source: "iana"
+      },
+      "application/vnd.fujifilm.fb.docuworks.binder": {
+        source: "iana"
+      },
+      "application/vnd.fujifilm.fb.docuworks.container": {
+        source: "iana"
+      },
+      "application/vnd.fujifilm.fb.jfi+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.fujitsu.oasys": {
+        source: "iana",
+        extensions: ["oas"]
+      },
+      "application/vnd.fujitsu.oasys2": {
+        source: "iana",
+        extensions: ["oa2"]
+      },
+      "application/vnd.fujitsu.oasys3": {
+        source: "iana",
+        extensions: ["oa3"]
+      },
+      "application/vnd.fujitsu.oasysgp": {
+        source: "iana",
+        extensions: ["fg5"]
+      },
+      "application/vnd.fujitsu.oasysprs": {
+        source: "iana",
+        extensions: ["bh2"]
+      },
+      "application/vnd.fujixerox.art-ex": {
+        source: "iana"
+      },
+      "application/vnd.fujixerox.art4": {
+        source: "iana"
+      },
+      "application/vnd.fujixerox.ddd": {
+        source: "iana",
+        extensions: ["ddd"]
+      },
+      "application/vnd.fujixerox.docuworks": {
+        source: "iana",
+        extensions: ["xdw"]
+      },
+      "application/vnd.fujixerox.docuworks.binder": {
+        source: "iana",
+        extensions: ["xbd"]
+      },
+      "application/vnd.fujixerox.docuworks.container": {
+        source: "iana"
+      },
+      "application/vnd.fujixerox.hbpl": {
+        source: "iana"
+      },
+      "application/vnd.fut-misnet": {
+        source: "iana"
+      },
+      "application/vnd.futoin+cbor": {
+        source: "iana"
+      },
+      "application/vnd.futoin+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.fuzzysheet": {
+        source: "iana",
+        extensions: ["fzs"]
+      },
+      "application/vnd.genomatix.tuxedo": {
+        source: "iana",
+        extensions: ["txd"]
+      },
+      "application/vnd.gentics.grd+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.geo+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.geocube+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.geogebra.file": {
+        source: "iana",
+        extensions: ["ggb"]
+      },
+      "application/vnd.geogebra.slides": {
+        source: "iana"
+      },
+      "application/vnd.geogebra.tool": {
+        source: "iana",
+        extensions: ["ggt"]
+      },
+      "application/vnd.geometry-explorer": {
+        source: "iana",
+        extensions: ["gex", "gre"]
+      },
+      "application/vnd.geonext": {
+        source: "iana",
+        extensions: ["gxt"]
+      },
+      "application/vnd.geoplan": {
+        source: "iana",
+        extensions: ["g2w"]
+      },
+      "application/vnd.geospace": {
+        source: "iana",
+        extensions: ["g3w"]
+      },
+      "application/vnd.gerber": {
+        source: "iana"
+      },
+      "application/vnd.globalplatform.card-content-mgt": {
+        source: "iana"
+      },
+      "application/vnd.globalplatform.card-content-mgt-response": {
+        source: "iana"
+      },
+      "application/vnd.gmx": {
+        source: "iana",
+        extensions: ["gmx"]
+      },
+      "application/vnd.google-apps.document": {
+        compressible: false,
+        extensions: ["gdoc"]
+      },
+      "application/vnd.google-apps.presentation": {
+        compressible: false,
+        extensions: ["gslides"]
+      },
+      "application/vnd.google-apps.spreadsheet": {
+        compressible: false,
+        extensions: ["gsheet"]
+      },
+      "application/vnd.google-earth.kml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["kml"]
+      },
+      "application/vnd.google-earth.kmz": {
+        source: "iana",
+        compressible: false,
+        extensions: ["kmz"]
+      },
+      "application/vnd.gov.sk.e-form+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.gov.sk.e-form+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.gov.sk.xmldatacontainer+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.grafeq": {
+        source: "iana",
+        extensions: ["gqf", "gqs"]
+      },
+      "application/vnd.gridmp": {
+        source: "iana"
+      },
+      "application/vnd.groove-account": {
+        source: "iana",
+        extensions: ["gac"]
+      },
+      "application/vnd.groove-help": {
+        source: "iana",
+        extensions: ["ghf"]
+      },
+      "application/vnd.groove-identity-message": {
+        source: "iana",
+        extensions: ["gim"]
+      },
+      "application/vnd.groove-injector": {
+        source: "iana",
+        extensions: ["grv"]
+      },
+      "application/vnd.groove-tool-message": {
+        source: "iana",
+        extensions: ["gtm"]
+      },
+      "application/vnd.groove-tool-template": {
+        source: "iana",
+        extensions: ["tpl"]
+      },
+      "application/vnd.groove-vcard": {
+        source: "iana",
+        extensions: ["vcg"]
+      },
+      "application/vnd.hal+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hal+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["hal"]
+      },
+      "application/vnd.handheld-entertainment+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["zmm"]
+      },
+      "application/vnd.hbci": {
+        source: "iana",
+        extensions: ["hbci"]
+      },
+      "application/vnd.hc+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hcl-bireports": {
+        source: "iana"
+      },
+      "application/vnd.hdt": {
+        source: "iana"
+      },
+      "application/vnd.heroku+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hhe.lesson-player": {
+        source: "iana",
+        extensions: ["les"]
+      },
+      "application/vnd.hl7cda+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.hl7v2+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.hp-hpgl": {
+        source: "iana",
+        extensions: ["hpgl"]
+      },
+      "application/vnd.hp-hpid": {
+        source: "iana",
+        extensions: ["hpid"]
+      },
+      "application/vnd.hp-hps": {
+        source: "iana",
+        extensions: ["hps"]
+      },
+      "application/vnd.hp-jlyt": {
+        source: "iana",
+        extensions: ["jlt"]
+      },
+      "application/vnd.hp-pcl": {
+        source: "iana",
+        extensions: ["pcl"]
+      },
+      "application/vnd.hp-pclxl": {
+        source: "iana",
+        extensions: ["pclxl"]
+      },
+      "application/vnd.httphone": {
+        source: "iana"
+      },
+      "application/vnd.hydrostatix.sof-data": {
+        source: "iana",
+        extensions: ["sfd-hdstx"]
+      },
+      "application/vnd.hyper+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hyper-item+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hyperdrive+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.hzn-3d-crossword": {
+        source: "iana"
+      },
+      "application/vnd.ibm.afplinedata": {
+        source: "iana"
+      },
+      "application/vnd.ibm.electronic-media": {
+        source: "iana"
+      },
+      "application/vnd.ibm.minipay": {
+        source: "iana",
+        extensions: ["mpy"]
+      },
+      "application/vnd.ibm.modcap": {
+        source: "iana",
+        extensions: ["afp", "listafp", "list3820"]
+      },
+      "application/vnd.ibm.rights-management": {
+        source: "iana",
+        extensions: ["irm"]
+      },
+      "application/vnd.ibm.secure-container": {
+        source: "iana",
+        extensions: ["sc"]
+      },
+      "application/vnd.iccprofile": {
+        source: "iana",
+        extensions: ["icc", "icm"]
+      },
+      "application/vnd.ieee.1905": {
+        source: "iana"
+      },
+      "application/vnd.igloader": {
+        source: "iana",
+        extensions: ["igl"]
+      },
+      "application/vnd.imagemeter.folder+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.imagemeter.image+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.immervision-ivp": {
+        source: "iana",
+        extensions: ["ivp"]
+      },
+      "application/vnd.immervision-ivu": {
+        source: "iana",
+        extensions: ["ivu"]
+      },
+      "application/vnd.ims.imsccv1p1": {
+        source: "iana"
+      },
+      "application/vnd.ims.imsccv1p2": {
+        source: "iana"
+      },
+      "application/vnd.ims.imsccv1p3": {
+        source: "iana"
+      },
+      "application/vnd.ims.lis.v2.result+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ims.lti.v2.toolconsumerprofile+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ims.lti.v2.toolproxy+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ims.lti.v2.toolproxy.id+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ims.lti.v2.toolsettings+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ims.lti.v2.toolsettings.simple+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.informedcontrol.rms+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.informix-visionary": {
+        source: "iana"
+      },
+      "application/vnd.infotech.project": {
+        source: "iana"
+      },
+      "application/vnd.infotech.project+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.innopath.wamp.notification": {
+        source: "iana"
+      },
+      "application/vnd.insors.igm": {
+        source: "iana",
+        extensions: ["igm"]
+      },
+      "application/vnd.intercon.formnet": {
+        source: "iana",
+        extensions: ["xpw", "xpx"]
+      },
+      "application/vnd.intergeo": {
+        source: "iana",
+        extensions: ["i2g"]
+      },
+      "application/vnd.intertrust.digibox": {
+        source: "iana"
+      },
+      "application/vnd.intertrust.nncp": {
+        source: "iana"
+      },
+      "application/vnd.intu.qbo": {
+        source: "iana",
+        extensions: ["qbo"]
+      },
+      "application/vnd.intu.qfx": {
+        source: "iana",
+        extensions: ["qfx"]
+      },
+      "application/vnd.iptc.g2.catalogitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.conceptitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.knowledgeitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.newsitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.newsmessage+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.packageitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.iptc.g2.planningitem+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ipunplugged.rcprofile": {
+        source: "iana",
+        extensions: ["rcprofile"]
+      },
+      "application/vnd.irepository.package+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["irp"]
+      },
+      "application/vnd.is-xpr": {
+        source: "iana",
+        extensions: ["xpr"]
+      },
+      "application/vnd.isac.fcs": {
+        source: "iana",
+        extensions: ["fcs"]
+      },
+      "application/vnd.iso11783-10+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.jam": {
+        source: "iana",
+        extensions: ["jam"]
+      },
+      "application/vnd.japannet-directory-service": {
+        source: "iana"
+      },
+      "application/vnd.japannet-jpnstore-wakeup": {
+        source: "iana"
+      },
+      "application/vnd.japannet-payment-wakeup": {
+        source: "iana"
+      },
+      "application/vnd.japannet-registration": {
+        source: "iana"
+      },
+      "application/vnd.japannet-registration-wakeup": {
+        source: "iana"
+      },
+      "application/vnd.japannet-setstore-wakeup": {
+        source: "iana"
+      },
+      "application/vnd.japannet-verification": {
+        source: "iana"
+      },
+      "application/vnd.japannet-verification-wakeup": {
+        source: "iana"
+      },
+      "application/vnd.jcp.javame.midlet-rms": {
+        source: "iana",
+        extensions: ["rms"]
+      },
+      "application/vnd.jisp": {
+        source: "iana",
+        extensions: ["jisp"]
+      },
+      "application/vnd.joost.joda-archive": {
+        source: "iana",
+        extensions: ["joda"]
+      },
+      "application/vnd.jsk.isdn-ngn": {
+        source: "iana"
+      },
+      "application/vnd.kahootz": {
+        source: "iana",
+        extensions: ["ktz", "ktr"]
+      },
+      "application/vnd.kde.karbon": {
+        source: "iana",
+        extensions: ["karbon"]
+      },
+      "application/vnd.kde.kchart": {
+        source: "iana",
+        extensions: ["chrt"]
+      },
+      "application/vnd.kde.kformula": {
+        source: "iana",
+        extensions: ["kfo"]
+      },
+      "application/vnd.kde.kivio": {
+        source: "iana",
+        extensions: ["flw"]
+      },
+      "application/vnd.kde.kontour": {
+        source: "iana",
+        extensions: ["kon"]
+      },
+      "application/vnd.kde.kpresenter": {
+        source: "iana",
+        extensions: ["kpr", "kpt"]
+      },
+      "application/vnd.kde.kspread": {
+        source: "iana",
+        extensions: ["ksp"]
+      },
+      "application/vnd.kde.kword": {
+        source: "iana",
+        extensions: ["kwd", "kwt"]
+      },
+      "application/vnd.kenameaapp": {
+        source: "iana",
+        extensions: ["htke"]
+      },
+      "application/vnd.kidspiration": {
+        source: "iana",
+        extensions: ["kia"]
+      },
+      "application/vnd.kinar": {
+        source: "iana",
+        extensions: ["kne", "knp"]
+      },
+      "application/vnd.koan": {
+        source: "iana",
+        extensions: ["skp", "skd", "skt", "skm"]
+      },
+      "application/vnd.kodak-descriptor": {
+        source: "iana",
+        extensions: ["sse"]
+      },
+      "application/vnd.las": {
+        source: "iana"
+      },
+      "application/vnd.las.las+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.las.las+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["lasxml"]
+      },
+      "application/vnd.laszip": {
+        source: "iana"
+      },
+      "application/vnd.leap+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.liberty-request+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.llamagraphics.life-balance.desktop": {
+        source: "iana",
+        extensions: ["lbd"]
+      },
+      "application/vnd.llamagraphics.life-balance.exchange+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["lbe"]
+      },
+      "application/vnd.logipipe.circuit+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.loom": {
+        source: "iana"
+      },
+      "application/vnd.lotus-1-2-3": {
+        source: "iana",
+        extensions: ["123"]
+      },
+      "application/vnd.lotus-approach": {
+        source: "iana",
+        extensions: ["apr"]
+      },
+      "application/vnd.lotus-freelance": {
+        source: "iana",
+        extensions: ["pre"]
+      },
+      "application/vnd.lotus-notes": {
+        source: "iana",
+        extensions: ["nsf"]
+      },
+      "application/vnd.lotus-organizer": {
+        source: "iana",
+        extensions: ["org"]
+      },
+      "application/vnd.lotus-screencam": {
+        source: "iana",
+        extensions: ["scm"]
+      },
+      "application/vnd.lotus-wordpro": {
+        source: "iana",
+        extensions: ["lwp"]
+      },
+      "application/vnd.macports.portpkg": {
+        source: "iana",
+        extensions: ["portpkg"]
+      },
+      "application/vnd.mapbox-vector-tile": {
+        source: "iana",
+        extensions: ["mvt"]
+      },
+      "application/vnd.marlin.drm.actiontoken+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.marlin.drm.conftoken+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.marlin.drm.license+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.marlin.drm.mdcf": {
+        source: "iana"
+      },
+      "application/vnd.mason+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.maxar.archive.3tz+zip": {
+        source: "iana",
+        compressible: false
+      },
+      "application/vnd.maxmind.maxmind-db": {
+        source: "iana"
+      },
+      "application/vnd.mcd": {
+        source: "iana",
+        extensions: ["mcd"]
+      },
+      "application/vnd.medcalcdata": {
+        source: "iana",
+        extensions: ["mc1"]
+      },
+      "application/vnd.mediastation.cdkey": {
+        source: "iana",
+        extensions: ["cdkey"]
+      },
+      "application/vnd.meridian-slingshot": {
+        source: "iana"
+      },
+      "application/vnd.mfer": {
+        source: "iana",
+        extensions: ["mwf"]
+      },
+      "application/vnd.mfmp": {
+        source: "iana",
+        extensions: ["mfm"]
+      },
+      "application/vnd.micro+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.micrografx.flo": {
+        source: "iana",
+        extensions: ["flo"]
+      },
+      "application/vnd.micrografx.igx": {
+        source: "iana",
+        extensions: ["igx"]
+      },
+      "application/vnd.microsoft.portable-executable": {
+        source: "iana"
+      },
+      "application/vnd.microsoft.windows.thumbnail-cache": {
+        source: "iana"
+      },
+      "application/vnd.miele+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.mif": {
+        source: "iana",
+        extensions: ["mif"]
+      },
+      "application/vnd.minisoft-hp3000-save": {
+        source: "iana"
+      },
+      "application/vnd.mitsubishi.misty-guard.trustweb": {
+        source: "iana"
+      },
+      "application/vnd.mobius.daf": {
+        source: "iana",
+        extensions: ["daf"]
+      },
+      "application/vnd.mobius.dis": {
+        source: "iana",
+        extensions: ["dis"]
+      },
+      "application/vnd.mobius.mbk": {
+        source: "iana",
+        extensions: ["mbk"]
+      },
+      "application/vnd.mobius.mqy": {
+        source: "iana",
+        extensions: ["mqy"]
+      },
+      "application/vnd.mobius.msl": {
+        source: "iana",
+        extensions: ["msl"]
+      },
+      "application/vnd.mobius.plc": {
+        source: "iana",
+        extensions: ["plc"]
+      },
+      "application/vnd.mobius.txf": {
+        source: "iana",
+        extensions: ["txf"]
+      },
+      "application/vnd.mophun.application": {
+        source: "iana",
+        extensions: ["mpn"]
+      },
+      "application/vnd.mophun.certificate": {
+        source: "iana",
+        extensions: ["mpc"]
+      },
+      "application/vnd.motorola.flexsuite": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.adsi": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.fis": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.gotap": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.kmr": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.ttc": {
+        source: "iana"
+      },
+      "application/vnd.motorola.flexsuite.wem": {
+        source: "iana"
+      },
+      "application/vnd.motorola.iprm": {
+        source: "iana"
+      },
+      "application/vnd.mozilla.xul+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xul"]
+      },
+      "application/vnd.ms-3mfdocument": {
+        source: "iana"
+      },
+      "application/vnd.ms-artgalry": {
+        source: "iana",
+        extensions: ["cil"]
+      },
+      "application/vnd.ms-asf": {
+        source: "iana"
+      },
+      "application/vnd.ms-cab-compressed": {
+        source: "iana",
+        extensions: ["cab"]
+      },
+      "application/vnd.ms-color.iccprofile": {
+        source: "apache"
+      },
+      "application/vnd.ms-excel": {
+        source: "iana",
+        compressible: false,
+        extensions: ["xls", "xlm", "xla", "xlc", "xlt", "xlw"]
+      },
+      "application/vnd.ms-excel.addin.macroenabled.12": {
+        source: "iana",
+        extensions: ["xlam"]
+      },
+      "application/vnd.ms-excel.sheet.binary.macroenabled.12": {
+        source: "iana",
+        extensions: ["xlsb"]
+      },
+      "application/vnd.ms-excel.sheet.macroenabled.12": {
+        source: "iana",
+        extensions: ["xlsm"]
+      },
+      "application/vnd.ms-excel.template.macroenabled.12": {
+        source: "iana",
+        extensions: ["xltm"]
+      },
+      "application/vnd.ms-fontobject": {
+        source: "iana",
+        compressible: true,
+        extensions: ["eot"]
+      },
+      "application/vnd.ms-htmlhelp": {
+        source: "iana",
+        extensions: ["chm"]
+      },
+      "application/vnd.ms-ims": {
+        source: "iana",
+        extensions: ["ims"]
+      },
+      "application/vnd.ms-lrm": {
+        source: "iana",
+        extensions: ["lrm"]
+      },
+      "application/vnd.ms-office.activex+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ms-officetheme": {
+        source: "iana",
+        extensions: ["thmx"]
+      },
+      "application/vnd.ms-opentype": {
+        source: "apache",
+        compressible: true
+      },
+      "application/vnd.ms-outlook": {
+        compressible: false,
+        extensions: ["msg"]
+      },
+      "application/vnd.ms-package.obfuscated-opentype": {
+        source: "apache"
+      },
+      "application/vnd.ms-pki.seccat": {
+        source: "apache",
+        extensions: ["cat"]
+      },
+      "application/vnd.ms-pki.stl": {
+        source: "apache",
+        extensions: ["stl"]
+      },
+      "application/vnd.ms-playready.initiator+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ms-powerpoint": {
+        source: "iana",
+        compressible: false,
+        extensions: ["ppt", "pps", "pot"]
+      },
+      "application/vnd.ms-powerpoint.addin.macroenabled.12": {
+        source: "iana",
+        extensions: ["ppam"]
+      },
+      "application/vnd.ms-powerpoint.presentation.macroenabled.12": {
+        source: "iana",
+        extensions: ["pptm"]
+      },
+      "application/vnd.ms-powerpoint.slide.macroenabled.12": {
+        source: "iana",
+        extensions: ["sldm"]
+      },
+      "application/vnd.ms-powerpoint.slideshow.macroenabled.12": {
+        source: "iana",
+        extensions: ["ppsm"]
+      },
+      "application/vnd.ms-powerpoint.template.macroenabled.12": {
+        source: "iana",
+        extensions: ["potm"]
+      },
+      "application/vnd.ms-printdevicecapabilities+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ms-printing.printticket+xml": {
+        source: "apache",
+        compressible: true
+      },
+      "application/vnd.ms-printschematicket+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ms-project": {
+        source: "iana",
+        extensions: ["mpp", "mpt"]
+      },
+      "application/vnd.ms-tnef": {
+        source: "iana"
+      },
+      "application/vnd.ms-windows.devicepairing": {
+        source: "iana"
+      },
+      "application/vnd.ms-windows.nwprinting.oob": {
+        source: "iana"
+      },
+      "application/vnd.ms-windows.printerpairing": {
+        source: "iana"
+      },
+      "application/vnd.ms-windows.wsd.oob": {
+        source: "iana"
+      },
+      "application/vnd.ms-wmdrm.lic-chlg-req": {
+        source: "iana"
+      },
+      "application/vnd.ms-wmdrm.lic-resp": {
+        source: "iana"
+      },
+      "application/vnd.ms-wmdrm.meter-chlg-req": {
+        source: "iana"
+      },
+      "application/vnd.ms-wmdrm.meter-resp": {
+        source: "iana"
+      },
+      "application/vnd.ms-word.document.macroenabled.12": {
+        source: "iana",
+        extensions: ["docm"]
+      },
+      "application/vnd.ms-word.template.macroenabled.12": {
+        source: "iana",
+        extensions: ["dotm"]
+      },
+      "application/vnd.ms-works": {
+        source: "iana",
+        extensions: ["wps", "wks", "wcm", "wdb"]
+      },
+      "application/vnd.ms-wpl": {
+        source: "iana",
+        extensions: ["wpl"]
+      },
+      "application/vnd.ms-xpsdocument": {
+        source: "iana",
+        compressible: false,
+        extensions: ["xps"]
+      },
+      "application/vnd.msa-disk-image": {
+        source: "iana"
+      },
+      "application/vnd.mseq": {
+        source: "iana",
+        extensions: ["mseq"]
+      },
+      "application/vnd.msign": {
+        source: "iana"
+      },
+      "application/vnd.multiad.creator": {
+        source: "iana"
+      },
+      "application/vnd.multiad.creator.cif": {
+        source: "iana"
+      },
+      "application/vnd.music-niff": {
+        source: "iana"
+      },
+      "application/vnd.musician": {
+        source: "iana",
+        extensions: ["mus"]
+      },
+      "application/vnd.muvee.style": {
+        source: "iana",
+        extensions: ["msty"]
+      },
+      "application/vnd.mynfc": {
+        source: "iana",
+        extensions: ["taglet"]
+      },
+      "application/vnd.nacamar.ybrid+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.ncd.control": {
+        source: "iana"
+      },
+      "application/vnd.ncd.reference": {
+        source: "iana"
+      },
+      "application/vnd.nearst.inv+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nebumind.line": {
+        source: "iana"
+      },
+      "application/vnd.nervana": {
+        source: "iana"
+      },
+      "application/vnd.netfpx": {
+        source: "iana"
+      },
+      "application/vnd.neurolanguage.nlu": {
+        source: "iana",
+        extensions: ["nlu"]
+      },
+      "application/vnd.nimn": {
+        source: "iana"
+      },
+      "application/vnd.nintendo.nitro.rom": {
+        source: "iana"
+      },
+      "application/vnd.nintendo.snes.rom": {
+        source: "iana"
+      },
+      "application/vnd.nitf": {
+        source: "iana",
+        extensions: ["ntf", "nitf"]
+      },
+      "application/vnd.noblenet-directory": {
+        source: "iana",
+        extensions: ["nnd"]
+      },
+      "application/vnd.noblenet-sealer": {
+        source: "iana",
+        extensions: ["nns"]
+      },
+      "application/vnd.noblenet-web": {
+        source: "iana",
+        extensions: ["nnw"]
+      },
+      "application/vnd.nokia.catalogs": {
+        source: "iana"
+      },
+      "application/vnd.nokia.conml+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.nokia.conml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nokia.iptv.config+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nokia.isds-radio-presets": {
+        source: "iana"
+      },
+      "application/vnd.nokia.landmark+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.nokia.landmark+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nokia.landmarkcollection+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nokia.n-gage.ac+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ac"]
+      },
+      "application/vnd.nokia.n-gage.data": {
+        source: "iana",
+        extensions: ["ngdat"]
+      },
+      "application/vnd.nokia.n-gage.symbian.install": {
+        source: "iana",
+        extensions: ["n-gage"]
+      },
+      "application/vnd.nokia.ncd": {
+        source: "iana"
+      },
+      "application/vnd.nokia.pcd+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.nokia.pcd+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.nokia.radio-preset": {
+        source: "iana",
+        extensions: ["rpst"]
+      },
+      "application/vnd.nokia.radio-presets": {
+        source: "iana",
+        extensions: ["rpss"]
+      },
+      "application/vnd.novadigm.edm": {
+        source: "iana",
+        extensions: ["edm"]
+      },
+      "application/vnd.novadigm.edx": {
+        source: "iana",
+        extensions: ["edx"]
+      },
+      "application/vnd.novadigm.ext": {
+        source: "iana",
+        extensions: ["ext"]
+      },
+      "application/vnd.ntt-local.content-share": {
+        source: "iana"
+      },
+      "application/vnd.ntt-local.file-transfer": {
+        source: "iana"
+      },
+      "application/vnd.ntt-local.ogw_remote-access": {
+        source: "iana"
+      },
+      "application/vnd.ntt-local.sip-ta_remote": {
+        source: "iana"
+      },
+      "application/vnd.ntt-local.sip-ta_tcp_stream": {
+        source: "iana"
+      },
+      "application/vnd.oasis.opendocument.chart": {
+        source: "iana",
+        extensions: ["odc"]
+      },
+      "application/vnd.oasis.opendocument.chart-template": {
+        source: "iana",
+        extensions: ["otc"]
+      },
+      "application/vnd.oasis.opendocument.database": {
+        source: "iana",
+        extensions: ["odb"]
+      },
+      "application/vnd.oasis.opendocument.formula": {
+        source: "iana",
+        extensions: ["odf"]
+      },
+      "application/vnd.oasis.opendocument.formula-template": {
+        source: "iana",
+        extensions: ["odft"]
+      },
+      "application/vnd.oasis.opendocument.graphics": {
+        source: "iana",
+        compressible: false,
+        extensions: ["odg"]
+      },
+      "application/vnd.oasis.opendocument.graphics-template": {
+        source: "iana",
+        extensions: ["otg"]
+      },
+      "application/vnd.oasis.opendocument.image": {
+        source: "iana",
+        extensions: ["odi"]
+      },
+      "application/vnd.oasis.opendocument.image-template": {
+        source: "iana",
+        extensions: ["oti"]
+      },
+      "application/vnd.oasis.opendocument.presentation": {
+        source: "iana",
+        compressible: false,
+        extensions: ["odp"]
+      },
+      "application/vnd.oasis.opendocument.presentation-template": {
+        source: "iana",
+        extensions: ["otp"]
+      },
+      "application/vnd.oasis.opendocument.spreadsheet": {
+        source: "iana",
+        compressible: false,
+        extensions: ["ods"]
+      },
+      "application/vnd.oasis.opendocument.spreadsheet-template": {
+        source: "iana",
+        extensions: ["ots"]
+      },
+      "application/vnd.oasis.opendocument.text": {
+        source: "iana",
+        compressible: false,
+        extensions: ["odt"]
+      },
+      "application/vnd.oasis.opendocument.text-master": {
+        source: "iana",
+        extensions: ["odm"]
+      },
+      "application/vnd.oasis.opendocument.text-template": {
+        source: "iana",
+        extensions: ["ott"]
+      },
+      "application/vnd.oasis.opendocument.text-web": {
+        source: "iana",
+        extensions: ["oth"]
+      },
+      "application/vnd.obn": {
+        source: "iana"
+      },
+      "application/vnd.ocf+cbor": {
+        source: "iana"
+      },
+      "application/vnd.oci.image.manifest.v1+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oftn.l10n+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.contentaccessdownload+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.contentaccessstreaming+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.cspg-hexbinary": {
+        source: "iana"
+      },
+      "application/vnd.oipf.dae.svg+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.dae.xhtml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.mippvcontrolmessage+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.pae.gem": {
+        source: "iana"
+      },
+      "application/vnd.oipf.spdiscovery+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.spdlist+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.ueprofile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oipf.userprofile+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.olpc-sugar": {
+        source: "iana",
+        extensions: ["xo"]
+      },
+      "application/vnd.oma-scws-config": {
+        source: "iana"
+      },
+      "application/vnd.oma-scws-http-request": {
+        source: "iana"
+      },
+      "application/vnd.oma-scws-http-response": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.associated-procedure-parameter+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.drm-trigger+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.imd+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.ltkm": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.notification+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.provisioningtrigger": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.sgboot": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.sgdd+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.sgdu": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.simple-symbol-container": {
+        source: "iana"
+      },
+      "application/vnd.oma.bcast.smartcard-trigger+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.sprov+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.bcast.stkm": {
+        source: "iana"
+      },
+      "application/vnd.oma.cab-address-book+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.cab-feature-handler+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.cab-pcc+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.cab-subs-invite+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.cab-user-prefs+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.dcd": {
+        source: "iana"
+      },
+      "application/vnd.oma.dcdc": {
+        source: "iana"
+      },
+      "application/vnd.oma.dd2+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["dd2"]
+      },
+      "application/vnd.oma.drm.risd+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.group-usage-list+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.lwm2m+cbor": {
+        source: "iana"
+      },
+      "application/vnd.oma.lwm2m+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.lwm2m+tlv": {
+        source: "iana"
+      },
+      "application/vnd.oma.pal+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.poc.detailed-progress-report+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.poc.final-report+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.poc.groups+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.poc.invocation-descriptor+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.poc.optimized-progress-report+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.push": {
+        source: "iana"
+      },
+      "application/vnd.oma.scidm.messages+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oma.xcap-directory+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.omads-email+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.omads-file+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.omads-folder+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.omaloc-supl-init": {
+        source: "iana"
+      },
+      "application/vnd.onepager": {
+        source: "iana"
+      },
+      "application/vnd.onepagertamp": {
+        source: "iana"
+      },
+      "application/vnd.onepagertamx": {
+        source: "iana"
+      },
+      "application/vnd.onepagertat": {
+        source: "iana"
+      },
+      "application/vnd.onepagertatp": {
+        source: "iana"
+      },
+      "application/vnd.onepagertatx": {
+        source: "iana"
+      },
+      "application/vnd.openblox.game+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["obgx"]
+      },
+      "application/vnd.openblox.game-binary": {
+        source: "iana"
+      },
+      "application/vnd.openeye.oeb": {
+        source: "iana"
+      },
+      "application/vnd.openofficeorg.extension": {
+        source: "apache",
+        extensions: ["oxt"]
+      },
+      "application/vnd.openstreetmap.data+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["osm"]
+      },
+      "application/vnd.opentimestamps.ots": {
+        source: "iana"
+      },
+      "application/vnd.openxmlformats-officedocument.custom-properties+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.customxmlproperties+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawing+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.chart+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.diagramcolors+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.diagramdata+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.diagramlayout+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.drawingml.diagramstyle+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.extended-properties+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.commentauthors+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.comments+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.handoutmaster+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.notesmaster+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.notesslide+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+        source: "iana",
+        compressible: false,
+        extensions: ["pptx"]
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.presprops+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slide": {
+        source: "iana",
+        extensions: ["sldx"]
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slide+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slidelayout+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slidemaster+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slideshow": {
+        source: "iana",
+        extensions: ["ppsx"]
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.slideupdateinfo+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.tablestyles+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.tags+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.template": {
+        source: "iana",
+        extensions: ["potx"]
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.presentationml.viewprops+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.calcchain+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.connections+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.dialogsheet+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.externallink+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotcachedefinition+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotcacherecords+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.pivottable+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.querytable+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.revisionheaders+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.revisionlog+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedstrings+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+        source: "iana",
+        compressible: false,
+        extensions: ["xlsx"]
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetmetadata+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.tablesinglecells+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.template": {
+        source: "iana",
+        extensions: ["xltx"]
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.usernames+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.volatiledependencies+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.theme+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.themeoverride+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.vmldrawing": {
+        source: "iana"
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+        source: "iana",
+        compressible: false,
+        extensions: ["docx"]
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.template": {
+        source: "iana",
+        extensions: ["dotx"]
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-package.core-properties+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.openxmlformats-package.relationships+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oracle.resource+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.orange.indata": {
+        source: "iana"
+      },
+      "application/vnd.osa.netdeploy": {
+        source: "iana"
+      },
+      "application/vnd.osgeo.mapguide.package": {
+        source: "iana",
+        extensions: ["mgp"]
+      },
+      "application/vnd.osgi.bundle": {
+        source: "iana"
+      },
+      "application/vnd.osgi.dp": {
+        source: "iana",
+        extensions: ["dp"]
+      },
+      "application/vnd.osgi.subsystem": {
+        source: "iana",
+        extensions: ["esa"]
+      },
+      "application/vnd.otps.ct-kip+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.oxli.countgraph": {
+        source: "iana"
+      },
+      "application/vnd.pagerduty+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.palm": {
+        source: "iana",
+        extensions: ["pdb", "pqa", "oprc"]
+      },
+      "application/vnd.panoply": {
+        source: "iana"
+      },
+      "application/vnd.paos.xml": {
+        source: "iana"
+      },
+      "application/vnd.patentdive": {
+        source: "iana"
+      },
+      "application/vnd.patientecommsdoc": {
+        source: "iana"
+      },
+      "application/vnd.pawaafile": {
+        source: "iana",
+        extensions: ["paw"]
+      },
+      "application/vnd.pcos": {
+        source: "iana"
+      },
+      "application/vnd.pg.format": {
+        source: "iana",
+        extensions: ["str"]
+      },
+      "application/vnd.pg.osasli": {
+        source: "iana",
+        extensions: ["ei6"]
+      },
+      "application/vnd.piaccess.application-licence": {
+        source: "iana"
+      },
+      "application/vnd.picsel": {
+        source: "iana",
+        extensions: ["efif"]
+      },
+      "application/vnd.pmi.widget": {
+        source: "iana",
+        extensions: ["wg"]
+      },
+      "application/vnd.poc.group-advertisement+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.pocketlearn": {
+        source: "iana",
+        extensions: ["plf"]
+      },
+      "application/vnd.powerbuilder6": {
+        source: "iana",
+        extensions: ["pbd"]
+      },
+      "application/vnd.powerbuilder6-s": {
+        source: "iana"
+      },
+      "application/vnd.powerbuilder7": {
+        source: "iana"
+      },
+      "application/vnd.powerbuilder7-s": {
+        source: "iana"
+      },
+      "application/vnd.powerbuilder75": {
+        source: "iana"
+      },
+      "application/vnd.powerbuilder75-s": {
+        source: "iana"
+      },
+      "application/vnd.preminet": {
+        source: "iana"
+      },
+      "application/vnd.previewsystems.box": {
+        source: "iana",
+        extensions: ["box"]
+      },
+      "application/vnd.proteus.magazine": {
+        source: "iana",
+        extensions: ["mgz"]
+      },
+      "application/vnd.psfs": {
+        source: "iana"
+      },
+      "application/vnd.publishare-delta-tree": {
+        source: "iana",
+        extensions: ["qps"]
+      },
+      "application/vnd.pvi.ptid1": {
+        source: "iana",
+        extensions: ["ptid"]
+      },
+      "application/vnd.pwg-multiplexed": {
+        source: "iana"
+      },
+      "application/vnd.pwg-xhtml-print+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.qualcomm.brew-app-res": {
+        source: "iana"
+      },
+      "application/vnd.quarantainenet": {
+        source: "iana"
+      },
+      "application/vnd.quark.quarkxpress": {
+        source: "iana",
+        extensions: ["qxd", "qxt", "qwd", "qwt", "qxl", "qxb"]
+      },
+      "application/vnd.quobject-quoxdocument": {
+        source: "iana"
+      },
+      "application/vnd.radisys.moml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-audit+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-audit-conf+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-audit-conn+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-audit-dialog+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-audit-stream+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-conf+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-base+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-fax-detect+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-fax-sendrecv+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-group+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-speech+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.radisys.msml-dialog-transform+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.rainstor.data": {
+        source: "iana"
+      },
+      "application/vnd.rapid": {
+        source: "iana"
+      },
+      "application/vnd.rar": {
+        source: "iana",
+        extensions: ["rar"]
+      },
+      "application/vnd.realvnc.bed": {
+        source: "iana",
+        extensions: ["bed"]
+      },
+      "application/vnd.recordare.musicxml": {
+        source: "iana",
+        extensions: ["mxl"]
+      },
+      "application/vnd.recordare.musicxml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["musicxml"]
+      },
+      "application/vnd.renlearn.rlprint": {
+        source: "iana"
+      },
+      "application/vnd.resilient.logic": {
+        source: "iana"
+      },
+      "application/vnd.restful+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.rig.cryptonote": {
+        source: "iana",
+        extensions: ["cryptonote"]
+      },
+      "application/vnd.rim.cod": {
+        source: "apache",
+        extensions: ["cod"]
+      },
+      "application/vnd.rn-realmedia": {
+        source: "apache",
+        extensions: ["rm"]
+      },
+      "application/vnd.rn-realmedia-vbr": {
+        source: "apache",
+        extensions: ["rmvb"]
+      },
+      "application/vnd.route66.link66+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["link66"]
+      },
+      "application/vnd.rs-274x": {
+        source: "iana"
+      },
+      "application/vnd.ruckus.download": {
+        source: "iana"
+      },
+      "application/vnd.s3sms": {
+        source: "iana"
+      },
+      "application/vnd.sailingtracker.track": {
+        source: "iana",
+        extensions: ["st"]
+      },
+      "application/vnd.sar": {
+        source: "iana"
+      },
+      "application/vnd.sbm.cid": {
+        source: "iana"
+      },
+      "application/vnd.sbm.mid2": {
+        source: "iana"
+      },
+      "application/vnd.scribus": {
+        source: "iana"
+      },
+      "application/vnd.sealed.3df": {
+        source: "iana"
+      },
+      "application/vnd.sealed.csf": {
+        source: "iana"
+      },
+      "application/vnd.sealed.doc": {
+        source: "iana"
+      },
+      "application/vnd.sealed.eml": {
+        source: "iana"
+      },
+      "application/vnd.sealed.mht": {
+        source: "iana"
+      },
+      "application/vnd.sealed.net": {
+        source: "iana"
+      },
+      "application/vnd.sealed.ppt": {
+        source: "iana"
+      },
+      "application/vnd.sealed.tiff": {
+        source: "iana"
+      },
+      "application/vnd.sealed.xls": {
+        source: "iana"
+      },
+      "application/vnd.sealedmedia.softseal.html": {
+        source: "iana"
+      },
+      "application/vnd.sealedmedia.softseal.pdf": {
+        source: "iana"
+      },
+      "application/vnd.seemail": {
+        source: "iana",
+        extensions: ["see"]
+      },
+      "application/vnd.seis+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.sema": {
+        source: "iana",
+        extensions: ["sema"]
+      },
+      "application/vnd.semd": {
+        source: "iana",
+        extensions: ["semd"]
+      },
+      "application/vnd.semf": {
+        source: "iana",
+        extensions: ["semf"]
+      },
+      "application/vnd.shade-save-file": {
+        source: "iana"
+      },
+      "application/vnd.shana.informed.formdata": {
+        source: "iana",
+        extensions: ["ifm"]
+      },
+      "application/vnd.shana.informed.formtemplate": {
+        source: "iana",
+        extensions: ["itp"]
+      },
+      "application/vnd.shana.informed.interchange": {
+        source: "iana",
+        extensions: ["iif"]
+      },
+      "application/vnd.shana.informed.package": {
+        source: "iana",
+        extensions: ["ipk"]
+      },
+      "application/vnd.shootproof+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.shopkick+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.shp": {
+        source: "iana"
+      },
+      "application/vnd.shx": {
+        source: "iana"
+      },
+      "application/vnd.sigrok.session": {
+        source: "iana"
+      },
+      "application/vnd.simtech-mindmapper": {
+        source: "iana",
+        extensions: ["twd", "twds"]
+      },
+      "application/vnd.siren+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.smaf": {
+        source: "iana",
+        extensions: ["mmf"]
+      },
+      "application/vnd.smart.notebook": {
+        source: "iana"
+      },
+      "application/vnd.smart.teacher": {
+        source: "iana",
+        extensions: ["teacher"]
+      },
+      "application/vnd.snesdev-page-table": {
+        source: "iana"
+      },
+      "application/vnd.software602.filler.form+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["fo"]
+      },
+      "application/vnd.software602.filler.form-xml-zip": {
+        source: "iana"
+      },
+      "application/vnd.solent.sdkm+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["sdkm", "sdkd"]
+      },
+      "application/vnd.spotfire.dxp": {
+        source: "iana",
+        extensions: ["dxp"]
+      },
+      "application/vnd.spotfire.sfs": {
+        source: "iana",
+        extensions: ["sfs"]
+      },
+      "application/vnd.sqlite3": {
+        source: "iana"
+      },
+      "application/vnd.sss-cod": {
+        source: "iana"
+      },
+      "application/vnd.sss-dtf": {
+        source: "iana"
+      },
+      "application/vnd.sss-ntf": {
+        source: "iana"
+      },
+      "application/vnd.stardivision.calc": {
+        source: "apache",
+        extensions: ["sdc"]
+      },
+      "application/vnd.stardivision.draw": {
+        source: "apache",
+        extensions: ["sda"]
+      },
+      "application/vnd.stardivision.impress": {
+        source: "apache",
+        extensions: ["sdd"]
+      },
+      "application/vnd.stardivision.math": {
+        source: "apache",
+        extensions: ["smf"]
+      },
+      "application/vnd.stardivision.writer": {
+        source: "apache",
+        extensions: ["sdw", "vor"]
+      },
+      "application/vnd.stardivision.writer-global": {
+        source: "apache",
+        extensions: ["sgl"]
+      },
+      "application/vnd.stepmania.package": {
+        source: "iana",
+        extensions: ["smzip"]
+      },
+      "application/vnd.stepmania.stepchart": {
+        source: "iana",
+        extensions: ["sm"]
+      },
+      "application/vnd.street-stream": {
+        source: "iana"
+      },
+      "application/vnd.sun.wadl+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wadl"]
+      },
+      "application/vnd.sun.xml.calc": {
+        source: "apache",
+        extensions: ["sxc"]
+      },
+      "application/vnd.sun.xml.calc.template": {
+        source: "apache",
+        extensions: ["stc"]
+      },
+      "application/vnd.sun.xml.draw": {
+        source: "apache",
+        extensions: ["sxd"]
+      },
+      "application/vnd.sun.xml.draw.template": {
+        source: "apache",
+        extensions: ["std"]
+      },
+      "application/vnd.sun.xml.impress": {
+        source: "apache",
+        extensions: ["sxi"]
+      },
+      "application/vnd.sun.xml.impress.template": {
+        source: "apache",
+        extensions: ["sti"]
+      },
+      "application/vnd.sun.xml.math": {
+        source: "apache",
+        extensions: ["sxm"]
+      },
+      "application/vnd.sun.xml.writer": {
+        source: "apache",
+        extensions: ["sxw"]
+      },
+      "application/vnd.sun.xml.writer.global": {
+        source: "apache",
+        extensions: ["sxg"]
+      },
+      "application/vnd.sun.xml.writer.template": {
+        source: "apache",
+        extensions: ["stw"]
+      },
+      "application/vnd.sus-calendar": {
+        source: "iana",
+        extensions: ["sus", "susp"]
+      },
+      "application/vnd.svd": {
+        source: "iana",
+        extensions: ["svd"]
+      },
+      "application/vnd.swiftview-ics": {
+        source: "iana"
+      },
+      "application/vnd.sycle+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.syft+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.symbian.install": {
+        source: "apache",
+        extensions: ["sis", "sisx"]
+      },
+      "application/vnd.syncml+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["xsm"]
+      },
+      "application/vnd.syncml.dm+wbxml": {
+        source: "iana",
+        charset: "UTF-8",
+        extensions: ["bdm"]
+      },
+      "application/vnd.syncml.dm+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["xdm"]
+      },
+      "application/vnd.syncml.dm.notification": {
+        source: "iana"
+      },
+      "application/vnd.syncml.dmddf+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.syncml.dmddf+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["ddf"]
+      },
+      "application/vnd.syncml.dmtnds+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.syncml.dmtnds+xml": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true
+      },
+      "application/vnd.syncml.ds.notification": {
+        source: "iana"
+      },
+      "application/vnd.tableschema+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.tao.intent-module-archive": {
+        source: "iana",
+        extensions: ["tao"]
+      },
+      "application/vnd.tcpdump.pcap": {
+        source: "iana",
+        extensions: ["pcap", "cap", "dmp"]
+      },
+      "application/vnd.think-cell.ppttc+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.tmd.mediaflex.api+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.tml": {
+        source: "iana"
+      },
+      "application/vnd.tmobile-livetv": {
+        source: "iana",
+        extensions: ["tmo"]
+      },
+      "application/vnd.tri.onesource": {
+        source: "iana"
+      },
+      "application/vnd.trid.tpt": {
+        source: "iana",
+        extensions: ["tpt"]
+      },
+      "application/vnd.triscape.mxs": {
+        source: "iana",
+        extensions: ["mxs"]
+      },
+      "application/vnd.trueapp": {
+        source: "iana",
+        extensions: ["tra"]
+      },
+      "application/vnd.truedoc": {
+        source: "iana"
+      },
+      "application/vnd.ubisoft.webplayer": {
+        source: "iana"
+      },
+      "application/vnd.ufdl": {
+        source: "iana",
+        extensions: ["ufd", "ufdl"]
+      },
+      "application/vnd.uiq.theme": {
+        source: "iana",
+        extensions: ["utz"]
+      },
+      "application/vnd.umajin": {
+        source: "iana",
+        extensions: ["umj"]
+      },
+      "application/vnd.unity": {
+        source: "iana",
+        extensions: ["unityweb"]
+      },
+      "application/vnd.uoml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["uoml"]
+      },
+      "application/vnd.uplanet.alert": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.alert-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.bearer-choice": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.bearer-choice-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.cacheop": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.cacheop-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.channel": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.channel-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.list": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.list-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.listcmd": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.listcmd-wbxml": {
+        source: "iana"
+      },
+      "application/vnd.uplanet.signal": {
+        source: "iana"
+      },
+      "application/vnd.uri-map": {
+        source: "iana"
+      },
+      "application/vnd.valve.source.material": {
+        source: "iana"
+      },
+      "application/vnd.vcx": {
+        source: "iana",
+        extensions: ["vcx"]
+      },
+      "application/vnd.vd-study": {
+        source: "iana"
+      },
+      "application/vnd.vectorworks": {
+        source: "iana"
+      },
+      "application/vnd.vel+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.verimatrix.vcas": {
+        source: "iana"
+      },
+      "application/vnd.veritone.aion+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.veryant.thin": {
+        source: "iana"
+      },
+      "application/vnd.ves.encrypted": {
+        source: "iana"
+      },
+      "application/vnd.vidsoft.vidconference": {
+        source: "iana"
+      },
+      "application/vnd.visio": {
+        source: "iana",
+        extensions: ["vsd", "vst", "vss", "vsw"]
+      },
+      "application/vnd.visionary": {
+        source: "iana",
+        extensions: ["vis"]
+      },
+      "application/vnd.vividence.scriptfile": {
+        source: "iana"
+      },
+      "application/vnd.vsf": {
+        source: "iana",
+        extensions: ["vsf"]
+      },
+      "application/vnd.wap.sic": {
+        source: "iana"
+      },
+      "application/vnd.wap.slc": {
+        source: "iana"
+      },
+      "application/vnd.wap.wbxml": {
+        source: "iana",
+        charset: "UTF-8",
+        extensions: ["wbxml"]
+      },
+      "application/vnd.wap.wmlc": {
+        source: "iana",
+        extensions: ["wmlc"]
+      },
+      "application/vnd.wap.wmlscriptc": {
+        source: "iana",
+        extensions: ["wmlsc"]
+      },
+      "application/vnd.webturbo": {
+        source: "iana",
+        extensions: ["wtb"]
+      },
+      "application/vnd.wfa.dpp": {
+        source: "iana"
+      },
+      "application/vnd.wfa.p2p": {
+        source: "iana"
+      },
+      "application/vnd.wfa.wsc": {
+        source: "iana"
+      },
+      "application/vnd.windows.devicepairing": {
+        source: "iana"
+      },
+      "application/vnd.wmc": {
+        source: "iana"
+      },
+      "application/vnd.wmf.bootstrap": {
+        source: "iana"
+      },
+      "application/vnd.wolfram.mathematica": {
+        source: "iana"
+      },
+      "application/vnd.wolfram.mathematica.package": {
+        source: "iana"
+      },
+      "application/vnd.wolfram.player": {
+        source: "iana",
+        extensions: ["nbp"]
+      },
+      "application/vnd.wordperfect": {
+        source: "iana",
+        extensions: ["wpd"]
+      },
+      "application/vnd.wqd": {
+        source: "iana",
+        extensions: ["wqd"]
+      },
+      "application/vnd.wrq-hp3000-labelled": {
+        source: "iana"
+      },
+      "application/vnd.wt.stf": {
+        source: "iana",
+        extensions: ["stf"]
+      },
+      "application/vnd.wv.csp+wbxml": {
+        source: "iana"
+      },
+      "application/vnd.wv.csp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.wv.ssp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.xacml+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.xara": {
+        source: "iana",
+        extensions: ["xar"]
+      },
+      "application/vnd.xfdl": {
+        source: "iana",
+        extensions: ["xfdl"]
+      },
+      "application/vnd.xfdl.webform": {
+        source: "iana"
+      },
+      "application/vnd.xmi+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vnd.xmpie.cpkg": {
+        source: "iana"
+      },
+      "application/vnd.xmpie.dpkg": {
+        source: "iana"
+      },
+      "application/vnd.xmpie.plan": {
+        source: "iana"
+      },
+      "application/vnd.xmpie.ppkg": {
+        source: "iana"
+      },
+      "application/vnd.xmpie.xlim": {
+        source: "iana"
+      },
+      "application/vnd.yamaha.hv-dic": {
+        source: "iana",
+        extensions: ["hvd"]
+      },
+      "application/vnd.yamaha.hv-script": {
+        source: "iana",
+        extensions: ["hvs"]
+      },
+      "application/vnd.yamaha.hv-voice": {
+        source: "iana",
+        extensions: ["hvp"]
+      },
+      "application/vnd.yamaha.openscoreformat": {
+        source: "iana",
+        extensions: ["osf"]
+      },
+      "application/vnd.yamaha.openscoreformat.osfpvg+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["osfpvg"]
+      },
+      "application/vnd.yamaha.remote-setup": {
+        source: "iana"
+      },
+      "application/vnd.yamaha.smaf-audio": {
+        source: "iana",
+        extensions: ["saf"]
+      },
+      "application/vnd.yamaha.smaf-phrase": {
+        source: "iana",
+        extensions: ["spf"]
+      },
+      "application/vnd.yamaha.through-ngn": {
+        source: "iana"
+      },
+      "application/vnd.yamaha.tunnel-udpencap": {
+        source: "iana"
+      },
+      "application/vnd.yaoweme": {
+        source: "iana"
+      },
+      "application/vnd.yellowriver-custom-menu": {
+        source: "iana",
+        extensions: ["cmp"]
+      },
+      "application/vnd.youtube.yt": {
+        source: "iana"
+      },
+      "application/vnd.zul": {
+        source: "iana",
+        extensions: ["zir", "zirz"]
+      },
+      "application/vnd.zzazz.deck+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["zaz"]
+      },
+      "application/voicexml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["vxml"]
+      },
+      "application/voucher-cms+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/vq-rtcpxr": {
+        source: "iana"
+      },
+      "application/wasm": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wasm"]
+      },
+      "application/watcherinfo+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wif"]
+      },
+      "application/webpush-options+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/whoispp-query": {
+        source: "iana"
+      },
+      "application/whoispp-response": {
+        source: "iana"
+      },
+      "application/widget": {
+        source: "iana",
+        extensions: ["wgt"]
+      },
+      "application/winhlp": {
+        source: "apache",
+        extensions: ["hlp"]
+      },
+      "application/wita": {
+        source: "iana"
+      },
+      "application/wordperfect5.1": {
+        source: "iana"
+      },
+      "application/wsdl+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wsdl"]
+      },
+      "application/wspolicy+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["wspolicy"]
+      },
+      "application/x-7z-compressed": {
+        source: "apache",
+        compressible: false,
+        extensions: ["7z"]
+      },
+      "application/x-abiword": {
+        source: "apache",
+        extensions: ["abw"]
+      },
+      "application/x-ace-compressed": {
+        source: "apache",
+        extensions: ["ace"]
+      },
+      "application/x-amf": {
+        source: "apache"
+      },
+      "application/x-apple-diskimage": {
+        source: "apache",
+        extensions: ["dmg"]
+      },
+      "application/x-arj": {
+        compressible: false,
+        extensions: ["arj"]
+      },
+      "application/x-authorware-bin": {
+        source: "apache",
+        extensions: ["aab", "x32", "u32", "vox"]
+      },
+      "application/x-authorware-map": {
+        source: "apache",
+        extensions: ["aam"]
+      },
+      "application/x-authorware-seg": {
+        source: "apache",
+        extensions: ["aas"]
+      },
+      "application/x-bcpio": {
+        source: "apache",
+        extensions: ["bcpio"]
+      },
+      "application/x-bdoc": {
+        compressible: false,
+        extensions: ["bdoc"]
+      },
+      "application/x-bittorrent": {
+        source: "apache",
+        extensions: ["torrent"]
+      },
+      "application/x-blorb": {
+        source: "apache",
+        extensions: ["blb", "blorb"]
+      },
+      "application/x-bzip": {
+        source: "apache",
+        compressible: false,
+        extensions: ["bz"]
+      },
+      "application/x-bzip2": {
+        source: "apache",
+        compressible: false,
+        extensions: ["bz2", "boz"]
+      },
+      "application/x-cbr": {
+        source: "apache",
+        extensions: ["cbr", "cba", "cbt", "cbz", "cb7"]
+      },
+      "application/x-cdlink": {
+        source: "apache",
+        extensions: ["vcd"]
+      },
+      "application/x-cfs-compressed": {
+        source: "apache",
+        extensions: ["cfs"]
+      },
+      "application/x-chat": {
+        source: "apache",
+        extensions: ["chat"]
+      },
+      "application/x-chess-pgn": {
+        source: "apache",
+        extensions: ["pgn"]
+      },
+      "application/x-chrome-extension": {
+        extensions: ["crx"]
+      },
+      "application/x-cocoa": {
+        source: "nginx",
+        extensions: ["cco"]
+      },
+      "application/x-compress": {
+        source: "apache"
+      },
+      "application/x-conference": {
+        source: "apache",
+        extensions: ["nsc"]
+      },
+      "application/x-cpio": {
+        source: "apache",
+        extensions: ["cpio"]
+      },
+      "application/x-csh": {
+        source: "apache",
+        extensions: ["csh"]
+      },
+      "application/x-deb": {
+        compressible: false
+      },
+      "application/x-debian-package": {
+        source: "apache",
+        extensions: ["deb", "udeb"]
+      },
+      "application/x-dgc-compressed": {
+        source: "apache",
+        extensions: ["dgc"]
+      },
+      "application/x-director": {
+        source: "apache",
+        extensions: ["dir", "dcr", "dxr", "cst", "cct", "cxt", "w3d", "fgd", "swa"]
+      },
+      "application/x-doom": {
+        source: "apache",
+        extensions: ["wad"]
+      },
+      "application/x-dtbncx+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["ncx"]
+      },
+      "application/x-dtbook+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["dtb"]
+      },
+      "application/x-dtbresource+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["res"]
+      },
+      "application/x-dvi": {
+        source: "apache",
+        compressible: false,
+        extensions: ["dvi"]
+      },
+      "application/x-envoy": {
+        source: "apache",
+        extensions: ["evy"]
+      },
+      "application/x-eva": {
+        source: "apache",
+        extensions: ["eva"]
+      },
+      "application/x-font-bdf": {
+        source: "apache",
+        extensions: ["bdf"]
+      },
+      "application/x-font-dos": {
+        source: "apache"
+      },
+      "application/x-font-framemaker": {
+        source: "apache"
+      },
+      "application/x-font-ghostscript": {
+        source: "apache",
+        extensions: ["gsf"]
+      },
+      "application/x-font-libgrx": {
+        source: "apache"
+      },
+      "application/x-font-linux-psf": {
+        source: "apache",
+        extensions: ["psf"]
+      },
+      "application/x-font-pcf": {
+        source: "apache",
+        extensions: ["pcf"]
+      },
+      "application/x-font-snf": {
+        source: "apache",
+        extensions: ["snf"]
+      },
+      "application/x-font-speedo": {
+        source: "apache"
+      },
+      "application/x-font-sunos-news": {
+        source: "apache"
+      },
+      "application/x-font-type1": {
+        source: "apache",
+        extensions: ["pfa", "pfb", "pfm", "afm"]
+      },
+      "application/x-font-vfont": {
+        source: "apache"
+      },
+      "application/x-freearc": {
+        source: "apache",
+        extensions: ["arc"]
+      },
+      "application/x-futuresplash": {
+        source: "apache",
+        extensions: ["spl"]
+      },
+      "application/x-gca-compressed": {
+        source: "apache",
+        extensions: ["gca"]
+      },
+      "application/x-glulx": {
+        source: "apache",
+        extensions: ["ulx"]
+      },
+      "application/x-gnumeric": {
+        source: "apache",
+        extensions: ["gnumeric"]
+      },
+      "application/x-gramps-xml": {
+        source: "apache",
+        extensions: ["gramps"]
+      },
+      "application/x-gtar": {
+        source: "apache",
+        extensions: ["gtar"]
+      },
+      "application/x-gzip": {
+        source: "apache"
+      },
+      "application/x-hdf": {
+        source: "apache",
+        extensions: ["hdf"]
+      },
+      "application/x-httpd-php": {
+        compressible: true,
+        extensions: ["php"]
+      },
+      "application/x-install-instructions": {
+        source: "apache",
+        extensions: ["install"]
+      },
+      "application/x-iso9660-image": {
+        source: "apache",
+        extensions: ["iso"]
+      },
+      "application/x-iwork-keynote-sffkey": {
+        extensions: ["key"]
+      },
+      "application/x-iwork-numbers-sffnumbers": {
+        extensions: ["numbers"]
+      },
+      "application/x-iwork-pages-sffpages": {
+        extensions: ["pages"]
+      },
+      "application/x-java-archive-diff": {
+        source: "nginx",
+        extensions: ["jardiff"]
+      },
+      "application/x-java-jnlp-file": {
+        source: "apache",
+        compressible: false,
+        extensions: ["jnlp"]
+      },
+      "application/x-javascript": {
+        compressible: true
+      },
+      "application/x-keepass2": {
+        extensions: ["kdbx"]
+      },
+      "application/x-latex": {
+        source: "apache",
+        compressible: false,
+        extensions: ["latex"]
+      },
+      "application/x-lua-bytecode": {
+        extensions: ["luac"]
+      },
+      "application/x-lzh-compressed": {
+        source: "apache",
+        extensions: ["lzh", "lha"]
+      },
+      "application/x-makeself": {
+        source: "nginx",
+        extensions: ["run"]
+      },
+      "application/x-mie": {
+        source: "apache",
+        extensions: ["mie"]
+      },
+      "application/x-mobipocket-ebook": {
+        source: "apache",
+        extensions: ["prc", "mobi"]
+      },
+      "application/x-mpegurl": {
+        compressible: false
+      },
+      "application/x-ms-application": {
+        source: "apache",
+        extensions: ["application"]
+      },
+      "application/x-ms-shortcut": {
+        source: "apache",
+        extensions: ["lnk"]
+      },
+      "application/x-ms-wmd": {
+        source: "apache",
+        extensions: ["wmd"]
+      },
+      "application/x-ms-wmz": {
+        source: "apache",
+        extensions: ["wmz"]
+      },
+      "application/x-ms-xbap": {
+        source: "apache",
+        extensions: ["xbap"]
+      },
+      "application/x-msaccess": {
+        source: "apache",
+        extensions: ["mdb"]
+      },
+      "application/x-msbinder": {
+        source: "apache",
+        extensions: ["obd"]
+      },
+      "application/x-mscardfile": {
+        source: "apache",
+        extensions: ["crd"]
+      },
+      "application/x-msclip": {
+        source: "apache",
+        extensions: ["clp"]
+      },
+      "application/x-msdos-program": {
+        extensions: ["exe"]
+      },
+      "application/x-msdownload": {
+        source: "apache",
+        extensions: ["exe", "dll", "com", "bat", "msi"]
+      },
+      "application/x-msmediaview": {
+        source: "apache",
+        extensions: ["mvb", "m13", "m14"]
+      },
+      "application/x-msmetafile": {
+        source: "apache",
+        extensions: ["wmf", "wmz", "emf", "emz"]
+      },
+      "application/x-msmoney": {
+        source: "apache",
+        extensions: ["mny"]
+      },
+      "application/x-mspublisher": {
+        source: "apache",
+        extensions: ["pub"]
+      },
+      "application/x-msschedule": {
+        source: "apache",
+        extensions: ["scd"]
+      },
+      "application/x-msterminal": {
+        source: "apache",
+        extensions: ["trm"]
+      },
+      "application/x-mswrite": {
+        source: "apache",
+        extensions: ["wri"]
+      },
+      "application/x-netcdf": {
+        source: "apache",
+        extensions: ["nc", "cdf"]
+      },
+      "application/x-ns-proxy-autoconfig": {
+        compressible: true,
+        extensions: ["pac"]
+      },
+      "application/x-nzb": {
+        source: "apache",
+        extensions: ["nzb"]
+      },
+      "application/x-perl": {
+        source: "nginx",
+        extensions: ["pl", "pm"]
+      },
+      "application/x-pilot": {
+        source: "nginx",
+        extensions: ["prc", "pdb"]
+      },
+      "application/x-pkcs12": {
+        source: "apache",
+        compressible: false,
+        extensions: ["p12", "pfx"]
+      },
+      "application/x-pkcs7-certificates": {
+        source: "apache",
+        extensions: ["p7b", "spc"]
+      },
+      "application/x-pkcs7-certreqresp": {
+        source: "apache",
+        extensions: ["p7r"]
+      },
+      "application/x-pki-message": {
+        source: "iana"
+      },
+      "application/x-rar-compressed": {
+        source: "apache",
+        compressible: false,
+        extensions: ["rar"]
+      },
+      "application/x-redhat-package-manager": {
+        source: "nginx",
+        extensions: ["rpm"]
+      },
+      "application/x-research-info-systems": {
+        source: "apache",
+        extensions: ["ris"]
+      },
+      "application/x-sea": {
+        source: "nginx",
+        extensions: ["sea"]
+      },
+      "application/x-sh": {
+        source: "apache",
+        compressible: true,
+        extensions: ["sh"]
+      },
+      "application/x-shar": {
+        source: "apache",
+        extensions: ["shar"]
+      },
+      "application/x-shockwave-flash": {
+        source: "apache",
+        compressible: false,
+        extensions: ["swf"]
+      },
+      "application/x-silverlight-app": {
+        source: "apache",
+        extensions: ["xap"]
+      },
+      "application/x-sql": {
+        source: "apache",
+        extensions: ["sql"]
+      },
+      "application/x-stuffit": {
+        source: "apache",
+        compressible: false,
+        extensions: ["sit"]
+      },
+      "application/x-stuffitx": {
+        source: "apache",
+        extensions: ["sitx"]
+      },
+      "application/x-subrip": {
+        source: "apache",
+        extensions: ["srt"]
+      },
+      "application/x-sv4cpio": {
+        source: "apache",
+        extensions: ["sv4cpio"]
+      },
+      "application/x-sv4crc": {
+        source: "apache",
+        extensions: ["sv4crc"]
+      },
+      "application/x-t3vm-image": {
+        source: "apache",
+        extensions: ["t3"]
+      },
+      "application/x-tads": {
+        source: "apache",
+        extensions: ["gam"]
+      },
+      "application/x-tar": {
+        source: "apache",
+        compressible: true,
+        extensions: ["tar"]
+      },
+      "application/x-tcl": {
+        source: "apache",
+        extensions: ["tcl", "tk"]
+      },
+      "application/x-tex": {
+        source: "apache",
+        extensions: ["tex"]
+      },
+      "application/x-tex-tfm": {
+        source: "apache",
+        extensions: ["tfm"]
+      },
+      "application/x-texinfo": {
+        source: "apache",
+        extensions: ["texinfo", "texi"]
+      },
+      "application/x-tgif": {
+        source: "apache",
+        extensions: ["obj"]
+      },
+      "application/x-ustar": {
+        source: "apache",
+        extensions: ["ustar"]
+      },
+      "application/x-virtualbox-hdd": {
+        compressible: true,
+        extensions: ["hdd"]
+      },
+      "application/x-virtualbox-ova": {
+        compressible: true,
+        extensions: ["ova"]
+      },
+      "application/x-virtualbox-ovf": {
+        compressible: true,
+        extensions: ["ovf"]
+      },
+      "application/x-virtualbox-vbox": {
+        compressible: true,
+        extensions: ["vbox"]
+      },
+      "application/x-virtualbox-vbox-extpack": {
+        compressible: false,
+        extensions: ["vbox-extpack"]
+      },
+      "application/x-virtualbox-vdi": {
+        compressible: true,
+        extensions: ["vdi"]
+      },
+      "application/x-virtualbox-vhd": {
+        compressible: true,
+        extensions: ["vhd"]
+      },
+      "application/x-virtualbox-vmdk": {
+        compressible: true,
+        extensions: ["vmdk"]
+      },
+      "application/x-wais-source": {
+        source: "apache",
+        extensions: ["src"]
+      },
+      "application/x-web-app-manifest+json": {
+        compressible: true,
+        extensions: ["webapp"]
+      },
+      "application/x-www-form-urlencoded": {
+        source: "iana",
+        compressible: true
+      },
+      "application/x-x509-ca-cert": {
+        source: "iana",
+        extensions: ["der", "crt", "pem"]
+      },
+      "application/x-x509-ca-ra-cert": {
+        source: "iana"
+      },
+      "application/x-x509-next-ca-cert": {
+        source: "iana"
+      },
+      "application/x-xfig": {
+        source: "apache",
+        extensions: ["fig"]
+      },
+      "application/x-xliff+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["xlf"]
+      },
+      "application/x-xpinstall": {
+        source: "apache",
+        compressible: false,
+        extensions: ["xpi"]
+      },
+      "application/x-xz": {
+        source: "apache",
+        extensions: ["xz"]
+      },
+      "application/x-zmachine": {
+        source: "apache",
+        extensions: ["z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8"]
+      },
+      "application/x400-bp": {
+        source: "iana"
+      },
+      "application/xacml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xaml+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["xaml"]
+      },
+      "application/xcap-att+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xav"]
+      },
+      "application/xcap-caps+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xca"]
+      },
+      "application/xcap-diff+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xdf"]
+      },
+      "application/xcap-el+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xel"]
+      },
+      "application/xcap-error+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xcap-ns+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xns"]
+      },
+      "application/xcon-conference-info+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xcon-conference-info-diff+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xenc+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xenc"]
+      },
+      "application/xhtml+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xhtml", "xht"]
+      },
+      "application/xhtml-voice+xml": {
+        source: "apache",
+        compressible: true
+      },
+      "application/xliff+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xlf"]
+      },
+      "application/xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xml", "xsl", "xsd", "rng"]
+      },
+      "application/xml-dtd": {
+        source: "iana",
+        compressible: true,
+        extensions: ["dtd"]
+      },
+      "application/xml-external-parsed-entity": {
+        source: "iana"
+      },
+      "application/xml-patch+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xmpp+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/xop+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xop"]
+      },
+      "application/xproc+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["xpl"]
+      },
+      "application/xslt+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xsl", "xslt"]
+      },
+      "application/xspf+xml": {
+        source: "apache",
+        compressible: true,
+        extensions: ["xspf"]
+      },
+      "application/xv+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["mxml", "xhvml", "xvml", "xvm"]
+      },
+      "application/yang": {
+        source: "iana",
+        extensions: ["yang"]
+      },
+      "application/yang-data+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/yang-data+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/yang-patch+json": {
+        source: "iana",
+        compressible: true
+      },
+      "application/yang-patch+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "application/yin+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["yin"]
+      },
+      "application/zip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["zip"]
+      },
+      "application/zlib": {
+        source: "iana"
+      },
+      "application/zstd": {
+        source: "iana"
+      },
+      "audio/1d-interleaved-parityfec": {
+        source: "iana"
+      },
+      "audio/32kadpcm": {
+        source: "iana"
+      },
+      "audio/3gpp": {
+        source: "iana",
+        compressible: false,
+        extensions: ["3gpp"]
+      },
+      "audio/3gpp2": {
+        source: "iana"
+      },
+      "audio/aac": {
+        source: "iana"
+      },
+      "audio/ac3": {
+        source: "iana"
+      },
+      "audio/adpcm": {
+        source: "apache",
+        extensions: ["adp"]
+      },
+      "audio/amr": {
+        source: "iana",
+        extensions: ["amr"]
+      },
+      "audio/amr-wb": {
+        source: "iana"
+      },
+      "audio/amr-wb+": {
+        source: "iana"
+      },
+      "audio/aptx": {
+        source: "iana"
+      },
+      "audio/asc": {
+        source: "iana"
+      },
+      "audio/atrac-advanced-lossless": {
+        source: "iana"
+      },
+      "audio/atrac-x": {
+        source: "iana"
+      },
+      "audio/atrac3": {
+        source: "iana"
+      },
+      "audio/basic": {
+        source: "iana",
+        compressible: false,
+        extensions: ["au", "snd"]
+      },
+      "audio/bv16": {
+        source: "iana"
+      },
+      "audio/bv32": {
+        source: "iana"
+      },
+      "audio/clearmode": {
+        source: "iana"
+      },
+      "audio/cn": {
+        source: "iana"
+      },
+      "audio/dat12": {
+        source: "iana"
+      },
+      "audio/dls": {
+        source: "iana"
+      },
+      "audio/dsr-es201108": {
+        source: "iana"
+      },
+      "audio/dsr-es202050": {
+        source: "iana"
+      },
+      "audio/dsr-es202211": {
+        source: "iana"
+      },
+      "audio/dsr-es202212": {
+        source: "iana"
+      },
+      "audio/dv": {
+        source: "iana"
+      },
+      "audio/dvi4": {
+        source: "iana"
+      },
+      "audio/eac3": {
+        source: "iana"
+      },
+      "audio/encaprtp": {
+        source: "iana"
+      },
+      "audio/evrc": {
+        source: "iana"
+      },
+      "audio/evrc-qcp": {
+        source: "iana"
+      },
+      "audio/evrc0": {
+        source: "iana"
+      },
+      "audio/evrc1": {
+        source: "iana"
+      },
+      "audio/evrcb": {
+        source: "iana"
+      },
+      "audio/evrcb0": {
+        source: "iana"
+      },
+      "audio/evrcb1": {
+        source: "iana"
+      },
+      "audio/evrcnw": {
+        source: "iana"
+      },
+      "audio/evrcnw0": {
+        source: "iana"
+      },
+      "audio/evrcnw1": {
+        source: "iana"
+      },
+      "audio/evrcwb": {
+        source: "iana"
+      },
+      "audio/evrcwb0": {
+        source: "iana"
+      },
+      "audio/evrcwb1": {
+        source: "iana"
+      },
+      "audio/evs": {
+        source: "iana"
+      },
+      "audio/flexfec": {
+        source: "iana"
+      },
+      "audio/fwdred": {
+        source: "iana"
+      },
+      "audio/g711-0": {
+        source: "iana"
+      },
+      "audio/g719": {
+        source: "iana"
+      },
+      "audio/g722": {
+        source: "iana"
+      },
+      "audio/g7221": {
+        source: "iana"
+      },
+      "audio/g723": {
+        source: "iana"
+      },
+      "audio/g726-16": {
+        source: "iana"
+      },
+      "audio/g726-24": {
+        source: "iana"
+      },
+      "audio/g726-32": {
+        source: "iana"
+      },
+      "audio/g726-40": {
+        source: "iana"
+      },
+      "audio/g728": {
+        source: "iana"
+      },
+      "audio/g729": {
+        source: "iana"
+      },
+      "audio/g7291": {
+        source: "iana"
+      },
+      "audio/g729d": {
+        source: "iana"
+      },
+      "audio/g729e": {
+        source: "iana"
+      },
+      "audio/gsm": {
+        source: "iana"
+      },
+      "audio/gsm-efr": {
+        source: "iana"
+      },
+      "audio/gsm-hr-08": {
+        source: "iana"
+      },
+      "audio/ilbc": {
+        source: "iana"
+      },
+      "audio/ip-mr_v2.5": {
+        source: "iana"
+      },
+      "audio/isac": {
+        source: "apache"
+      },
+      "audio/l16": {
+        source: "iana"
+      },
+      "audio/l20": {
+        source: "iana"
+      },
+      "audio/l24": {
+        source: "iana",
+        compressible: false
+      },
+      "audio/l8": {
+        source: "iana"
+      },
+      "audio/lpc": {
+        source: "iana"
+      },
+      "audio/melp": {
+        source: "iana"
+      },
+      "audio/melp1200": {
+        source: "iana"
+      },
+      "audio/melp2400": {
+        source: "iana"
+      },
+      "audio/melp600": {
+        source: "iana"
+      },
+      "audio/mhas": {
+        source: "iana"
+      },
+      "audio/midi": {
+        source: "apache",
+        extensions: ["mid", "midi", "kar", "rmi"]
+      },
+      "audio/mobile-xmf": {
+        source: "iana",
+        extensions: ["mxmf"]
+      },
+      "audio/mp3": {
+        compressible: false,
+        extensions: ["mp3"]
+      },
+      "audio/mp4": {
+        source: "iana",
+        compressible: false,
+        extensions: ["m4a", "mp4a"]
+      },
+      "audio/mp4a-latm": {
+        source: "iana"
+      },
+      "audio/mpa": {
+        source: "iana"
+      },
+      "audio/mpa-robust": {
+        source: "iana"
+      },
+      "audio/mpeg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["mpga", "mp2", "mp2a", "mp3", "m2a", "m3a"]
+      },
+      "audio/mpeg4-generic": {
+        source: "iana"
+      },
+      "audio/musepack": {
+        source: "apache"
+      },
+      "audio/ogg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["oga", "ogg", "spx", "opus"]
+      },
+      "audio/opus": {
+        source: "iana"
+      },
+      "audio/parityfec": {
+        source: "iana"
+      },
+      "audio/pcma": {
+        source: "iana"
+      },
+      "audio/pcma-wb": {
+        source: "iana"
+      },
+      "audio/pcmu": {
+        source: "iana"
+      },
+      "audio/pcmu-wb": {
+        source: "iana"
+      },
+      "audio/prs.sid": {
+        source: "iana"
+      },
+      "audio/qcelp": {
+        source: "iana"
+      },
+      "audio/raptorfec": {
+        source: "iana"
+      },
+      "audio/red": {
+        source: "iana"
+      },
+      "audio/rtp-enc-aescm128": {
+        source: "iana"
+      },
+      "audio/rtp-midi": {
+        source: "iana"
+      },
+      "audio/rtploopback": {
+        source: "iana"
+      },
+      "audio/rtx": {
+        source: "iana"
+      },
+      "audio/s3m": {
+        source: "apache",
+        extensions: ["s3m"]
+      },
+      "audio/scip": {
+        source: "iana"
+      },
+      "audio/silk": {
+        source: "apache",
+        extensions: ["sil"]
+      },
+      "audio/smv": {
+        source: "iana"
+      },
+      "audio/smv-qcp": {
+        source: "iana"
+      },
+      "audio/smv0": {
+        source: "iana"
+      },
+      "audio/sofa": {
+        source: "iana"
+      },
+      "audio/sp-midi": {
+        source: "iana"
+      },
+      "audio/speex": {
+        source: "iana"
+      },
+      "audio/t140c": {
+        source: "iana"
+      },
+      "audio/t38": {
+        source: "iana"
+      },
+      "audio/telephone-event": {
+        source: "iana"
+      },
+      "audio/tetra_acelp": {
+        source: "iana"
+      },
+      "audio/tetra_acelp_bb": {
+        source: "iana"
+      },
+      "audio/tone": {
+        source: "iana"
+      },
+      "audio/tsvcis": {
+        source: "iana"
+      },
+      "audio/uemclip": {
+        source: "iana"
+      },
+      "audio/ulpfec": {
+        source: "iana"
+      },
+      "audio/usac": {
+        source: "iana"
+      },
+      "audio/vdvi": {
+        source: "iana"
+      },
+      "audio/vmr-wb": {
+        source: "iana"
+      },
+      "audio/vnd.3gpp.iufp": {
+        source: "iana"
+      },
+      "audio/vnd.4sb": {
+        source: "iana"
+      },
+      "audio/vnd.audiokoz": {
+        source: "iana"
+      },
+      "audio/vnd.celp": {
+        source: "iana"
+      },
+      "audio/vnd.cisco.nse": {
+        source: "iana"
+      },
+      "audio/vnd.cmles.radio-events": {
+        source: "iana"
+      },
+      "audio/vnd.cns.anp1": {
+        source: "iana"
+      },
+      "audio/vnd.cns.inf1": {
+        source: "iana"
+      },
+      "audio/vnd.dece.audio": {
+        source: "iana",
+        extensions: ["uva", "uvva"]
+      },
+      "audio/vnd.digital-winds": {
+        source: "iana",
+        extensions: ["eol"]
+      },
+      "audio/vnd.dlna.adts": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.heaac.1": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.heaac.2": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.mlp": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.mps": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.pl2": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.pl2x": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.pl2z": {
+        source: "iana"
+      },
+      "audio/vnd.dolby.pulse.1": {
+        source: "iana"
+      },
+      "audio/vnd.dra": {
+        source: "iana",
+        extensions: ["dra"]
+      },
+      "audio/vnd.dts": {
+        source: "iana",
+        extensions: ["dts"]
+      },
+      "audio/vnd.dts.hd": {
+        source: "iana",
+        extensions: ["dtshd"]
+      },
+      "audio/vnd.dts.uhd": {
+        source: "iana"
+      },
+      "audio/vnd.dvb.file": {
+        source: "iana"
+      },
+      "audio/vnd.everad.plj": {
+        source: "iana"
+      },
+      "audio/vnd.hns.audio": {
+        source: "iana"
+      },
+      "audio/vnd.lucent.voice": {
+        source: "iana",
+        extensions: ["lvp"]
+      },
+      "audio/vnd.ms-playready.media.pya": {
+        source: "iana",
+        extensions: ["pya"]
+      },
+      "audio/vnd.nokia.mobile-xmf": {
+        source: "iana"
+      },
+      "audio/vnd.nortel.vbk": {
+        source: "iana"
+      },
+      "audio/vnd.nuera.ecelp4800": {
+        source: "iana",
+        extensions: ["ecelp4800"]
+      },
+      "audio/vnd.nuera.ecelp7470": {
+        source: "iana",
+        extensions: ["ecelp7470"]
+      },
+      "audio/vnd.nuera.ecelp9600": {
+        source: "iana",
+        extensions: ["ecelp9600"]
+      },
+      "audio/vnd.octel.sbc": {
+        source: "iana"
+      },
+      "audio/vnd.presonus.multitrack": {
+        source: "iana"
+      },
+      "audio/vnd.qcelp": {
+        source: "iana"
+      },
+      "audio/vnd.rhetorex.32kadpcm": {
+        source: "iana"
+      },
+      "audio/vnd.rip": {
+        source: "iana",
+        extensions: ["rip"]
+      },
+      "audio/vnd.rn-realaudio": {
+        compressible: false
+      },
+      "audio/vnd.sealedmedia.softseal.mpeg": {
+        source: "iana"
+      },
+      "audio/vnd.vmx.cvsd": {
+        source: "iana"
+      },
+      "audio/vnd.wave": {
+        compressible: false
+      },
+      "audio/vorbis": {
+        source: "iana",
+        compressible: false
+      },
+      "audio/vorbis-config": {
+        source: "iana"
+      },
+      "audio/wav": {
+        compressible: false,
+        extensions: ["wav"]
+      },
+      "audio/wave": {
+        compressible: false,
+        extensions: ["wav"]
+      },
+      "audio/webm": {
+        source: "apache",
+        compressible: false,
+        extensions: ["weba"]
+      },
+      "audio/x-aac": {
+        source: "apache",
+        compressible: false,
+        extensions: ["aac"]
+      },
+      "audio/x-aiff": {
+        source: "apache",
+        extensions: ["aif", "aiff", "aifc"]
+      },
+      "audio/x-caf": {
+        source: "apache",
+        compressible: false,
+        extensions: ["caf"]
+      },
+      "audio/x-flac": {
+        source: "apache",
+        extensions: ["flac"]
+      },
+      "audio/x-m4a": {
+        source: "nginx",
+        extensions: ["m4a"]
+      },
+      "audio/x-matroska": {
+        source: "apache",
+        extensions: ["mka"]
+      },
+      "audio/x-mpegurl": {
+        source: "apache",
+        extensions: ["m3u"]
+      },
+      "audio/x-ms-wax": {
+        source: "apache",
+        extensions: ["wax"]
+      },
+      "audio/x-ms-wma": {
+        source: "apache",
+        extensions: ["wma"]
+      },
+      "audio/x-pn-realaudio": {
+        source: "apache",
+        extensions: ["ram", "ra"]
+      },
+      "audio/x-pn-realaudio-plugin": {
+        source: "apache",
+        extensions: ["rmp"]
+      },
+      "audio/x-realaudio": {
+        source: "nginx",
+        extensions: ["ra"]
+      },
+      "audio/x-tta": {
+        source: "apache"
+      },
+      "audio/x-wav": {
+        source: "apache",
+        extensions: ["wav"]
+      },
+      "audio/xm": {
+        source: "apache",
+        extensions: ["xm"]
+      },
+      "chemical/x-cdx": {
+        source: "apache",
+        extensions: ["cdx"]
+      },
+      "chemical/x-cif": {
+        source: "apache",
+        extensions: ["cif"]
+      },
+      "chemical/x-cmdf": {
+        source: "apache",
+        extensions: ["cmdf"]
+      },
+      "chemical/x-cml": {
+        source: "apache",
+        extensions: ["cml"]
+      },
+      "chemical/x-csml": {
+        source: "apache",
+        extensions: ["csml"]
+      },
+      "chemical/x-pdb": {
+        source: "apache"
+      },
+      "chemical/x-xyz": {
+        source: "apache",
+        extensions: ["xyz"]
+      },
+      "font/collection": {
+        source: "iana",
+        extensions: ["ttc"]
+      },
+      "font/otf": {
+        source: "iana",
+        compressible: true,
+        extensions: ["otf"]
+      },
+      "font/sfnt": {
+        source: "iana"
+      },
+      "font/ttf": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ttf"]
+      },
+      "font/woff": {
+        source: "iana",
+        extensions: ["woff"]
+      },
+      "font/woff2": {
+        source: "iana",
+        extensions: ["woff2"]
+      },
+      "image/aces": {
+        source: "iana",
+        extensions: ["exr"]
+      },
+      "image/apng": {
+        compressible: false,
+        extensions: ["apng"]
+      },
+      "image/avci": {
+        source: "iana",
+        extensions: ["avci"]
+      },
+      "image/avcs": {
+        source: "iana",
+        extensions: ["avcs"]
+      },
+      "image/avif": {
+        source: "iana",
+        compressible: false,
+        extensions: ["avif"]
+      },
+      "image/bmp": {
+        source: "iana",
+        compressible: true,
+        extensions: ["bmp"]
+      },
+      "image/cgm": {
+        source: "iana",
+        extensions: ["cgm"]
+      },
+      "image/dicom-rle": {
+        source: "iana",
+        extensions: ["drle"]
+      },
+      "image/emf": {
+        source: "iana",
+        extensions: ["emf"]
+      },
+      "image/fits": {
+        source: "iana",
+        extensions: ["fits"]
+      },
+      "image/g3fax": {
+        source: "iana",
+        extensions: ["g3"]
+      },
+      "image/gif": {
+        source: "iana",
+        compressible: false,
+        extensions: ["gif"]
+      },
+      "image/heic": {
+        source: "iana",
+        extensions: ["heic"]
+      },
+      "image/heic-sequence": {
+        source: "iana",
+        extensions: ["heics"]
+      },
+      "image/heif": {
+        source: "iana",
+        extensions: ["heif"]
+      },
+      "image/heif-sequence": {
+        source: "iana",
+        extensions: ["heifs"]
+      },
+      "image/hej2k": {
+        source: "iana",
+        extensions: ["hej2"]
+      },
+      "image/hsj2": {
+        source: "iana",
+        extensions: ["hsj2"]
+      },
+      "image/ief": {
+        source: "iana",
+        extensions: ["ief"]
+      },
+      "image/jls": {
+        source: "iana",
+        extensions: ["jls"]
+      },
+      "image/jp2": {
+        source: "iana",
+        compressible: false,
+        extensions: ["jp2", "jpg2"]
+      },
+      "image/jpeg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["jpeg", "jpg", "jpe"]
+      },
+      "image/jph": {
+        source: "iana",
+        extensions: ["jph"]
+      },
+      "image/jphc": {
+        source: "iana",
+        extensions: ["jhc"]
+      },
+      "image/jpm": {
+        source: "iana",
+        compressible: false,
+        extensions: ["jpm"]
+      },
+      "image/jpx": {
+        source: "iana",
+        compressible: false,
+        extensions: ["jpx", "jpf"]
+      },
+      "image/jxr": {
+        source: "iana",
+        extensions: ["jxr"]
+      },
+      "image/jxra": {
+        source: "iana",
+        extensions: ["jxra"]
+      },
+      "image/jxrs": {
+        source: "iana",
+        extensions: ["jxrs"]
+      },
+      "image/jxs": {
+        source: "iana",
+        extensions: ["jxs"]
+      },
+      "image/jxsc": {
+        source: "iana",
+        extensions: ["jxsc"]
+      },
+      "image/jxsi": {
+        source: "iana",
+        extensions: ["jxsi"]
+      },
+      "image/jxss": {
+        source: "iana",
+        extensions: ["jxss"]
+      },
+      "image/ktx": {
+        source: "iana",
+        extensions: ["ktx"]
+      },
+      "image/ktx2": {
+        source: "iana",
+        extensions: ["ktx2"]
+      },
+      "image/naplps": {
+        source: "iana"
+      },
+      "image/pjpeg": {
+        compressible: false
+      },
+      "image/png": {
+        source: "iana",
+        compressible: false,
+        extensions: ["png"]
+      },
+      "image/prs.btif": {
+        source: "iana",
+        extensions: ["btif"]
+      },
+      "image/prs.pti": {
+        source: "iana",
+        extensions: ["pti"]
+      },
+      "image/pwg-raster": {
+        source: "iana"
+      },
+      "image/sgi": {
+        source: "apache",
+        extensions: ["sgi"]
+      },
+      "image/svg+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["svg", "svgz"]
+      },
+      "image/t38": {
+        source: "iana",
+        extensions: ["t38"]
+      },
+      "image/tiff": {
+        source: "iana",
+        compressible: false,
+        extensions: ["tif", "tiff"]
+      },
+      "image/tiff-fx": {
+        source: "iana",
+        extensions: ["tfx"]
+      },
+      "image/vnd.adobe.photoshop": {
+        source: "iana",
+        compressible: true,
+        extensions: ["psd"]
+      },
+      "image/vnd.airzip.accelerator.azv": {
+        source: "iana",
+        extensions: ["azv"]
+      },
+      "image/vnd.cns.inf2": {
+        source: "iana"
+      },
+      "image/vnd.dece.graphic": {
+        source: "iana",
+        extensions: ["uvi", "uvvi", "uvg", "uvvg"]
+      },
+      "image/vnd.djvu": {
+        source: "iana",
+        extensions: ["djvu", "djv"]
+      },
+      "image/vnd.dvb.subtitle": {
+        source: "iana",
+        extensions: ["sub"]
+      },
+      "image/vnd.dwg": {
+        source: "iana",
+        extensions: ["dwg"]
+      },
+      "image/vnd.dxf": {
+        source: "iana",
+        extensions: ["dxf"]
+      },
+      "image/vnd.fastbidsheet": {
+        source: "iana",
+        extensions: ["fbs"]
+      },
+      "image/vnd.fpx": {
+        source: "iana",
+        extensions: ["fpx"]
+      },
+      "image/vnd.fst": {
+        source: "iana",
+        extensions: ["fst"]
+      },
+      "image/vnd.fujixerox.edmics-mmr": {
+        source: "iana",
+        extensions: ["mmr"]
+      },
+      "image/vnd.fujixerox.edmics-rlc": {
+        source: "iana",
+        extensions: ["rlc"]
+      },
+      "image/vnd.globalgraphics.pgb": {
+        source: "iana"
+      },
+      "image/vnd.microsoft.icon": {
+        source: "iana",
+        compressible: true,
+        extensions: ["ico"]
+      },
+      "image/vnd.mix": {
+        source: "iana"
+      },
+      "image/vnd.mozilla.apng": {
+        source: "iana"
+      },
+      "image/vnd.ms-dds": {
+        compressible: true,
+        extensions: ["dds"]
+      },
+      "image/vnd.ms-modi": {
+        source: "iana",
+        extensions: ["mdi"]
+      },
+      "image/vnd.ms-photo": {
+        source: "apache",
+        extensions: ["wdp"]
+      },
+      "image/vnd.net-fpx": {
+        source: "iana",
+        extensions: ["npx"]
+      },
+      "image/vnd.pco.b16": {
+        source: "iana",
+        extensions: ["b16"]
+      },
+      "image/vnd.radiance": {
+        source: "iana"
+      },
+      "image/vnd.sealed.png": {
+        source: "iana"
+      },
+      "image/vnd.sealedmedia.softseal.gif": {
+        source: "iana"
+      },
+      "image/vnd.sealedmedia.softseal.jpg": {
+        source: "iana"
+      },
+      "image/vnd.svf": {
+        source: "iana"
+      },
+      "image/vnd.tencent.tap": {
+        source: "iana",
+        extensions: ["tap"]
+      },
+      "image/vnd.valve.source.texture": {
+        source: "iana",
+        extensions: ["vtf"]
+      },
+      "image/vnd.wap.wbmp": {
+        source: "iana",
+        extensions: ["wbmp"]
+      },
+      "image/vnd.xiff": {
+        source: "iana",
+        extensions: ["xif"]
+      },
+      "image/vnd.zbrush.pcx": {
+        source: "iana",
+        extensions: ["pcx"]
+      },
+      "image/webp": {
+        source: "apache",
+        extensions: ["webp"]
+      },
+      "image/wmf": {
+        source: "iana",
+        extensions: ["wmf"]
+      },
+      "image/x-3ds": {
+        source: "apache",
+        extensions: ["3ds"]
+      },
+      "image/x-cmu-raster": {
+        source: "apache",
+        extensions: ["ras"]
+      },
+      "image/x-cmx": {
+        source: "apache",
+        extensions: ["cmx"]
+      },
+      "image/x-freehand": {
+        source: "apache",
+        extensions: ["fh", "fhc", "fh4", "fh5", "fh7"]
+      },
+      "image/x-icon": {
+        source: "apache",
+        compressible: true,
+        extensions: ["ico"]
+      },
+      "image/x-jng": {
+        source: "nginx",
+        extensions: ["jng"]
+      },
+      "image/x-mrsid-image": {
+        source: "apache",
+        extensions: ["sid"]
+      },
+      "image/x-ms-bmp": {
+        source: "nginx",
+        compressible: true,
+        extensions: ["bmp"]
+      },
+      "image/x-pcx": {
+        source: "apache",
+        extensions: ["pcx"]
+      },
+      "image/x-pict": {
+        source: "apache",
+        extensions: ["pic", "pct"]
+      },
+      "image/x-portable-anymap": {
+        source: "apache",
+        extensions: ["pnm"]
+      },
+      "image/x-portable-bitmap": {
+        source: "apache",
+        extensions: ["pbm"]
+      },
+      "image/x-portable-graymap": {
+        source: "apache",
+        extensions: ["pgm"]
+      },
+      "image/x-portable-pixmap": {
+        source: "apache",
+        extensions: ["ppm"]
+      },
+      "image/x-rgb": {
+        source: "apache",
+        extensions: ["rgb"]
+      },
+      "image/x-tga": {
+        source: "apache",
+        extensions: ["tga"]
+      },
+      "image/x-xbitmap": {
+        source: "apache",
+        extensions: ["xbm"]
+      },
+      "image/x-xcf": {
+        compressible: false
+      },
+      "image/x-xpixmap": {
+        source: "apache",
+        extensions: ["xpm"]
+      },
+      "image/x-xwindowdump": {
+        source: "apache",
+        extensions: ["xwd"]
+      },
+      "message/cpim": {
+        source: "iana"
+      },
+      "message/delivery-status": {
+        source: "iana"
+      },
+      "message/disposition-notification": {
+        source: "iana",
+        extensions: [
+          "disposition-notification"
+        ]
+      },
+      "message/external-body": {
+        source: "iana"
+      },
+      "message/feedback-report": {
+        source: "iana"
+      },
+      "message/global": {
+        source: "iana",
+        extensions: ["u8msg"]
+      },
+      "message/global-delivery-status": {
+        source: "iana",
+        extensions: ["u8dsn"]
+      },
+      "message/global-disposition-notification": {
+        source: "iana",
+        extensions: ["u8mdn"]
+      },
+      "message/global-headers": {
+        source: "iana",
+        extensions: ["u8hdr"]
+      },
+      "message/http": {
+        source: "iana",
+        compressible: false
+      },
+      "message/imdn+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "message/news": {
+        source: "iana"
+      },
+      "message/partial": {
+        source: "iana",
+        compressible: false
+      },
+      "message/rfc822": {
+        source: "iana",
+        compressible: true,
+        extensions: ["eml", "mime"]
+      },
+      "message/s-http": {
+        source: "iana"
+      },
+      "message/sip": {
+        source: "iana"
+      },
+      "message/sipfrag": {
+        source: "iana"
+      },
+      "message/tracking-status": {
+        source: "iana"
+      },
+      "message/vnd.si.simp": {
+        source: "iana"
+      },
+      "message/vnd.wfa.wsc": {
+        source: "iana",
+        extensions: ["wsc"]
+      },
+      "model/3mf": {
+        source: "iana",
+        extensions: ["3mf"]
+      },
+      "model/e57": {
+        source: "iana"
+      },
+      "model/gltf+json": {
+        source: "iana",
+        compressible: true,
+        extensions: ["gltf"]
+      },
+      "model/gltf-binary": {
+        source: "iana",
+        compressible: true,
+        extensions: ["glb"]
+      },
+      "model/iges": {
+        source: "iana",
+        compressible: false,
+        extensions: ["igs", "iges"]
+      },
+      "model/mesh": {
+        source: "iana",
+        compressible: false,
+        extensions: ["msh", "mesh", "silo"]
+      },
+      "model/mtl": {
+        source: "iana",
+        extensions: ["mtl"]
+      },
+      "model/obj": {
+        source: "iana",
+        extensions: ["obj"]
+      },
+      "model/step": {
+        source: "iana"
+      },
+      "model/step+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["stpx"]
+      },
+      "model/step+zip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["stpz"]
+      },
+      "model/step-xml+zip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["stpxz"]
+      },
+      "model/stl": {
+        source: "iana",
+        extensions: ["stl"]
+      },
+      "model/vnd.collada+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["dae"]
+      },
+      "model/vnd.dwf": {
+        source: "iana",
+        extensions: ["dwf"]
+      },
+      "model/vnd.flatland.3dml": {
+        source: "iana"
+      },
+      "model/vnd.gdl": {
+        source: "iana",
+        extensions: ["gdl"]
+      },
+      "model/vnd.gs-gdl": {
+        source: "apache"
+      },
+      "model/vnd.gs.gdl": {
+        source: "iana"
+      },
+      "model/vnd.gtw": {
+        source: "iana",
+        extensions: ["gtw"]
+      },
+      "model/vnd.moml+xml": {
+        source: "iana",
+        compressible: true
+      },
+      "model/vnd.mts": {
+        source: "iana",
+        extensions: ["mts"]
+      },
+      "model/vnd.opengex": {
+        source: "iana",
+        extensions: ["ogex"]
+      },
+      "model/vnd.parasolid.transmit.binary": {
+        source: "iana",
+        extensions: ["x_b"]
+      },
+      "model/vnd.parasolid.transmit.text": {
+        source: "iana",
+        extensions: ["x_t"]
+      },
+      "model/vnd.pytha.pyox": {
+        source: "iana"
+      },
+      "model/vnd.rosette.annotated-data-model": {
+        source: "iana"
+      },
+      "model/vnd.sap.vds": {
+        source: "iana",
+        extensions: ["vds"]
+      },
+      "model/vnd.usdz+zip": {
+        source: "iana",
+        compressible: false,
+        extensions: ["usdz"]
+      },
+      "model/vnd.valve.source.compiled-map": {
+        source: "iana",
+        extensions: ["bsp"]
+      },
+      "model/vnd.vtu": {
+        source: "iana",
+        extensions: ["vtu"]
+      },
+      "model/vrml": {
+        source: "iana",
+        compressible: false,
+        extensions: ["wrl", "vrml"]
+      },
+      "model/x3d+binary": {
+        source: "apache",
+        compressible: false,
+        extensions: ["x3db", "x3dbz"]
+      },
+      "model/x3d+fastinfoset": {
+        source: "iana",
+        extensions: ["x3db"]
+      },
+      "model/x3d+vrml": {
+        source: "apache",
+        compressible: false,
+        extensions: ["x3dv", "x3dvz"]
+      },
+      "model/x3d+xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["x3d", "x3dz"]
+      },
+      "model/x3d-vrml": {
+        source: "iana",
+        extensions: ["x3dv"]
+      },
+      "multipart/alternative": {
+        source: "iana",
+        compressible: false
+      },
+      "multipart/appledouble": {
+        source: "iana"
+      },
+      "multipart/byteranges": {
+        source: "iana"
+      },
+      "multipart/digest": {
+        source: "iana"
+      },
+      "multipart/encrypted": {
+        source: "iana",
+        compressible: false
+      },
+      "multipart/form-data": {
+        source: "iana",
+        compressible: false
+      },
+      "multipart/header-set": {
+        source: "iana"
+      },
+      "multipart/mixed": {
+        source: "iana"
+      },
+      "multipart/multilingual": {
+        source: "iana"
+      },
+      "multipart/parallel": {
+        source: "iana"
+      },
+      "multipart/related": {
+        source: "iana",
+        compressible: false
+      },
+      "multipart/report": {
+        source: "iana"
+      },
+      "multipart/signed": {
+        source: "iana",
+        compressible: false
+      },
+      "multipart/vnd.bint.med-plus": {
+        source: "iana"
+      },
+      "multipart/voice-message": {
+        source: "iana"
+      },
+      "multipart/x-mixed-replace": {
+        source: "iana"
+      },
+      "text/1d-interleaved-parityfec": {
+        source: "iana"
+      },
+      "text/cache-manifest": {
+        source: "iana",
+        compressible: true,
+        extensions: ["appcache", "manifest"]
+      },
+      "text/calendar": {
+        source: "iana",
+        extensions: ["ics", "ifb"]
+      },
+      "text/calender": {
+        compressible: true
+      },
+      "text/cmd": {
+        compressible: true
+      },
+      "text/coffeescript": {
+        extensions: ["coffee", "litcoffee"]
+      },
+      "text/cql": {
+        source: "iana"
+      },
+      "text/cql-expression": {
+        source: "iana"
+      },
+      "text/cql-identifier": {
+        source: "iana"
+      },
+      "text/css": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["css"]
+      },
+      "text/csv": {
+        source: "iana",
+        compressible: true,
+        extensions: ["csv"]
+      },
+      "text/csv-schema": {
+        source: "iana"
+      },
+      "text/directory": {
+        source: "iana"
+      },
+      "text/dns": {
+        source: "iana"
+      },
+      "text/ecmascript": {
+        source: "iana"
+      },
+      "text/encaprtp": {
+        source: "iana"
+      },
+      "text/enriched": {
+        source: "iana"
+      },
+      "text/fhirpath": {
+        source: "iana"
+      },
+      "text/flexfec": {
+        source: "iana"
+      },
+      "text/fwdred": {
+        source: "iana"
+      },
+      "text/gff3": {
+        source: "iana"
+      },
+      "text/grammar-ref-list": {
+        source: "iana"
+      },
+      "text/html": {
+        source: "iana",
+        compressible: true,
+        extensions: ["html", "htm", "shtml"]
+      },
+      "text/jade": {
+        extensions: ["jade"]
+      },
+      "text/javascript": {
+        source: "iana",
+        compressible: true
+      },
+      "text/jcr-cnd": {
+        source: "iana"
+      },
+      "text/jsx": {
+        compressible: true,
+        extensions: ["jsx"]
+      },
+      "text/less": {
+        compressible: true,
+        extensions: ["less"]
+      },
+      "text/markdown": {
+        source: "iana",
+        compressible: true,
+        extensions: ["markdown", "md"]
+      },
+      "text/mathml": {
+        source: "nginx",
+        extensions: ["mml"]
+      },
+      "text/mdx": {
+        compressible: true,
+        extensions: ["mdx"]
+      },
+      "text/mizar": {
+        source: "iana"
+      },
+      "text/n3": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["n3"]
+      },
+      "text/parameters": {
+        source: "iana",
+        charset: "UTF-8"
+      },
+      "text/parityfec": {
+        source: "iana"
+      },
+      "text/plain": {
+        source: "iana",
+        compressible: true,
+        extensions: ["txt", "text", "conf", "def", "list", "log", "in", "ini"]
+      },
+      "text/provenance-notation": {
+        source: "iana",
+        charset: "UTF-8"
+      },
+      "text/prs.fallenstein.rst": {
+        source: "iana"
+      },
+      "text/prs.lines.tag": {
+        source: "iana",
+        extensions: ["dsc"]
+      },
+      "text/prs.prop.logic": {
+        source: "iana"
+      },
+      "text/raptorfec": {
+        source: "iana"
+      },
+      "text/red": {
+        source: "iana"
+      },
+      "text/rfc822-headers": {
+        source: "iana"
+      },
+      "text/richtext": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rtx"]
+      },
+      "text/rtf": {
+        source: "iana",
+        compressible: true,
+        extensions: ["rtf"]
+      },
+      "text/rtp-enc-aescm128": {
+        source: "iana"
+      },
+      "text/rtploopback": {
+        source: "iana"
+      },
+      "text/rtx": {
+        source: "iana"
+      },
+      "text/sgml": {
+        source: "iana",
+        extensions: ["sgml", "sgm"]
+      },
+      "text/shaclc": {
+        source: "iana"
+      },
+      "text/shex": {
+        source: "iana",
+        extensions: ["shex"]
+      },
+      "text/slim": {
+        extensions: ["slim", "slm"]
+      },
+      "text/spdx": {
+        source: "iana",
+        extensions: ["spdx"]
+      },
+      "text/strings": {
+        source: "iana"
+      },
+      "text/stylus": {
+        extensions: ["stylus", "styl"]
+      },
+      "text/t140": {
+        source: "iana"
+      },
+      "text/tab-separated-values": {
+        source: "iana",
+        compressible: true,
+        extensions: ["tsv"]
+      },
+      "text/troff": {
+        source: "iana",
+        extensions: ["t", "tr", "roff", "man", "me", "ms"]
+      },
+      "text/turtle": {
+        source: "iana",
+        charset: "UTF-8",
+        extensions: ["ttl"]
+      },
+      "text/ulpfec": {
+        source: "iana"
+      },
+      "text/uri-list": {
+        source: "iana",
+        compressible: true,
+        extensions: ["uri", "uris", "urls"]
+      },
+      "text/vcard": {
+        source: "iana",
+        compressible: true,
+        extensions: ["vcard"]
+      },
+      "text/vnd.a": {
+        source: "iana"
+      },
+      "text/vnd.abc": {
+        source: "iana"
+      },
+      "text/vnd.ascii-art": {
+        source: "iana"
+      },
+      "text/vnd.curl": {
+        source: "iana",
+        extensions: ["curl"]
+      },
+      "text/vnd.curl.dcurl": {
+        source: "apache",
+        extensions: ["dcurl"]
+      },
+      "text/vnd.curl.mcurl": {
+        source: "apache",
+        extensions: ["mcurl"]
+      },
+      "text/vnd.curl.scurl": {
+        source: "apache",
+        extensions: ["scurl"]
+      },
+      "text/vnd.debian.copyright": {
+        source: "iana",
+        charset: "UTF-8"
+      },
+      "text/vnd.dmclientscript": {
+        source: "iana"
+      },
+      "text/vnd.dvb.subtitle": {
+        source: "iana",
+        extensions: ["sub"]
+      },
+      "text/vnd.esmertec.theme-descriptor": {
+        source: "iana",
+        charset: "UTF-8"
+      },
+      "text/vnd.familysearch.gedcom": {
+        source: "iana",
+        extensions: ["ged"]
+      },
+      "text/vnd.ficlab.flt": {
+        source: "iana"
+      },
+      "text/vnd.fly": {
+        source: "iana",
+        extensions: ["fly"]
+      },
+      "text/vnd.fmi.flexstor": {
+        source: "iana",
+        extensions: ["flx"]
+      },
+      "text/vnd.gml": {
+        source: "iana"
+      },
+      "text/vnd.graphviz": {
+        source: "iana",
+        extensions: ["gv"]
+      },
+      "text/vnd.hans": {
+        source: "iana"
+      },
+      "text/vnd.hgl": {
+        source: "iana"
+      },
+      "text/vnd.in3d.3dml": {
+        source: "iana",
+        extensions: ["3dml"]
+      },
+      "text/vnd.in3d.spot": {
+        source: "iana",
+        extensions: ["spot"]
+      },
+      "text/vnd.iptc.newsml": {
+        source: "iana"
+      },
+      "text/vnd.iptc.nitf": {
+        source: "iana"
+      },
+      "text/vnd.latex-z": {
+        source: "iana"
+      },
+      "text/vnd.motorola.reflex": {
+        source: "iana"
+      },
+      "text/vnd.ms-mediapackage": {
+        source: "iana"
+      },
+      "text/vnd.net2phone.commcenter.command": {
+        source: "iana"
+      },
+      "text/vnd.radisys.msml-basic-layout": {
+        source: "iana"
+      },
+      "text/vnd.senx.warpscript": {
+        source: "iana"
+      },
+      "text/vnd.si.uricatalogue": {
+        source: "iana"
+      },
+      "text/vnd.sosi": {
+        source: "iana"
+      },
+      "text/vnd.sun.j2me.app-descriptor": {
+        source: "iana",
+        charset: "UTF-8",
+        extensions: ["jad"]
+      },
+      "text/vnd.trolltech.linguist": {
+        source: "iana",
+        charset: "UTF-8"
+      },
+      "text/vnd.wap.si": {
+        source: "iana"
+      },
+      "text/vnd.wap.sl": {
+        source: "iana"
+      },
+      "text/vnd.wap.wml": {
+        source: "iana",
+        extensions: ["wml"]
+      },
+      "text/vnd.wap.wmlscript": {
+        source: "iana",
+        extensions: ["wmls"]
+      },
+      "text/vtt": {
+        source: "iana",
+        charset: "UTF-8",
+        compressible: true,
+        extensions: ["vtt"]
+      },
+      "text/x-asm": {
+        source: "apache",
+        extensions: ["s", "asm"]
+      },
+      "text/x-c": {
+        source: "apache",
+        extensions: ["c", "cc", "cxx", "cpp", "h", "hh", "dic"]
+      },
+      "text/x-component": {
+        source: "nginx",
+        extensions: ["htc"]
+      },
+      "text/x-fortran": {
+        source: "apache",
+        extensions: ["f", "for", "f77", "f90"]
+      },
+      "text/x-gwt-rpc": {
+        compressible: true
+      },
+      "text/x-handlebars-template": {
+        extensions: ["hbs"]
+      },
+      "text/x-java-source": {
+        source: "apache",
+        extensions: ["java"]
+      },
+      "text/x-jquery-tmpl": {
+        compressible: true
+      },
+      "text/x-lua": {
+        extensions: ["lua"]
+      },
+      "text/x-markdown": {
+        compressible: true,
+        extensions: ["mkd"]
+      },
+      "text/x-nfo": {
+        source: "apache",
+        extensions: ["nfo"]
+      },
+      "text/x-opml": {
+        source: "apache",
+        extensions: ["opml"]
+      },
+      "text/x-org": {
+        compressible: true,
+        extensions: ["org"]
+      },
+      "text/x-pascal": {
+        source: "apache",
+        extensions: ["p", "pas"]
+      },
+      "text/x-processing": {
+        compressible: true,
+        extensions: ["pde"]
+      },
+      "text/x-sass": {
+        extensions: ["sass"]
+      },
+      "text/x-scss": {
+        extensions: ["scss"]
+      },
+      "text/x-setext": {
+        source: "apache",
+        extensions: ["etx"]
+      },
+      "text/x-sfv": {
+        source: "apache",
+        extensions: ["sfv"]
+      },
+      "text/x-suse-ymp": {
+        compressible: true,
+        extensions: ["ymp"]
+      },
+      "text/x-uuencode": {
+        source: "apache",
+        extensions: ["uu"]
+      },
+      "text/x-vcalendar": {
+        source: "apache",
+        extensions: ["vcs"]
+      },
+      "text/x-vcard": {
+        source: "apache",
+        extensions: ["vcf"]
+      },
+      "text/xml": {
+        source: "iana",
+        compressible: true,
+        extensions: ["xml"]
+      },
+      "text/xml-external-parsed-entity": {
+        source: "iana"
+      },
+      "text/yaml": {
+        compressible: true,
+        extensions: ["yaml", "yml"]
+      },
+      "video/1d-interleaved-parityfec": {
+        source: "iana"
+      },
+      "video/3gpp": {
+        source: "iana",
+        extensions: ["3gp", "3gpp"]
+      },
+      "video/3gpp-tt": {
+        source: "iana"
+      },
+      "video/3gpp2": {
+        source: "iana",
+        extensions: ["3g2"]
+      },
+      "video/av1": {
+        source: "iana"
+      },
+      "video/bmpeg": {
+        source: "iana"
+      },
+      "video/bt656": {
+        source: "iana"
+      },
+      "video/celb": {
+        source: "iana"
+      },
+      "video/dv": {
+        source: "iana"
+      },
+      "video/encaprtp": {
+        source: "iana"
+      },
+      "video/ffv1": {
+        source: "iana"
+      },
+      "video/flexfec": {
+        source: "iana"
+      },
+      "video/h261": {
+        source: "iana",
+        extensions: ["h261"]
+      },
+      "video/h263": {
+        source: "iana",
+        extensions: ["h263"]
+      },
+      "video/h263-1998": {
+        source: "iana"
+      },
+      "video/h263-2000": {
+        source: "iana"
+      },
+      "video/h264": {
+        source: "iana",
+        extensions: ["h264"]
+      },
+      "video/h264-rcdo": {
+        source: "iana"
+      },
+      "video/h264-svc": {
+        source: "iana"
+      },
+      "video/h265": {
+        source: "iana"
+      },
+      "video/iso.segment": {
+        source: "iana",
+        extensions: ["m4s"]
+      },
+      "video/jpeg": {
+        source: "iana",
+        extensions: ["jpgv"]
+      },
+      "video/jpeg2000": {
+        source: "iana"
+      },
+      "video/jpm": {
+        source: "apache",
+        extensions: ["jpm", "jpgm"]
+      },
+      "video/jxsv": {
+        source: "iana"
+      },
+      "video/mj2": {
+        source: "iana",
+        extensions: ["mj2", "mjp2"]
+      },
+      "video/mp1s": {
+        source: "iana"
+      },
+      "video/mp2p": {
+        source: "iana"
+      },
+      "video/mp2t": {
+        source: "iana",
+        extensions: ["ts"]
+      },
+      "video/mp4": {
+        source: "iana",
+        compressible: false,
+        extensions: ["mp4", "mp4v", "mpg4"]
+      },
+      "video/mp4v-es": {
+        source: "iana"
+      },
+      "video/mpeg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["mpeg", "mpg", "mpe", "m1v", "m2v"]
+      },
+      "video/mpeg4-generic": {
+        source: "iana"
+      },
+      "video/mpv": {
+        source: "iana"
+      },
+      "video/nv": {
+        source: "iana"
+      },
+      "video/ogg": {
+        source: "iana",
+        compressible: false,
+        extensions: ["ogv"]
+      },
+      "video/parityfec": {
+        source: "iana"
+      },
+      "video/pointer": {
+        source: "iana"
+      },
+      "video/quicktime": {
+        source: "iana",
+        compressible: false,
+        extensions: ["qt", "mov"]
+      },
+      "video/raptorfec": {
+        source: "iana"
+      },
+      "video/raw": {
+        source: "iana"
+      },
+      "video/rtp-enc-aescm128": {
+        source: "iana"
+      },
+      "video/rtploopback": {
+        source: "iana"
+      },
+      "video/rtx": {
+        source: "iana"
+      },
+      "video/scip": {
+        source: "iana"
+      },
+      "video/smpte291": {
+        source: "iana"
+      },
+      "video/smpte292m": {
+        source: "iana"
+      },
+      "video/ulpfec": {
+        source: "iana"
+      },
+      "video/vc1": {
+        source: "iana"
+      },
+      "video/vc2": {
+        source: "iana"
+      },
+      "video/vnd.cctv": {
+        source: "iana"
+      },
+      "video/vnd.dece.hd": {
+        source: "iana",
+        extensions: ["uvh", "uvvh"]
+      },
+      "video/vnd.dece.mobile": {
+        source: "iana",
+        extensions: ["uvm", "uvvm"]
+      },
+      "video/vnd.dece.mp4": {
+        source: "iana"
+      },
+      "video/vnd.dece.pd": {
+        source: "iana",
+        extensions: ["uvp", "uvvp"]
+      },
+      "video/vnd.dece.sd": {
+        source: "iana",
+        extensions: ["uvs", "uvvs"]
+      },
+      "video/vnd.dece.video": {
+        source: "iana",
+        extensions: ["uvv", "uvvv"]
+      },
+      "video/vnd.directv.mpeg": {
+        source: "iana"
+      },
+      "video/vnd.directv.mpeg-tts": {
+        source: "iana"
+      },
+      "video/vnd.dlna.mpeg-tts": {
+        source: "iana"
+      },
+      "video/vnd.dvb.file": {
+        source: "iana",
+        extensions: ["dvb"]
+      },
+      "video/vnd.fvt": {
+        source: "iana",
+        extensions: ["fvt"]
+      },
+      "video/vnd.hns.video": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.1dparityfec-1010": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.1dparityfec-2005": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.2dparityfec-1010": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.2dparityfec-2005": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.ttsavc": {
+        source: "iana"
+      },
+      "video/vnd.iptvforum.ttsmpeg2": {
+        source: "iana"
+      },
+      "video/vnd.motorola.video": {
+        source: "iana"
+      },
+      "video/vnd.motorola.videop": {
+        source: "iana"
+      },
+      "video/vnd.mpegurl": {
+        source: "iana",
+        extensions: ["mxu", "m4u"]
+      },
+      "video/vnd.ms-playready.media.pyv": {
+        source: "iana",
+        extensions: ["pyv"]
+      },
+      "video/vnd.nokia.interleaved-multimedia": {
+        source: "iana"
+      },
+      "video/vnd.nokia.mp4vr": {
+        source: "iana"
+      },
+      "video/vnd.nokia.videovoip": {
+        source: "iana"
+      },
+      "video/vnd.objectvideo": {
+        source: "iana"
+      },
+      "video/vnd.radgamettools.bink": {
+        source: "iana"
+      },
+      "video/vnd.radgamettools.smacker": {
+        source: "iana"
+      },
+      "video/vnd.sealed.mpeg1": {
+        source: "iana"
+      },
+      "video/vnd.sealed.mpeg4": {
+        source: "iana"
+      },
+      "video/vnd.sealed.swf": {
+        source: "iana"
+      },
+      "video/vnd.sealedmedia.softseal.mov": {
+        source: "iana"
+      },
+      "video/vnd.uvvu.mp4": {
+        source: "iana",
+        extensions: ["uvu", "uvvu"]
+      },
+      "video/vnd.vivo": {
+        source: "iana",
+        extensions: ["viv"]
+      },
+      "video/vnd.youtube.yt": {
+        source: "iana"
+      },
+      "video/vp8": {
+        source: "iana"
+      },
+      "video/vp9": {
+        source: "iana"
+      },
+      "video/webm": {
+        source: "apache",
+        compressible: false,
+        extensions: ["webm"]
+      },
+      "video/x-f4v": {
+        source: "apache",
+        extensions: ["f4v"]
+      },
+      "video/x-fli": {
+        source: "apache",
+        extensions: ["fli"]
+      },
+      "video/x-flv": {
+        source: "apache",
+        compressible: false,
+        extensions: ["flv"]
+      },
+      "video/x-m4v": {
+        source: "apache",
+        extensions: ["m4v"]
+      },
+      "video/x-matroska": {
+        source: "apache",
+        compressible: false,
+        extensions: ["mkv", "mk3d", "mks"]
+      },
+      "video/x-mng": {
+        source: "apache",
+        extensions: ["mng"]
+      },
+      "video/x-ms-asf": {
+        source: "apache",
+        extensions: ["asf", "asx"]
+      },
+      "video/x-ms-vob": {
+        source: "apache",
+        extensions: ["vob"]
+      },
+      "video/x-ms-wm": {
+        source: "apache",
+        extensions: ["wm"]
+      },
+      "video/x-ms-wmv": {
+        source: "apache",
+        compressible: false,
+        extensions: ["wmv"]
+      },
+      "video/x-ms-wmx": {
+        source: "apache",
+        extensions: ["wmx"]
+      },
+      "video/x-ms-wvx": {
+        source: "apache",
+        extensions: ["wvx"]
+      },
+      "video/x-msvideo": {
+        source: "apache",
+        extensions: ["avi"]
+      },
+      "video/x-sgi-movie": {
+        source: "apache",
+        extensions: ["movie"]
+      },
+      "video/x-smv": {
+        source: "apache",
+        extensions: ["smv"]
+      },
+      "x-conference/x-cooltalk": {
+        source: "apache",
+        extensions: ["ice"]
+      },
+      "x-shader/x-fragment": {
+        compressible: true
+      },
+      "x-shader/x-vertex": {
+        compressible: true
+      }
+    };
+  }
+});
+
+// node_modules/mime-db/index.js
+var require_mime_db = __commonJS({
+  "node_modules/mime-db/index.js"(exports, module) {
+    module.exports = require_db();
+  }
+});
+
+// node_modules/mime-types/index.js
+var require_mime_types = __commonJS({
+  "node_modules/mime-types/index.js"(exports) {
+    "use strict";
+    var db = require_mime_db();
+    var extname = __require("path").extname;
+    var EXTRACT_TYPE_REGEXP = /^\s*([^;\s]*)(?:;|\s|$)/;
+    var TEXT_TYPE_REGEXP = /^text\//i;
+    exports.charset = charset;
+    exports.charsets = { lookup: charset };
+    exports.contentType = contentType;
+    exports.extension = extension;
+    exports.extensions = /* @__PURE__ */ Object.create(null);
+    exports.lookup = lookup;
+    exports.types = /* @__PURE__ */ Object.create(null);
+    populateMaps(exports.extensions, exports.types);
+    function charset(type) {
+      if (!type || typeof type !== "string") {
+        return false;
+      }
+      var match = EXTRACT_TYPE_REGEXP.exec(type);
+      var mime = match && db[match[1].toLowerCase()];
+      if (mime && mime.charset) {
+        return mime.charset;
+      }
+      if (match && TEXT_TYPE_REGEXP.test(match[1])) {
+        return "UTF-8";
+      }
+      return false;
+    }
+    function contentType(str) {
+      if (!str || typeof str !== "string") {
+        return false;
+      }
+      var mime = str.indexOf("/") === -1 ? exports.lookup(str) : str;
+      if (!mime) {
+        return false;
+      }
+      if (mime.indexOf("charset") === -1) {
+        var charset2 = exports.charset(mime);
+        if (charset2)
+          mime += "; charset=" + charset2.toLowerCase();
+      }
+      return mime;
+    }
+    function extension(type) {
+      if (!type || typeof type !== "string") {
+        return false;
+      }
+      var match = EXTRACT_TYPE_REGEXP.exec(type);
+      var exts = match && exports.extensions[match[1].toLowerCase()];
+      if (!exts || !exts.length) {
+        return false;
+      }
+      return exts[0];
+    }
+    function lookup(path) {
+      if (!path || typeof path !== "string") {
+        return false;
+      }
+      var extension2 = extname("x." + path).toLowerCase().substr(1);
+      if (!extension2) {
+        return false;
+      }
+      return exports.types[extension2] || false;
+    }
+    function populateMaps(extensions, types) {
+      var preference = ["nginx", "apache", void 0, "iana"];
+      Object.keys(db).forEach(function forEachMimeType(type) {
+        var mime = db[type];
+        var exts = mime.extensions;
+        if (!exts || !exts.length) {
+          return;
+        }
+        extensions[type] = exts;
+        for (var i = 0; i < exts.length; i++) {
+          var extension2 = exts[i];
+          if (types[extension2]) {
+            var from = preference.indexOf(db[types[extension2]].source);
+            var to = preference.indexOf(mime.source);
+            if (types[extension2] !== "application/octet-stream" && (from > to || from === to && types[extension2].substr(0, 12) === "application/")) {
+              continue;
+            }
+          }
+          types[extension2] = type;
+        }
+      });
+    }
+  }
+});
+
+// node_modules/asynckit/lib/defer.js
+var require_defer = __commonJS({
+  "node_modules/asynckit/lib/defer.js"(exports, module) {
+    module.exports = defer;
+    function defer(fn) {
+      var nextTick = typeof setImmediate == "function" ? setImmediate : typeof process == "object" && typeof process.nextTick == "function" ? process.nextTick : null;
+      if (nextTick) {
+        nextTick(fn);
+      } else {
+        setTimeout(fn, 0);
+      }
+    }
+  }
+});
+
+// node_modules/asynckit/lib/async.js
+var require_async = __commonJS({
+  "node_modules/asynckit/lib/async.js"(exports, module) {
+    var defer = require_defer();
+    module.exports = async;
+    function async(callback) {
+      var isAsync = false;
+      defer(function() {
+        isAsync = true;
+      });
+      return function async_callback(err, result) {
+        if (isAsync) {
+          callback(err, result);
+        } else {
+          defer(function nextTick_callback() {
+            callback(err, result);
+          });
+        }
+      };
+    }
+  }
+});
+
+// node_modules/asynckit/lib/abort.js
+var require_abort = __commonJS({
+  "node_modules/asynckit/lib/abort.js"(exports, module) {
+    module.exports = abort;
+    function abort(state) {
+      Object.keys(state.jobs).forEach(clean.bind(state));
+      state.jobs = {};
+    }
+    function clean(key) {
+      if (typeof this.jobs[key] == "function") {
+        this.jobs[key]();
+      }
+    }
+  }
+});
+
+// node_modules/asynckit/lib/iterate.js
+var require_iterate = __commonJS({
+  "node_modules/asynckit/lib/iterate.js"(exports, module) {
+    var async = require_async();
+    var abort = require_abort();
+    module.exports = iterate;
+    function iterate(list, iterator, state, callback) {
+      var key = state["keyedList"] ? state["keyedList"][state.index] : state.index;
+      state.jobs[key] = runJob(iterator, key, list[key], function(error, output) {
+        if (!(key in state.jobs)) {
+          return;
+        }
+        delete state.jobs[key];
+        if (error) {
+          abort(state);
+        } else {
+          state.results[key] = output;
+        }
+        callback(error, state.results);
+      });
+    }
+    function runJob(iterator, key, item, callback) {
+      var aborter;
+      if (iterator.length == 2) {
+        aborter = iterator(item, async(callback));
+      } else {
+        aborter = iterator(item, key, async(callback));
+      }
+      return aborter;
+    }
+  }
+});
+
+// node_modules/asynckit/lib/state.js
+var require_state = __commonJS({
+  "node_modules/asynckit/lib/state.js"(exports, module) {
+    module.exports = state;
+    function state(list, sortMethod) {
+      var isNamedList = !Array.isArray(list), initState = {
+        index: 0,
+        keyedList: isNamedList || sortMethod ? Object.keys(list) : null,
+        jobs: {},
+        results: isNamedList ? {} : [],
+        size: isNamedList ? Object.keys(list).length : list.length
+      };
+      if (sortMethod) {
+        initState.keyedList.sort(isNamedList ? sortMethod : function(a, b) {
+          return sortMethod(list[a], list[b]);
+        });
+      }
+      return initState;
+    }
+  }
+});
+
+// node_modules/asynckit/lib/terminator.js
+var require_terminator = __commonJS({
+  "node_modules/asynckit/lib/terminator.js"(exports, module) {
+    var abort = require_abort();
+    var async = require_async();
+    module.exports = terminator;
+    function terminator(callback) {
+      if (!Object.keys(this.jobs).length) {
+        return;
+      }
+      this.index = this.size;
+      abort(this);
+      async(callback)(null, this.results);
+    }
+  }
+});
+
+// node_modules/asynckit/parallel.js
+var require_parallel = __commonJS({
+  "node_modules/asynckit/parallel.js"(exports, module) {
+    var iterate = require_iterate();
+    var initState = require_state();
+    var terminator = require_terminator();
+    module.exports = parallel;
+    function parallel(list, iterator, callback) {
+      var state = initState(list);
+      while (state.index < (state["keyedList"] || list).length) {
+        iterate(list, iterator, state, function(error, result) {
+          if (error) {
+            callback(error, result);
+            return;
+          }
+          if (Object.keys(state.jobs).length === 0) {
+            callback(null, state.results);
+            return;
+          }
+        });
+        state.index++;
+      }
+      return terminator.bind(state, callback);
+    }
+  }
+});
+
+// node_modules/asynckit/serialOrdered.js
+var require_serialOrdered = __commonJS({
+  "node_modules/asynckit/serialOrdered.js"(exports, module) {
+    var iterate = require_iterate();
+    var initState = require_state();
+    var terminator = require_terminator();
+    module.exports = serialOrdered;
+    module.exports.ascending = ascending;
+    module.exports.descending = descending;
+    function serialOrdered(list, iterator, sortMethod, callback) {
+      var state = initState(list, sortMethod);
+      iterate(list, iterator, state, function iteratorHandler(error, result) {
+        if (error) {
+          callback(error, result);
+          return;
+        }
+        state.index++;
+        if (state.index < (state["keyedList"] || list).length) {
+          iterate(list, iterator, state, iteratorHandler);
+          return;
+        }
+        callback(null, state.results);
+      });
+      return terminator.bind(state, callback);
+    }
+    function ascending(a, b) {
+      return a < b ? -1 : a > b ? 1 : 0;
+    }
+    function descending(a, b) {
+      return -1 * ascending(a, b);
+    }
+  }
+});
+
+// node_modules/asynckit/serial.js
+var require_serial = __commonJS({
+  "node_modules/asynckit/serial.js"(exports, module) {
+    var serialOrdered = require_serialOrdered();
+    module.exports = serial;
+    function serial(list, iterator, callback) {
+      return serialOrdered(list, iterator, null, callback);
+    }
+  }
+});
+
+// node_modules/asynckit/index.js
+var require_asynckit = __commonJS({
+  "node_modules/asynckit/index.js"(exports, module) {
+    module.exports = {
+      parallel: require_parallel(),
+      serial: require_serial(),
+      serialOrdered: require_serialOrdered()
+    };
+  }
+});
+
+// node_modules/form-data/lib/populate.js
+var require_populate = __commonJS({
+  "node_modules/form-data/lib/populate.js"(exports, module) {
+    module.exports = function(dst, src) {
+      Object.keys(src).forEach(function(prop2) {
+        dst[prop2] = dst[prop2] || src[prop2];
+      });
+      return dst;
+    };
+  }
+});
+
+// node_modules/form-data/lib/form_data.js
+var require_form_data = __commonJS({
+  "node_modules/form-data/lib/form_data.js"(exports, module) {
+    var CombinedStream = require_combined_stream();
+    var util3 = __require("util");
+    var path = __require("path");
+    var http2 = __require("http");
+    var https2 = __require("https");
+    var parseUrl2 = __require("url").parse;
+    var fs = __require("fs");
+    var Stream = __require("stream").Stream;
+    var mime = require_mime_types();
+    var asynckit = require_asynckit();
+    var populate = require_populate();
+    module.exports = FormData3;
+    util3.inherits(FormData3, CombinedStream);
+    function FormData3(options) {
+      if (!(this instanceof FormData3)) {
+        return new FormData3(options);
+      }
+      this._overheadLength = 0;
+      this._valueLength = 0;
+      this._valuesToMeasure = [];
+      CombinedStream.call(this);
+      options = options || {};
+      for (var option in options) {
+        this[option] = options[option];
+      }
+    }
+    FormData3.LINE_BREAK = "\r\n";
+    FormData3.DEFAULT_CONTENT_TYPE = "application/octet-stream";
+    FormData3.prototype.append = function(field, value, options) {
+      options = options || {};
+      if (typeof options == "string") {
+        options = { filename: options };
+      }
+      var append4 = CombinedStream.prototype.append.bind(this);
+      if (typeof value == "number") {
+        value = "" + value;
+      }
+      if (Array.isArray(value)) {
+        this._error(new Error("Arrays are not supported."));
+        return;
+      }
+      var header = this._multiPartHeader(field, value, options);
+      var footer = this._multiPartFooter();
+      append4(header);
+      append4(value);
+      append4(footer);
+      this._trackLength(header, value, options);
+    };
+    FormData3.prototype._trackLength = function(header, value, options) {
+      var valueLength = 0;
+      if (options.knownLength != null) {
+        valueLength += +options.knownLength;
+      } else if (Buffer.isBuffer(value)) {
+        valueLength = value.length;
+      } else if (typeof value === "string") {
+        valueLength = Buffer.byteLength(value);
+      }
+      this._valueLength += valueLength;
+      this._overheadLength += Buffer.byteLength(header) + FormData3.LINE_BREAK.length;
+      if (!value || !value.path && !(value.readable && value.hasOwnProperty("httpVersion")) && !(value instanceof Stream)) {
+        return;
+      }
+      if (!options.knownLength) {
+        this._valuesToMeasure.push(value);
+      }
+    };
+    FormData3.prototype._lengthRetriever = function(value, callback) {
+      if (value.hasOwnProperty("fd")) {
+        if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
+          callback(null, value.end + 1 - (value.start ? value.start : 0));
+        } else {
+          fs.stat(value.path, function(err, stat) {
+            var fileSize;
+            if (err) {
+              callback(err);
+              return;
+            }
+            fileSize = stat.size - (value.start ? value.start : 0);
+            callback(null, fileSize);
+          });
+        }
+      } else if (value.hasOwnProperty("httpVersion")) {
+        callback(null, +value.headers["content-length"]);
+      } else if (value.hasOwnProperty("httpModule")) {
+        value.on("response", function(response) {
+          value.pause();
+          callback(null, +response.headers["content-length"]);
+        });
+        value.resume();
+      } else {
+        callback("Unknown stream");
+      }
+    };
+    FormData3.prototype._multiPartHeader = function(field, value, options) {
+      if (typeof options.header == "string") {
+        return options.header;
+      }
+      var contentDisposition = this._getContentDisposition(value, options);
+      var contentType = this._getContentType(value, options);
+      var contents2 = "";
+      var headers = {
+        // add custom disposition as third element or keep it two elements if not
+        "Content-Disposition": ["form-data", 'name="' + field + '"'].concat(contentDisposition || []),
+        // if no content type. allow it to be empty array
+        "Content-Type": [].concat(contentType || [])
+      };
+      if (typeof options.header == "object") {
+        populate(headers, options.header);
+      }
+      var header;
+      for (var prop2 in headers) {
+        if (!headers.hasOwnProperty(prop2))
+          continue;
+        header = headers[prop2];
+        if (header == null) {
+          continue;
+        }
+        if (!Array.isArray(header)) {
+          header = [header];
+        }
+        if (header.length) {
+          contents2 += prop2 + ": " + header.join("; ") + FormData3.LINE_BREAK;
+        }
+      }
+      return "--" + this.getBoundary() + FormData3.LINE_BREAK + contents2 + FormData3.LINE_BREAK;
+    };
+    FormData3.prototype._getContentDisposition = function(value, options) {
+      var filename, contentDisposition;
+      if (typeof options.filepath === "string") {
+        filename = path.normalize(options.filepath).replace(/\\/g, "/");
+      } else if (options.filename || value.name || value.path) {
+        filename = path.basename(options.filename || value.name || value.path);
+      } else if (value.readable && value.hasOwnProperty("httpVersion")) {
+        filename = path.basename(value.client._httpMessage.path || "");
+      }
+      if (filename) {
+        contentDisposition = 'filename="' + filename + '"';
+      }
+      return contentDisposition;
+    };
+    FormData3.prototype._getContentType = function(value, options) {
+      var contentType = options.contentType;
+      if (!contentType && value.name) {
+        contentType = mime.lookup(value.name);
+      }
+      if (!contentType && value.path) {
+        contentType = mime.lookup(value.path);
+      }
+      if (!contentType && value.readable && value.hasOwnProperty("httpVersion")) {
+        contentType = value.headers["content-type"];
+      }
+      if (!contentType && (options.filepath || options.filename)) {
+        contentType = mime.lookup(options.filepath || options.filename);
+      }
+      if (!contentType && typeof value == "object") {
+        contentType = FormData3.DEFAULT_CONTENT_TYPE;
+      }
+      return contentType;
+    };
+    FormData3.prototype._multiPartFooter = function() {
+      return function(next2) {
+        var footer = FormData3.LINE_BREAK;
+        var lastPart = this._streams.length === 0;
+        if (lastPart) {
+          footer += this._lastBoundary();
+        }
+        next2(footer);
+      }.bind(this);
+    };
+    FormData3.prototype._lastBoundary = function() {
+      return "--" + this.getBoundary() + "--" + FormData3.LINE_BREAK;
+    };
+    FormData3.prototype.getHeaders = function(userHeaders) {
+      var header;
+      var formHeaders = {
+        "content-type": "multipart/form-data; boundary=" + this.getBoundary()
+      };
+      for (header in userHeaders) {
+        if (userHeaders.hasOwnProperty(header)) {
+          formHeaders[header.toLowerCase()] = userHeaders[header];
+        }
+      }
+      return formHeaders;
+    };
+    FormData3.prototype.setBoundary = function(boundary) {
+      this._boundary = boundary;
+    };
+    FormData3.prototype.getBoundary = function() {
+      if (!this._boundary) {
+        this._generateBoundary();
+      }
+      return this._boundary;
+    };
+    FormData3.prototype.getBuffer = function() {
+      var dataBuffer = new Buffer.alloc(0);
+      var boundary = this.getBoundary();
+      for (var i = 0, len = this._streams.length; i < len; i++) {
+        if (typeof this._streams[i] !== "function") {
+          if (Buffer.isBuffer(this._streams[i])) {
+            dataBuffer = Buffer.concat([dataBuffer, this._streams[i]]);
+          } else {
+            dataBuffer = Buffer.concat([dataBuffer, Buffer.from(this._streams[i])]);
+          }
+          if (typeof this._streams[i] !== "string" || this._streams[i].substring(2, boundary.length + 2) !== boundary) {
+            dataBuffer = Buffer.concat([dataBuffer, Buffer.from(FormData3.LINE_BREAK)]);
+          }
+        }
+      }
+      return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
+    };
+    FormData3.prototype._generateBoundary = function() {
+      var boundary = "--------------------------";
+      for (var i = 0; i < 24; i++) {
+        boundary += Math.floor(Math.random() * 10).toString(16);
+      }
+      this._boundary = boundary;
+    };
+    FormData3.prototype.getLengthSync = function() {
+      var knownLength = this._overheadLength + this._valueLength;
+      if (this._streams.length) {
+        knownLength += this._lastBoundary().length;
+      }
+      if (!this.hasKnownLength()) {
+        this._error(new Error("Cannot calculate proper length in synchronous way."));
+      }
+      return knownLength;
+    };
+    FormData3.prototype.hasKnownLength = function() {
+      var hasKnownLength = true;
+      if (this._valuesToMeasure.length) {
+        hasKnownLength = false;
+      }
+      return hasKnownLength;
+    };
+    FormData3.prototype.getLength = function(cb) {
+      var knownLength = this._overheadLength + this._valueLength;
+      if (this._streams.length) {
+        knownLength += this._lastBoundary().length;
+      }
+      if (!this._valuesToMeasure.length) {
+        process.nextTick(cb.bind(this, null, knownLength));
+        return;
+      }
+      asynckit.parallel(this._valuesToMeasure, this._lengthRetriever, function(err, values) {
+        if (err) {
+          cb(err);
+          return;
+        }
+        values.forEach(function(length) {
+          knownLength += length;
+        });
+        cb(null, knownLength);
+      });
+    };
+    FormData3.prototype.submit = function(params, cb) {
+      var request2, options, defaults2 = { method: "post" };
+      if (typeof params == "string") {
+        params = parseUrl2(params);
+        options = populate({
+          port: params.port,
+          path: params.pathname,
+          host: params.hostname,
+          protocol: params.protocol
+        }, defaults2);
+      } else {
+        options = populate(params, defaults2);
+        if (!options.port) {
+          options.port = options.protocol == "https:" ? 443 : 80;
+        }
+      }
+      options.headers = this.getHeaders(params.headers);
+      if (options.protocol == "https:") {
+        request2 = https2.request(options);
+      } else {
+        request2 = http2.request(options);
+      }
+      this.getLength(function(err, length) {
+        if (err && err !== "Unknown stream") {
+          this._error(err);
+          return;
+        }
+        if (length) {
+          request2.setHeader("Content-Length", length);
+        }
+        this.pipe(request2);
+        if (cb) {
+          var onResponse;
+          var callback = function(error, responce) {
+            request2.removeListener("error", callback);
+            request2.removeListener("response", onResponse);
+            return cb.call(this, error, responce);
+          };
+          onResponse = callback.bind(this, null);
+          request2.on("error", callback);
+          request2.on("response", onResponse);
+        }
+      }.bind(this));
+      return request2;
+    };
+    FormData3.prototype._error = function(err) {
+      if (!this.error) {
+        this.error = err;
+        this.pause();
+        this.emit("error", err);
+      }
+    };
+    FormData3.prototype.toString = function() {
+      return "[object FormData]";
+    };
+  }
+});
+
+// node_modules/proxy-from-env/index.js
+var require_proxy_from_env = __commonJS({
+  "node_modules/proxy-from-env/index.js"(exports) {
+    "use strict";
+    var parseUrl2 = __require("url").parse;
+    var DEFAULT_PORTS = {
+      ftp: 21,
+      gopher: 70,
+      http: 80,
+      https: 443,
+      ws: 80,
+      wss: 443
+    };
+    var stringEndsWith = String.prototype.endsWith || function(s) {
+      return s.length <= this.length && this.indexOf(s, this.length - s.length) !== -1;
+    };
+    function getProxyForUrl(url2) {
+      var parsedUrl = typeof url2 === "string" ? parseUrl2(url2) : url2 || {};
+      var proto = parsedUrl.protocol;
+      var hostname = parsedUrl.host;
+      var port = parsedUrl.port;
+      if (typeof hostname !== "string" || !hostname || typeof proto !== "string") {
+        return "";
+      }
+      proto = proto.split(":", 1)[0];
+      hostname = hostname.replace(/:\d*$/, "");
+      port = parseInt(port) || DEFAULT_PORTS[proto] || 0;
+      if (!shouldProxy(hostname, port)) {
+        return "";
+      }
+      var proxy = getEnv("npm_config_" + proto + "_proxy") || getEnv(proto + "_proxy") || getEnv("npm_config_proxy") || getEnv("all_proxy");
+      if (proxy && proxy.indexOf("://") === -1) {
+        proxy = proto + "://" + proxy;
+      }
+      return proxy;
+    }
+    function shouldProxy(hostname, port) {
+      var NO_PROXY = (getEnv("npm_config_no_proxy") || getEnv("no_proxy")).toLowerCase();
+      if (!NO_PROXY) {
+        return true;
+      }
+      if (NO_PROXY === "*") {
+        return false;
+      }
+      return NO_PROXY.split(/[,\s]/).every(function(proxy) {
+        if (!proxy) {
+          return true;
+        }
+        var parsedProxy = proxy.match(/^(.+):(\d+)$/);
+        var parsedProxyHostname = parsedProxy ? parsedProxy[1] : proxy;
+        var parsedProxyPort = parsedProxy ? parseInt(parsedProxy[2]) : 0;
+        if (parsedProxyPort && parsedProxyPort !== port) {
+          return true;
+        }
+        if (!/^[.*]/.test(parsedProxyHostname)) {
+          return hostname !== parsedProxyHostname;
+        }
+        if (parsedProxyHostname.charAt(0) === "*") {
+          parsedProxyHostname = parsedProxyHostname.slice(1);
+        }
+        return !stringEndsWith.call(hostname, parsedProxyHostname);
+      });
+    }
+    function getEnv(key) {
+      return process.env[key.toLowerCase()] || process.env[key.toUpperCase()] || "";
+    }
+    exports.getProxyForUrl = getProxyForUrl;
+  }
+});
+
+// node_modules/ms/index.js
+var require_ms = __commonJS({
+  "node_modules/ms/index.js"(exports, module) {
+    var s = 1e3;
+    var m = s * 60;
+    var h = m * 60;
+    var d = h * 24;
+    var w = d * 7;
+    var y = d * 365.25;
+    module.exports = function(val2, options) {
+      options = options || {};
+      var type = typeof val2;
+      if (type === "string" && val2.length > 0) {
+        return parse9(val2);
+      } else if (type === "number" && isFinite(val2)) {
+        return options.long ? fmtLong(val2) : fmtShort(val2);
+      }
+      throw new Error(
+        "val is not a non-empty string or a valid number. val=" + JSON.stringify(val2)
+      );
+    };
+    function parse9(str) {
+      str = String(str);
+      if (str.length > 100) {
+        return;
+      }
+      var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
+        str
+      );
+      if (!match) {
+        return;
+      }
+      var n = parseFloat(match[1]);
+      var type = (match[2] || "ms").toLowerCase();
+      switch (type) {
+        case "years":
+        case "year":
+        case "yrs":
+        case "yr":
+        case "y":
+          return n * y;
+        case "weeks":
+        case "week":
+        case "w":
+          return n * w;
+        case "days":
+        case "day":
+        case "d":
+          return n * d;
+        case "hours":
+        case "hour":
+        case "hrs":
+        case "hr":
+        case "h":
+          return n * h;
+        case "minutes":
+        case "minute":
+        case "mins":
+        case "min":
+        case "m":
+          return n * m;
+        case "seconds":
+        case "second":
+        case "secs":
+        case "sec":
+        case "s":
+          return n * s;
+        case "milliseconds":
+        case "millisecond":
+        case "msecs":
+        case "msec":
+        case "ms":
+          return n;
+        default:
+          return void 0;
+      }
+    }
+    function fmtShort(ms) {
+      var msAbs = Math.abs(ms);
+      if (msAbs >= d) {
+        return Math.round(ms / d) + "d";
+      }
+      if (msAbs >= h) {
+        return Math.round(ms / h) + "h";
+      }
+      if (msAbs >= m) {
+        return Math.round(ms / m) + "m";
+      }
+      if (msAbs >= s) {
+        return Math.round(ms / s) + "s";
+      }
+      return ms + "ms";
+    }
+    function fmtLong(ms) {
+      var msAbs = Math.abs(ms);
+      if (msAbs >= d) {
+        return plural(ms, msAbs, d, "day");
+      }
+      if (msAbs >= h) {
+        return plural(ms, msAbs, h, "hour");
+      }
+      if (msAbs >= m) {
+        return plural(ms, msAbs, m, "minute");
+      }
+      if (msAbs >= s) {
+        return plural(ms, msAbs, s, "second");
+      }
+      return ms + " ms";
+    }
+    function plural(ms, msAbs, n, name) {
+      var isPlural = msAbs >= n * 1.5;
+      return Math.round(ms / n) + " " + name + (isPlural ? "s" : "");
+    }
+  }
+});
+
+// node_modules/debug/src/common.js
+var require_common = __commonJS({
+  "node_modules/debug/src/common.js"(exports, module) {
+    function setup(env) {
+      createDebug.debug = createDebug;
+      createDebug.default = createDebug;
+      createDebug.coerce = coerce;
+      createDebug.disable = disable;
+      createDebug.enable = enable;
+      createDebug.enabled = enabled;
+      createDebug.humanize = require_ms();
+      createDebug.destroy = destroy;
+      Object.keys(env).forEach((key) => {
+        createDebug[key] = env[key];
+      });
+      createDebug.names = [];
+      createDebug.skips = [];
+      createDebug.formatters = {};
+      function selectColor(namespace) {
+        let hash = 0;
+        for (let i = 0; i < namespace.length; i++) {
+          hash = (hash << 5) - hash + namespace.charCodeAt(i);
+          hash |= 0;
+        }
+        return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
+      }
+      createDebug.selectColor = selectColor;
+      function createDebug(namespace) {
+        let prevTime;
+        let enableOverride = null;
+        let namespacesCache;
+        let enabledCache;
+        function debug(...args) {
+          if (!debug.enabled) {
+            return;
+          }
+          const self2 = debug;
+          const curr = Number(/* @__PURE__ */ new Date());
+          const ms = curr - (prevTime || curr);
+          self2.diff = ms;
+          self2.prev = prevTime;
+          self2.curr = curr;
+          prevTime = curr;
+          args[0] = createDebug.coerce(args[0]);
+          if (typeof args[0] !== "string") {
+            args.unshift("%O");
+          }
+          let index2 = 0;
+          args[0] = args[0].replace(/%([a-zA-Z%])/g, (match, format) => {
+            if (match === "%%") {
+              return "%";
+            }
+            index2++;
+            const formatter = createDebug.formatters[format];
+            if (typeof formatter === "function") {
+              const val2 = args[index2];
+              match = formatter.call(self2, val2);
+              args.splice(index2, 1);
+              index2--;
+            }
+            return match;
+          });
+          createDebug.formatArgs.call(self2, args);
+          const logFn = self2.log || createDebug.log;
+          logFn.apply(self2, args);
+        }
+        debug.namespace = namespace;
+        debug.useColors = createDebug.useColors();
+        debug.color = createDebug.selectColor(namespace);
+        debug.extend = extend2;
+        debug.destroy = createDebug.destroy;
+        Object.defineProperty(debug, "enabled", {
+          enumerable: true,
+          configurable: false,
+          get: () => {
+            if (enableOverride !== null) {
+              return enableOverride;
+            }
+            if (namespacesCache !== createDebug.namespaces) {
+              namespacesCache = createDebug.namespaces;
+              enabledCache = createDebug.enabled(namespace);
+            }
+            return enabledCache;
+          },
+          set: (v) => {
+            enableOverride = v;
+          }
+        });
+        if (typeof createDebug.init === "function") {
+          createDebug.init(debug);
+        }
+        return debug;
+      }
+      function extend2(namespace, delimiter) {
+        const newDebug = createDebug(this.namespace + (typeof delimiter === "undefined" ? ":" : delimiter) + namespace);
+        newDebug.log = this.log;
+        return newDebug;
+      }
+      function enable(namespaces) {
+        createDebug.save(namespaces);
+        createDebug.namespaces = namespaces;
+        createDebug.names = [];
+        createDebug.skips = [];
+        let i;
+        const split = (typeof namespaces === "string" ? namespaces : "").split(/[\s,]+/);
+        const len = split.length;
+        for (i = 0; i < len; i++) {
+          if (!split[i]) {
+            continue;
+          }
+          namespaces = split[i].replace(/\*/g, ".*?");
+          if (namespaces[0] === "-") {
+            createDebug.skips.push(new RegExp("^" + namespaces.slice(1) + "$"));
+          } else {
+            createDebug.names.push(new RegExp("^" + namespaces + "$"));
+          }
+        }
+      }
+      function disable() {
+        const namespaces = [
+          ...createDebug.names.map(toNamespace),
+          ...createDebug.skips.map(toNamespace).map((namespace) => "-" + namespace)
+        ].join(",");
+        createDebug.enable("");
+        return namespaces;
+      }
+      function enabled(name) {
+        if (name[name.length - 1] === "*") {
+          return true;
+        }
+        let i;
+        let len;
+        for (i = 0, len = createDebug.skips.length; i < len; i++) {
+          if (createDebug.skips[i].test(name)) {
+            return false;
+          }
+        }
+        for (i = 0, len = createDebug.names.length; i < len; i++) {
+          if (createDebug.names[i].test(name)) {
+            return true;
+          }
+        }
+        return false;
+      }
+      function toNamespace(regexp) {
+        return regexp.toString().substring(2, regexp.toString().length - 2).replace(/\.\*\?$/, "*");
+      }
+      function coerce(val2) {
+        if (val2 instanceof Error) {
+          return val2.stack || val2.message;
+        }
+        return val2;
+      }
+      function destroy() {
+        console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
+      }
+      createDebug.enable(createDebug.load());
+      return createDebug;
+    }
+    module.exports = setup;
+  }
+});
+
+// node_modules/debug/src/browser.js
+var require_browser = __commonJS({
+  "node_modules/debug/src/browser.js"(exports, module) {
+    exports.formatArgs = formatArgs;
+    exports.save = save;
+    exports.load = load2;
+    exports.useColors = useColors;
+    exports.storage = localstorage();
+    exports.destroy = /* @__PURE__ */ (() => {
+      let warned = false;
+      return () => {
+        if (!warned) {
+          warned = true;
+          console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
+        }
+      };
+    })();
+    exports.colors = [
+      "#0000CC",
+      "#0000FF",
+      "#0033CC",
+      "#0033FF",
+      "#0066CC",
+      "#0066FF",
+      "#0099CC",
+      "#0099FF",
+      "#00CC00",
+      "#00CC33",
+      "#00CC66",
+      "#00CC99",
+      "#00CCCC",
+      "#00CCFF",
+      "#3300CC",
+      "#3300FF",
+      "#3333CC",
+      "#3333FF",
+      "#3366CC",
+      "#3366FF",
+      "#3399CC",
+      "#3399FF",
+      "#33CC00",
+      "#33CC33",
+      "#33CC66",
+      "#33CC99",
+      "#33CCCC",
+      "#33CCFF",
+      "#6600CC",
+      "#6600FF",
+      "#6633CC",
+      "#6633FF",
+      "#66CC00",
+      "#66CC33",
+      "#9900CC",
+      "#9900FF",
+      "#9933CC",
+      "#9933FF",
+      "#99CC00",
+      "#99CC33",
+      "#CC0000",
+      "#CC0033",
+      "#CC0066",
+      "#CC0099",
+      "#CC00CC",
+      "#CC00FF",
+      "#CC3300",
+      "#CC3333",
+      "#CC3366",
+      "#CC3399",
+      "#CC33CC",
+      "#CC33FF",
+      "#CC6600",
+      "#CC6633",
+      "#CC9900",
+      "#CC9933",
+      "#CCCC00",
+      "#CCCC33",
+      "#FF0000",
+      "#FF0033",
+      "#FF0066",
+      "#FF0099",
+      "#FF00CC",
+      "#FF00FF",
+      "#FF3300",
+      "#FF3333",
+      "#FF3366",
+      "#FF3399",
+      "#FF33CC",
+      "#FF33FF",
+      "#FF6600",
+      "#FF6633",
+      "#FF9900",
+      "#FF9933",
+      "#FFCC00",
+      "#FFCC33"
+    ];
+    function useColors() {
+      if (typeof window !== "undefined" && window.process && (window.process.type === "renderer" || window.process.__nwjs)) {
+        return true;
+      }
+      if (typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
+        return false;
+      }
+      let m;
+      return typeof document !== "undefined" && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance || // Is firebug? http://stackoverflow.com/a/398120/376773
+      typeof window !== "undefined" && window.console && (window.console.firebug || window.console.exception && window.console.table) || // Is firefox >= v31?
+      // https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
+      typeof navigator !== "undefined" && navigator.userAgent && (m = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m[1], 10) >= 31 || // Double check webkit in userAgent just in case we are in a worker
+      typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/);
+    }
+    function formatArgs(args) {
+      args[0] = (this.useColors ? "%c" : "") + this.namespace + (this.useColors ? " %c" : " ") + args[0] + (this.useColors ? "%c " : " ") + "+" + module.exports.humanize(this.diff);
+      if (!this.useColors) {
+        return;
+      }
+      const c = "color: " + this.color;
+      args.splice(1, 0, c, "color: inherit");
+      let index2 = 0;
+      let lastC = 0;
+      args[0].replace(/%[a-zA-Z%]/g, (match) => {
+        if (match === "%%") {
+          return;
+        }
+        index2++;
+        if (match === "%c") {
+          lastC = index2;
+        }
+      });
+      args.splice(lastC, 0, c);
+    }
+    exports.log = console.debug || console.log || (() => {
+    });
+    function save(namespaces) {
+      try {
+        if (namespaces) {
+          exports.storage.setItem("debug", namespaces);
+        } else {
+          exports.storage.removeItem("debug");
+        }
+      } catch (error) {
+      }
+    }
+    function load2() {
+      let r;
+      try {
+        r = exports.storage.getItem("debug");
+      } catch (error) {
+      }
+      if (!r && typeof process !== "undefined" && "env" in process) {
+        r = process.env.DEBUG;
+      }
+      return r;
+    }
+    function localstorage() {
+      try {
+        return localStorage;
+      } catch (error) {
+      }
+    }
+    module.exports = require_common()(exports);
+    var { formatters } = module.exports;
+    formatters.j = function(v) {
+      try {
+        return JSON.stringify(v);
+      } catch (error) {
+        return "[UnexpectedJSONParseError]: " + error.message;
+      }
+    };
+  }
+});
+
+// node_modules/has-flag/index.js
+var require_has_flag = __commonJS({
+  "node_modules/has-flag/index.js"(exports, module) {
+    "use strict";
+    module.exports = (flag, argv = process.argv) => {
+      const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
+      const position = argv.indexOf(prefix + flag);
+      const terminatorPosition = argv.indexOf("--");
+      return position !== -1 && (terminatorPosition === -1 || position < terminatorPosition);
+    };
+  }
+});
+
+// node_modules/supports-color/index.js
+var require_supports_color = __commonJS({
+  "node_modules/supports-color/index.js"(exports, module) {
+    "use strict";
+    var os = __require("os");
+    var tty = __require("tty");
+    var hasFlag = require_has_flag();
+    var { env } = process;
+    var forceColor;
+    if (hasFlag("no-color") || hasFlag("no-colors") || hasFlag("color=false") || hasFlag("color=never")) {
+      forceColor = 0;
+    } else if (hasFlag("color") || hasFlag("colors") || hasFlag("color=true") || hasFlag("color=always")) {
+      forceColor = 1;
+    }
+    if ("FORCE_COLOR" in env) {
+      if (env.FORCE_COLOR === "true") {
+        forceColor = 1;
+      } else if (env.FORCE_COLOR === "false") {
+        forceColor = 0;
+      } else {
+        forceColor = env.FORCE_COLOR.length === 0 ? 1 : Math.min(parseInt(env.FORCE_COLOR, 10), 3);
+      }
+    }
+    function translateLevel(level) {
+      if (level === 0) {
+        return false;
+      }
+      return {
+        level,
+        hasBasic: true,
+        has256: level >= 2,
+        has16m: level >= 3
+      };
+    }
+    function supportsColor(haveStream, streamIsTTY) {
+      if (forceColor === 0) {
+        return 0;
+      }
+      if (hasFlag("color=16m") || hasFlag("color=full") || hasFlag("color=truecolor")) {
+        return 3;
+      }
+      if (hasFlag("color=256")) {
+        return 2;
+      }
+      if (haveStream && !streamIsTTY && forceColor === void 0) {
+        return 0;
+      }
+      const min = forceColor || 0;
+      if (env.TERM === "dumb") {
+        return min;
+      }
+      if (process.platform === "win32") {
+        const osRelease = os.release().split(".");
+        if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
+          return Number(osRelease[2]) >= 14931 ? 3 : 2;
+        }
+        return 1;
+      }
+      if ("CI" in env) {
+        if (["TRAVIS", "CIRCLECI", "APPVEYOR", "GITLAB_CI", "GITHUB_ACTIONS", "BUILDKITE"].some((sign) => sign in env) || env.CI_NAME === "codeship") {
+          return 1;
+        }
+        return min;
+      }
+      if ("TEAMCITY_VERSION" in env) {
+        return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env.TEAMCITY_VERSION) ? 1 : 0;
+      }
+      if (env.COLORTERM === "truecolor") {
+        return 3;
+      }
+      if ("TERM_PROGRAM" in env) {
+        const version = parseInt((env.TERM_PROGRAM_VERSION || "").split(".")[0], 10);
+        switch (env.TERM_PROGRAM) {
+          case "iTerm.app":
+            return version >= 3 ? 3 : 2;
+          case "Apple_Terminal":
+            return 2;
+        }
+      }
+      if (/-256(color)?$/i.test(env.TERM)) {
+        return 2;
+      }
+      if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM)) {
+        return 1;
+      }
+      if ("COLORTERM" in env) {
+        return 1;
+      }
+      return min;
+    }
+    function getSupportLevel(stream5) {
+      const level = supportsColor(stream5, stream5 && stream5.isTTY);
+      return translateLevel(level);
+    }
+    module.exports = {
+      supportsColor: getSupportLevel,
+      stdout: translateLevel(supportsColor(true, tty.isatty(1))),
+      stderr: translateLevel(supportsColor(true, tty.isatty(2)))
+    };
+  }
+});
+
+// node_modules/debug/src/node.js
+var require_node = __commonJS({
+  "node_modules/debug/src/node.js"(exports, module) {
+    var tty = __require("tty");
+    var util3 = __require("util");
+    exports.init = init;
+    exports.log = log;
+    exports.formatArgs = formatArgs;
+    exports.save = save;
+    exports.load = load2;
+    exports.useColors = useColors;
+    exports.destroy = util3.deprecate(
+      () => {
+      },
+      "Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`."
+    );
+    exports.colors = [6, 2, 3, 4, 5, 1];
+    try {
+      const supportsColor = require_supports_color();
+      if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
+        exports.colors = [
+          20,
+          21,
+          26,
+          27,
+          32,
+          33,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          56,
+          57,
+          62,
+          63,
+          68,
+          69,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          92,
+          93,
+          98,
+          99,
+          112,
+          113,
+          128,
+          129,
+          134,
+          135,
+          148,
+          149,
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166,
+          167,
+          168,
+          169,
+          170,
+          171,
+          172,
+          173,
+          178,
+          179,
+          184,
+          185,
+          196,
+          197,
+          198,
+          199,
+          200,
+          201,
+          202,
+          203,
+          204,
+          205,
+          206,
+          207,
+          208,
+          209,
+          214,
+          215,
+          220,
+          221
+        ];
+      }
+    } catch (error) {
+    }
+    exports.inspectOpts = Object.keys(process.env).filter((key) => {
+      return /^debug_/i.test(key);
+    }).reduce((obj, key) => {
+      const prop2 = key.substring(6).toLowerCase().replace(/_([a-z])/g, (_, k) => {
+        return k.toUpperCase();
+      });
+      let val2 = process.env[key];
+      if (/^(yes|on|true|enabled)$/i.test(val2)) {
+        val2 = true;
+      } else if (/^(no|off|false|disabled)$/i.test(val2)) {
+        val2 = false;
+      } else if (val2 === "null") {
+        val2 = null;
+      } else {
+        val2 = Number(val2);
+      }
+      obj[prop2] = val2;
+      return obj;
+    }, {});
+    function useColors() {
+      return "colors" in exports.inspectOpts ? Boolean(exports.inspectOpts.colors) : tty.isatty(process.stderr.fd);
+    }
+    function formatArgs(args) {
+      const { namespace: name, useColors: useColors2 } = this;
+      if (useColors2) {
+        const c = this.color;
+        const colorCode = "\x1B[3" + (c < 8 ? c : "8;5;" + c);
+        const prefix = `  ${colorCode};1m${name} \x1B[0m`;
+        args[0] = prefix + args[0].split("\n").join("\n" + prefix);
+        args.push(colorCode + "m+" + module.exports.humanize(this.diff) + "\x1B[0m");
+      } else {
+        args[0] = getDate() + name + " " + args[0];
+      }
+    }
+    function getDate() {
+      if (exports.inspectOpts.hideDate) {
+        return "";
+      }
+      return (/* @__PURE__ */ new Date()).toISOString() + " ";
+    }
+    function log(...args) {
+      return process.stderr.write(util3.formatWithOptions(exports.inspectOpts, ...args) + "\n");
+    }
+    function save(namespaces) {
+      if (namespaces) {
+        process.env.DEBUG = namespaces;
+      } else {
+        delete process.env.DEBUG;
+      }
+    }
+    function load2() {
+      return process.env.DEBUG;
+    }
+    function init(debug) {
+      debug.inspectOpts = {};
+      const keys = Object.keys(exports.inspectOpts);
+      for (let i = 0; i < keys.length; i++) {
+        debug.inspectOpts[keys[i]] = exports.inspectOpts[keys[i]];
+      }
+    }
+    module.exports = require_common()(exports);
+    var { formatters } = module.exports;
+    formatters.o = function(v) {
+      this.inspectOpts.colors = this.useColors;
+      return util3.inspect(v, this.inspectOpts).split("\n").map((str) => str.trim()).join(" ");
+    };
+    formatters.O = function(v) {
+      this.inspectOpts.colors = this.useColors;
+      return util3.inspect(v, this.inspectOpts);
+    };
+  }
+});
+
+// node_modules/debug/src/index.js
+var require_src = __commonJS({
+  "node_modules/debug/src/index.js"(exports, module) {
+    if (typeof process === "undefined" || process.type === "renderer" || process.browser === true || process.__nwjs) {
+      module.exports = require_browser();
+    } else {
+      module.exports = require_node();
+    }
+  }
+});
+
+// node_modules/follow-redirects/debug.js
+var require_debug = __commonJS({
+  "node_modules/follow-redirects/debug.js"(exports, module) {
+    var debug;
+    module.exports = function() {
+      if (!debug) {
+        try {
+          debug = require_src()("follow-redirects");
+        } catch (error) {
+        }
+        if (typeof debug !== "function") {
+          debug = function() {
+          };
+        }
+      }
+      debug.apply(null, arguments);
+    };
+  }
+});
+
+// node_modules/follow-redirects/index.js
+var require_follow_redirects = __commonJS({
+  "node_modules/follow-redirects/index.js"(exports, module) {
+    var url2 = __require("url");
+    var URL2 = url2.URL;
+    var http2 = __require("http");
+    var https2 = __require("https");
+    var Writable = __require("stream").Writable;
+    var assert = __require("assert");
+    var debug = require_debug();
+    (function detectUnsupportedEnvironment() {
+      var looksLikeNode = typeof process !== "undefined";
+      var looksLikeBrowser = typeof window !== "undefined" && typeof document !== "undefined";
+      var looksLikeV8 = isFunction2(Error.captureStackTrace);
+      if (!looksLikeNode && (looksLikeBrowser || !looksLikeV8)) {
+        console.warn("The follow-redirects package should be excluded from browser builds.");
+      }
+    })();
+    var useNativeURL = false;
+    try {
+      assert(new URL2(""));
+    } catch (error) {
+      useNativeURL = error.code === "ERR_INVALID_URL";
+    }
+    var preservedUrlFields = [
+      "auth",
+      "host",
+      "hostname",
+      "href",
+      "path",
+      "pathname",
+      "port",
+      "protocol",
+      "query",
+      "search",
+      "hash"
+    ];
+    var events = ["abort", "aborted", "connect", "error", "socket", "timeout"];
+    var eventHandlers = /* @__PURE__ */ Object.create(null);
+    events.forEach(function(event) {
+      eventHandlers[event] = function(arg1, arg2, arg3) {
+        this._redirectable.emit(event, arg1, arg2, arg3);
+      };
+    });
+    var InvalidUrlError = createErrorType(
+      "ERR_INVALID_URL",
+      "Invalid URL",
+      TypeError
+    );
+    var RedirectionError = createErrorType(
+      "ERR_FR_REDIRECTION_FAILURE",
+      "Redirected request failed"
+    );
+    var TooManyRedirectsError = createErrorType(
+      "ERR_FR_TOO_MANY_REDIRECTS",
+      "Maximum number of redirects exceeded",
+      RedirectionError
+    );
+    var MaxBodyLengthExceededError = createErrorType(
+      "ERR_FR_MAX_BODY_LENGTH_EXCEEDED",
+      "Request body larger than maxBodyLength limit"
+    );
+    var WriteAfterEndError = createErrorType(
+      "ERR_STREAM_WRITE_AFTER_END",
+      "write after end"
+    );
+    var destroy = Writable.prototype.destroy || noop3;
+    function RedirectableRequest(options, responseCallback) {
+      Writable.call(this);
+      this._sanitizeOptions(options);
+      this._options = options;
+      this._ended = false;
+      this._ending = false;
+      this._redirectCount = 0;
+      this._redirects = [];
+      this._requestBodyLength = 0;
+      this._requestBodyBuffers = [];
+      if (responseCallback) {
+        this.on("response", responseCallback);
+      }
+      var self2 = this;
+      this._onNativeResponse = function(response) {
+        try {
+          self2._processResponse(response);
+        } catch (cause) {
+          self2.emit("error", cause instanceof RedirectionError ? cause : new RedirectionError({ cause }));
+        }
+      };
+      this._performRequest();
+    }
+    RedirectableRequest.prototype = Object.create(Writable.prototype);
+    RedirectableRequest.prototype.abort = function() {
+      destroyRequest(this._currentRequest);
+      this._currentRequest.abort();
+      this.emit("abort");
+    };
+    RedirectableRequest.prototype.destroy = function(error) {
+      destroyRequest(this._currentRequest, error);
+      destroy.call(this, error);
+      return this;
+    };
+    RedirectableRequest.prototype.write = function(data2, encoding, callback) {
+      if (this._ending) {
+        throw new WriteAfterEndError();
+      }
+      if (!isString2(data2) && !isBuffer2(data2)) {
+        throw new TypeError("data should be a string, Buffer or Uint8Array");
+      }
+      if (isFunction2(encoding)) {
+        callback = encoding;
+        encoding = null;
+      }
+      if (data2.length === 0) {
+        if (callback) {
+          callback();
+        }
+        return;
+      }
+      if (this._requestBodyLength + data2.length <= this._options.maxBodyLength) {
+        this._requestBodyLength += data2.length;
+        this._requestBodyBuffers.push({ data: data2, encoding });
+        this._currentRequest.write(data2, encoding, callback);
+      } else {
+        this.emit("error", new MaxBodyLengthExceededError());
+        this.abort();
+      }
+    };
+    RedirectableRequest.prototype.end = function(data2, encoding, callback) {
+      if (isFunction2(data2)) {
+        callback = data2;
+        data2 = encoding = null;
+      } else if (isFunction2(encoding)) {
+        callback = encoding;
+        encoding = null;
+      }
+      if (!data2) {
+        this._ended = this._ending = true;
+        this._currentRequest.end(null, null, callback);
+      } else {
+        var self2 = this;
+        var currentRequest = this._currentRequest;
+        this.write(data2, encoding, function() {
+          self2._ended = true;
+          currentRequest.end(null, null, callback);
+        });
+        this._ending = true;
+      }
+    };
+    RedirectableRequest.prototype.setHeader = function(name, value) {
+      this._options.headers[name] = value;
+      this._currentRequest.setHeader(name, value);
+    };
+    RedirectableRequest.prototype.removeHeader = function(name) {
+      delete this._options.headers[name];
+      this._currentRequest.removeHeader(name);
+    };
+    RedirectableRequest.prototype.setTimeout = function(msecs, callback) {
+      var self2 = this;
+      function destroyOnTimeout(socket) {
+        socket.setTimeout(msecs);
+        socket.removeListener("timeout", socket.destroy);
+        socket.addListener("timeout", socket.destroy);
+      }
+      function startTimer(socket) {
+        if (self2._timeout) {
+          clearTimeout(self2._timeout);
+        }
+        self2._timeout = setTimeout(function() {
+          self2.emit("timeout");
+          clearTimer();
+        }, msecs);
+        destroyOnTimeout(socket);
+      }
+      function clearTimer() {
+        if (self2._timeout) {
+          clearTimeout(self2._timeout);
+          self2._timeout = null;
+        }
+        self2.removeListener("abort", clearTimer);
+        self2.removeListener("error", clearTimer);
+        self2.removeListener("response", clearTimer);
+        self2.removeListener("close", clearTimer);
+        if (callback) {
+          self2.removeListener("timeout", callback);
+        }
+        if (!self2.socket) {
+          self2._currentRequest.removeListener("socket", startTimer);
+        }
+      }
+      if (callback) {
+        this.on("timeout", callback);
+      }
+      if (this.socket) {
+        startTimer(this.socket);
+      } else {
+        this._currentRequest.once("socket", startTimer);
+      }
+      this.on("socket", destroyOnTimeout);
+      this.on("abort", clearTimer);
+      this.on("error", clearTimer);
+      this.on("response", clearTimer);
+      this.on("close", clearTimer);
+      return this;
+    };
+    [
+      "flushHeaders",
+      "getHeader",
+      "setNoDelay",
+      "setSocketKeepAlive"
+    ].forEach(function(method) {
+      RedirectableRequest.prototype[method] = function(a, b) {
+        return this._currentRequest[method](a, b);
+      };
+    });
+    ["aborted", "connection", "socket"].forEach(function(property) {
+      Object.defineProperty(RedirectableRequest.prototype, property, {
+        get: function() {
+          return this._currentRequest[property];
+        }
+      });
+    });
+    RedirectableRequest.prototype._sanitizeOptions = function(options) {
+      if (!options.headers) {
+        options.headers = {};
+      }
+      if (options.host) {
+        if (!options.hostname) {
+          options.hostname = options.host;
+        }
+        delete options.host;
+      }
+      if (!options.pathname && options.path) {
+        var searchPos = options.path.indexOf("?");
+        if (searchPos < 0) {
+          options.pathname = options.path;
+        } else {
+          options.pathname = options.path.substring(0, searchPos);
+          options.search = options.path.substring(searchPos);
+        }
+      }
+    };
+    RedirectableRequest.prototype._performRequest = function() {
+      var protocol = this._options.protocol;
+      var nativeProtocol = this._options.nativeProtocols[protocol];
+      if (!nativeProtocol) {
+        throw new TypeError("Unsupported protocol " + protocol);
+      }
+      if (this._options.agents) {
+        var scheme = protocol.slice(0, -1);
+        this._options.agent = this._options.agents[scheme];
+      }
+      var request2 = this._currentRequest = nativeProtocol.request(this._options, this._onNativeResponse);
+      request2._redirectable = this;
+      for (var event of events) {
+        request2.on(event, eventHandlers[event]);
+      }
+      this._currentUrl = /^\//.test(this._options.path) ? url2.format(this._options) : (
+        // When making a request to a proxy, […]
+        // a client MUST send the target URI in absolute-form […].
+        this._options.path
+      );
+      if (this._isRedirect) {
+        var i = 0;
+        var self2 = this;
+        var buffers = this._requestBodyBuffers;
+        (function writeNext(error) {
+          if (request2 === self2._currentRequest) {
+            if (error) {
+              self2.emit("error", error);
+            } else if (i < buffers.length) {
+              var buffer = buffers[i++];
+              if (!request2.finished) {
+                request2.write(buffer.data, buffer.encoding, writeNext);
+              }
+            } else if (self2._ended) {
+              request2.end();
+            }
+          }
+        })();
+      }
+    };
+    RedirectableRequest.prototype._processResponse = function(response) {
+      var statusCode = response.statusCode;
+      if (this._options.trackRedirects) {
+        this._redirects.push({
+          url: this._currentUrl,
+          headers: response.headers,
+          statusCode
+        });
+      }
+      var location = response.headers.location;
+      if (!location || this._options.followRedirects === false || statusCode < 300 || statusCode >= 400) {
+        response.responseUrl = this._currentUrl;
+        response.redirects = this._redirects;
+        this.emit("response", response);
+        this._requestBodyBuffers = [];
+        return;
+      }
+      destroyRequest(this._currentRequest);
+      response.destroy();
+      if (++this._redirectCount > this._options.maxRedirects) {
+        throw new TooManyRedirectsError();
+      }
+      var requestHeaders;
+      var beforeRedirect = this._options.beforeRedirect;
+      if (beforeRedirect) {
+        requestHeaders = Object.assign({
+          // The Host header was set by nativeProtocol.request
+          Host: response.req.getHeader("host")
+        }, this._options.headers);
+      }
+      var method = this._options.method;
+      if ((statusCode === 301 || statusCode === 302) && this._options.method === "POST" || // RFC7231§6.4.4: The 303 (See Other) status code indicates that
+      // the server is redirecting the user agent to a different resource […]
+      // A user agent can perform a retrieval request targeting that URI
+      // (a GET or HEAD request if using HTTP) […]
+      statusCode === 303 && !/^(?:GET|HEAD)$/.test(this._options.method)) {
+        this._options.method = "GET";
+        this._requestBodyBuffers = [];
+        removeMatchingHeaders(/^content-/i, this._options.headers);
+      }
+      var currentHostHeader = removeMatchingHeaders(/^host$/i, this._options.headers);
+      var currentUrlParts = parseUrl2(this._currentUrl);
+      var currentHost = currentHostHeader || currentUrlParts.host;
+      var currentUrl = /^\w+:/.test(location) ? this._currentUrl : url2.format(Object.assign(currentUrlParts, { host: currentHost }));
+      var redirectUrl = resolveUrl(location, currentUrl);
+      debug("redirecting to", redirectUrl.href);
+      this._isRedirect = true;
+      spreadUrlObject(redirectUrl, this._options);
+      if (redirectUrl.protocol !== currentUrlParts.protocol && redirectUrl.protocol !== "https:" || redirectUrl.host !== currentHost && !isSubdomain(redirectUrl.host, currentHost)) {
+        removeMatchingHeaders(/^(?:(?:proxy-)?authorization|cookie)$/i, this._options.headers);
+      }
+      if (isFunction2(beforeRedirect)) {
+        var responseDetails = {
+          headers: response.headers,
+          statusCode
+        };
+        var requestDetails = {
+          url: currentUrl,
+          method,
+          headers: requestHeaders
+        };
+        beforeRedirect(this._options, responseDetails, requestDetails);
+        this._sanitizeOptions(this._options);
+      }
+      this._performRequest();
+    };
+    function wrap2(protocols) {
+      var exports2 = {
+        maxRedirects: 21,
+        maxBodyLength: 10 * 1024 * 1024
+      };
+      var nativeProtocols = {};
+      Object.keys(protocols).forEach(function(scheme) {
+        var protocol = scheme + ":";
+        var nativeProtocol = nativeProtocols[protocol] = protocols[scheme];
+        var wrappedProtocol = exports2[scheme] = Object.create(nativeProtocol);
+        function request2(input, options, callback) {
+          if (isURL(input)) {
+            input = spreadUrlObject(input);
+          } else if (isString2(input)) {
+            input = spreadUrlObject(parseUrl2(input));
+          } else {
+            callback = options;
+            options = validateUrl(input);
+            input = { protocol };
+          }
+          if (isFunction2(options)) {
+            callback = options;
+            options = null;
+          }
+          options = Object.assign({
+            maxRedirects: exports2.maxRedirects,
+            maxBodyLength: exports2.maxBodyLength
+          }, input, options);
+          options.nativeProtocols = nativeProtocols;
+          if (!isString2(options.host) && !isString2(options.hostname)) {
+            options.hostname = "::1";
+          }
+          assert.equal(options.protocol, protocol, "protocol mismatch");
+          debug("options", options);
+          return new RedirectableRequest(options, callback);
+        }
+        function get2(input, options, callback) {
+          var wrappedRequest = wrappedProtocol.request(input, options, callback);
+          wrappedRequest.end();
+          return wrappedRequest;
+        }
+        Object.defineProperties(wrappedProtocol, {
+          request: { value: request2, configurable: true, enumerable: true, writable: true },
+          get: { value: get2, configurable: true, enumerable: true, writable: true }
+        });
+      });
+      return exports2;
+    }
+    function noop3() {
+    }
+    function parseUrl2(input) {
+      var parsed;
+      if (useNativeURL) {
+        parsed = new URL2(input);
+      } else {
+        parsed = validateUrl(url2.parse(input));
+        if (!isString2(parsed.protocol)) {
+          throw new InvalidUrlError({ input });
+        }
+      }
+      return parsed;
+    }
+    function resolveUrl(relative, base) {
+      return useNativeURL ? new URL2(relative, base) : parseUrl2(url2.resolve(base, relative));
+    }
+    function validateUrl(input) {
+      if (/^\[/.test(input.hostname) && !/^\[[:0-9a-f]+\]$/i.test(input.hostname)) {
+        throw new InvalidUrlError({ input: input.href || input });
+      }
+      if (/^\[/.test(input.host) && !/^\[[:0-9a-f]+\](:\d+)?$/i.test(input.host)) {
+        throw new InvalidUrlError({ input: input.href || input });
+      }
+      return input;
+    }
+    function spreadUrlObject(urlObject, target) {
+      var spread3 = target || {};
+      for (var key of preservedUrlFields) {
+        spread3[key] = urlObject[key];
+      }
+      if (spread3.hostname.startsWith("[")) {
+        spread3.hostname = spread3.hostname.slice(1, -1);
+      }
+      if (spread3.port !== "") {
+        spread3.port = Number(spread3.port);
+      }
+      spread3.path = spread3.search ? spread3.pathname + spread3.search : spread3.pathname;
+      return spread3;
+    }
+    function removeMatchingHeaders(regex, headers) {
+      var lastValue;
+      for (var header in headers) {
+        if (regex.test(header)) {
+          lastValue = headers[header];
+          delete headers[header];
+        }
+      }
+      return lastValue === null || typeof lastValue === "undefined" ? void 0 : String(lastValue).trim();
+    }
+    function createErrorType(code, message, baseClass) {
+      function CustomError(properties) {
+        if (isFunction2(Error.captureStackTrace)) {
+          Error.captureStackTrace(this, this.constructor);
+        }
+        Object.assign(this, properties || {});
+        this.code = code;
+        this.message = this.cause ? message + ": " + this.cause.message : message;
+      }
+      CustomError.prototype = new (baseClass || Error)();
+      Object.defineProperties(CustomError.prototype, {
+        constructor: {
+          value: CustomError,
+          enumerable: false
+        },
+        name: {
+          value: "Error [" + code + "]",
+          enumerable: false
+        }
+      });
+      return CustomError;
+    }
+    function destroyRequest(request2, error) {
+      for (var event of events) {
+        request2.removeListener(event, eventHandlers[event]);
+      }
+      request2.on("error", noop3);
+      request2.destroy(error);
+    }
+    function isSubdomain(subdomain, domain) {
+      assert(isString2(subdomain) && isString2(domain));
+      var dot = subdomain.length - domain.length - 1;
+      return dot > 0 && subdomain[dot] === "." && subdomain.endsWith(domain);
+    }
+    function isString2(value) {
+      return typeof value === "string" || value instanceof String;
+    }
+    function isFunction2(value) {
+      return typeof value === "function";
+    }
+    function isBuffer2(value) {
+      return typeof value === "object" && "length" in value;
+    }
+    function isURL(value) {
+      return URL2 && value instanceof URL2;
+    }
+    module.exports = wrap2({ http: http2, https: https2 });
+    module.exports.wrap = wrap2;
+  }
+});
 
 // node_modules/css-what/lib/commonjs/types.js
 var require_types = __commonJS({
@@ -119,7 +10874,13 @@ var require_parse = __commonJS({
     var stripQuotesFromPseudos = /* @__PURE__ */ new Set(["contains", "icontains"]);
     function funescape(_, escaped, escapedWhitespace) {
       var high = parseInt(escaped, 16) - 65536;
-      return high !== high || escapedWhitespace ? escaped : high < 0 ? String.fromCharCode(high + 65536) : String.fromCharCode(high >> 10 | 55296, high & 1023 | 56320);
+      return high !== high || escapedWhitespace ? escaped : high < 0 ? (
+        // BMP codepoint
+        String.fromCharCode(high + 65536)
+      ) : (
+        // Supplemental Plane codepoint (surrogate pair)
+        String.fromCharCode(high >> 10 | 55296, high & 1023 | 56320)
+      );
     }
     function unescapeCSS(str) {
       return str.replace(reEscape, funescape);
@@ -725,6 +11486,7 @@ var require_internal = __commonJS({
     "use strict";
     var Buffer2 = require_safer().Buffer;
     module.exports = {
+      // Encodings
       utf8: { type: "_internal", bomAware: true },
       cesu8: { type: "_internal", bomAware: true },
       unicode11utf8: "utf8",
@@ -733,6 +11495,7 @@ var require_internal = __commonJS({
       binary: { type: "_internal" },
       base64: { type: "_internal" },
       hex: { type: "_internal" },
+      // Codec.
       _internal: InternalCodec
     };
     function InternalCodec(codecOptions, iconv2) {
@@ -1496,6 +12259,7 @@ var require_sbcs_data = __commonJS({
   "node_modules/iconv-lite/encodings/sbcs-data.js"(exports, module) {
     "use strict";
     module.exports = {
+      // Not supported by iconv, not sure why.
       "10029": "maccenteuro",
       "maccenteuro": {
         "type": "_sbcs",
@@ -1515,6 +12279,7 @@ var require_sbcs_data = __commonJS({
         "type": "_sbcs",
         "chars": "\x80\x81\xE9\xE2\x84\xE0\x86\xE7\xEA\xEB\xE8\xEF\xEE\x8D\x8E\x8F\x90\u0651\u0652\xF4\xA4\u0640\xFB\xF9\u0621\u0622\u0623\u0624\xA3\u0625\u0626\u0627\u0628\u0629\u062A\u062B\u062C\u062D\u062E\u062F\u0630\u0631\u0632\u0633\u0634\u0635\xAB\xBB\u2591\u2592\u2593\u2502\u2524\u2561\u2562\u2556\u2555\u2563\u2551\u2557\u255D\u255C\u255B\u2510\u2514\u2534\u252C\u251C\u2500\u253C\u255E\u255F\u255A\u2554\u2569\u2566\u2560\u2550\u256C\u2567\u2568\u2564\u2565\u2559\u2558\u2552\u2553\u256B\u256A\u2518\u250C\u2588\u2584\u258C\u2590\u2580\u0636\u0637\u0638\u0639\u063A\u0641\xB5\u0642\u0643\u0644\u0645\u0646\u0647\u0648\u0649\u064A\u2261\u064B\u064C\u064D\u064E\u064F\u0650\u2248\xB0\u2219\xB7\u221A\u207F\xB2\u25A0\xA0"
       },
+      // Aliases of generated encodings.
       "ascii8bit": "ascii",
       "usascii": "ascii",
       "ansix34": "ascii",
@@ -3771,6 +14536,36 @@ var require_dbcs_data = __commonJS({
   "node_modules/iconv-lite/encodings/dbcs-data.js"(exports, module) {
     "use strict";
     module.exports = {
+      // == Japanese/ShiftJIS ====================================================
+      // All japanese encodings are based on JIS X set of standards:
+      // JIS X 0201 - Single-byte encoding of ASCII + ¥ + Kana chars at 0xA1-0xDF.
+      // JIS X 0208 - Main set of 6879 characters, placed in 94x94 plane, to be encoded by 2 bytes. 
+      //              Has several variations in 1978, 1983, 1990 and 1997.
+      // JIS X 0212 - Supplementary plane of 6067 chars in 94x94 plane. 1990. Effectively dead.
+      // JIS X 0213 - Extension and modern replacement of 0208 and 0212. Total chars: 11233.
+      //              2 planes, first is superset of 0208, second - revised 0212.
+      //              Introduced in 2000, revised 2004. Some characters are in Unicode Plane 2 (0x2xxxx)
+      // Byte encodings are:
+      //  * Shift_JIS: Compatible with 0201, uses not defined chars in top half as lead bytes for double-byte
+      //               encoding of 0208. Lead byte ranges: 0x81-0x9F, 0xE0-0xEF; Trail byte ranges: 0x40-0x7E, 0x80-0x9E, 0x9F-0xFC.
+      //               Windows CP932 is a superset of Shift_JIS. Some companies added more chars, notably KDDI.
+      //  * EUC-JP:    Up to 3 bytes per character. Used mostly on *nixes.
+      //               0x00-0x7F       - lower part of 0201
+      //               0x8E, 0xA1-0xDF - upper part of 0201
+      //               (0xA1-0xFE)x2   - 0208 plane (94x94).
+      //               0x8F, (0xA1-0xFE)x2 - 0212 plane (94x94).
+      //  * JIS X 208: 7-bit, direct encoding of 0208. Byte ranges: 0x21-0x7E (94 values). Uncommon.
+      //               Used as-is in ISO2022 family.
+      //  * ISO2022-JP: Stateful encoding, with escape sequences to switch between ASCII, 
+      //                0201-1976 Roman, 0208-1978, 0208-1983.
+      //  * ISO2022-JP-1: Adds esc seq for 0212-1990.
+      //  * ISO2022-JP-2: Adds esc seq for GB2313-1980, KSX1001-1992, ISO8859-1, ISO8859-7.
+      //  * ISO2022-JP-3: Adds esc seq for 0201-1976 Kana set, 0213-2000 Planes 1, 2.
+      //  * ISO2022-JP-2004: Adds 0213-2004 Plane 1.
+      //
+      // After JIS X 0213 appeared, Shift_JIS-2004, EUC-JISX0213 and ISO2022-JP-2004 followed, with just changing the planes.
+      //
+      // Overall, it seems that it's a mess :( http://www8.plala.or.jp/tkubota1/unicode-symbols-map2.html
       "shiftjis": {
         type: "_dbcs",
         table: function() {
@@ -3796,12 +14591,20 @@ var require_dbcs_data = __commonJS({
         },
         encodeAdd: { "\xA5": 92, "\u203E": 126 }
       },
+      // TODO: KDDI extension to Shift_JIS
+      // TODO: IBM CCSID 942 = CP932, but F0-F9 custom chars and other char changes.
+      // TODO: IBM CCSID 943 = Shift_JIS = CP932 with original Shift_JIS lower 128 chars.
+      // == Chinese/GBK ==========================================================
+      // http://en.wikipedia.org/wiki/GBK
+      // We mostly implement W3C recommendation: https://www.w3.org/TR/encoding/#gbk-encoder
+      // Oldest GB2312 (1981, ~7600 chars) is a subset of CP936
       "gb2312": "cp936",
       "gb231280": "cp936",
       "gb23121980": "cp936",
       "csgb2312": "cp936",
       "csiso58gb231280": "cp936",
       "euccn": "cp936",
+      // Microsoft's CP936 is a subset and approximation of GBK.
       "windows936": "cp936",
       "ms936": "cp936",
       "936": "cp936",
@@ -3811,6 +14614,7 @@ var require_dbcs_data = __commonJS({
           return require_cp936();
         }
       },
+      // GBK (~22000 chars) is an extension of CP936 that added user-mapped chars and some other.
       "gbk": {
         type: "_dbcs",
         table: function() {
@@ -3819,6 +14623,11 @@ var require_dbcs_data = __commonJS({
       },
       "xgbk": "gbk",
       "isoir58": "gbk",
+      // GB18030 is an algorithmic extension of GBK.
+      // Main source: https://www.w3.org/TR/encoding/#gbk-encoder
+      // http://icu-project.org/docs/papers/gb18030.html
+      // http://source.icu-project.org/repos/icu/data/trunk/charset/data/xml/gb-18030-2000.xml
+      // http://www.khngai.com/chinese/charmap/tblgbk.php?page=0
       "gb18030": {
         type: "_dbcs",
         table: function() {
@@ -3831,6 +14640,8 @@ var require_dbcs_data = __commonJS({
         encodeAdd: { "\u20AC": 41699 }
       },
       "chinese": "gb18030",
+      // == Korean ===============================================================
+      // EUC-KR, KS_C_5601 and KS X 1001 are exactly the same.
       "windows949": "cp949",
       "ms949": "cp949",
       "949": "cp949",
@@ -3848,6 +14659,28 @@ var require_dbcs_data = __commonJS({
       "ksc56011987": "cp949",
       "ksc56011989": "cp949",
       "ksc5601": "cp949",
+      // == Big5/Taiwan/Hong Kong ================================================
+      // There are lots of tables for Big5 and cp950. Please see the following links for history:
+      // http://moztw.org/docs/big5/  http://www.haible.de/bruno/charsets/conversion-tables/Big5.html
+      // Variations, in roughly number of defined chars:
+      //  * Windows CP 950: Microsoft variant of Big5. Canonical: http://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/WINDOWS/CP950.TXT
+      //  * Windows CP 951: Microsoft variant of Big5-HKSCS-2001. Seems to be never public. http://me.abelcheung.org/articles/research/what-is-cp951/
+      //  * Big5-2003 (Taiwan standard) almost superset of cp950.
+      //  * Unicode-at-on (UAO) / Mozilla 1.8. Falling out of use on the Web. Not supported by other browsers.
+      //  * Big5-HKSCS (-2001, -2004, -2008). Hong Kong standard. 
+      //    many unicode code points moved from PUA to Supplementary plane (U+2XXXX) over the years.
+      //    Plus, it has 4 combining sequences.
+      //    Seems that Mozilla refused to support it for 10 yrs. https://bugzilla.mozilla.org/show_bug.cgi?id=162431 https://bugzilla.mozilla.org/show_bug.cgi?id=310299
+      //    because big5-hkscs is the only encoding to include astral characters in non-algorithmic way.
+      //    Implementations are not consistent within browsers; sometimes labeled as just big5.
+      //    MS Internet Explorer switches from big5 to big5-hkscs when a patch applied.
+      //    Great discussion & recap of what's going on https://bugzilla.mozilla.org/show_bug.cgi?id=912470#c31
+      //    In the encoder, it might make sense to support encoding old PUA mappings to Big5 bytes seq-s.
+      //    Official spec: http://www.ogcio.gov.hk/en/business/tech_promotion/ccli/terms/doc/2003cmp_2008.txt
+      //                   http://www.ogcio.gov.hk/tc/business/tech_promotion/ccli/terms/doc/hkscs-2008-big5-iso.txt
+      // 
+      // Current understanding of how to deal with Big5(-HKSCS) is in the Encoding Standard, http://encoding.spec.whatwg.org/#big5-encoder
+      // Unicode mapping (http://www.unicode.org/Public/MAPPINGS/OBSOLETE/EASTASIA/OTHER/BIG5.TXT) is said to be wrong.
       "windows950": "cp950",
       "ms950": "cp950",
       "950": "cp950",
@@ -3857,6 +14690,7 @@ var require_dbcs_data = __commonJS({
           return require_cp950();
         }
       },
+      // Big5 has many variations and is an extension of cp950. We use Encoding Standard's as a consensus.
       "big5": "big5hkscs",
       "big5hkscs": {
         type: "_dbcs",
@@ -3864,6 +14698,9 @@ var require_dbcs_data = __commonJS({
           return require_cp950().concat(require_big5_added());
         },
         encodeSkipVals: [
+          // Although Encoding Standard says we should avoid encoding to HKSCS area (See Step 1 of
+          // https://encoding.spec.whatwg.org/#index-big5-pointer), we still do it to increase compatibility with ICU.
+          // But if a single unicode point can be encoded both as HKSCS and regular Big5, we prefer the latter.
           36457,
           36463,
           36478,
@@ -3925,6 +14762,7 @@ var require_dbcs_data = __commonJS({
           37576,
           38468,
           38637,
+          // Step 2 of https://encoding.spec.whatwg.org/#index-big5-pointer: Use last pointer for U+2550, U+255E, U+2561, U+256A, U+5341, or U+5345
           41636,
           41637,
           41639,
@@ -4076,7 +14914,7 @@ var require_lib = __commonJS({
     iconv2.encodings = null;
     iconv2.defaultCharUnicode = "\uFFFD";
     iconv2.defaultCharSingleByte = "?";
-    iconv2.encode = function encode(str, encoding, options) {
+    iconv2.encode = function encode3(str, encoding, options) {
       str = "" + (str || "");
       var encoder = iconv2.getEncoder(encoding, options);
       var res = encoder.write(str);
@@ -4925,12 +15763,22 @@ var require_tree = __commonJS({
       wellknownHeaderNames,
       headerNameLowerCasedRecord
     } = require_constants();
-    var TstNode = class {
+    var TstNode = class _TstNode {
+      /** @type {any} */
       value = null;
+      /** @type {null | TstNode} */
       left = null;
+      /** @type {null | TstNode} */
       middle = null;
+      /** @type {null | TstNode} */
       right = null;
+      /** @type {number} */
       code;
+      /**
+       * @param {string} key
+       * @param {any} value
+       * @param {number} index
+       */
       constructor(key, value, index2) {
         if (index2 === void 0 || index2 >= key.length) {
           throw new TypeError("Unreachable");
@@ -4940,11 +15788,15 @@ var require_tree = __commonJS({
           throw new TypeError("key must be ascii string");
         }
         if (key.length !== ++index2) {
-          this.middle = new TstNode(key, value, index2);
+          this.middle = new _TstNode(key, value, index2);
         } else {
           this.value = value;
         }
       }
+      /**
+       * @param {string} key
+       * @param {any} value
+       */
       add(key, value) {
         const length = key.length;
         if (length === 0) {
@@ -4964,24 +15816,28 @@ var require_tree = __commonJS({
             } else if (node.middle !== null) {
               node = node.middle;
             } else {
-              node.middle = new TstNode(key, value, index2);
+              node.middle = new _TstNode(key, value, index2);
               break;
             }
           } else if (node.code < code) {
             if (node.left !== null) {
               node = node.left;
             } else {
-              node.left = new TstNode(key, value, index2);
+              node.left = new _TstNode(key, value, index2);
               break;
             }
           } else if (node.right !== null) {
             node = node.right;
           } else {
-            node.right = new TstNode(key, value, index2);
+            node.right = new _TstNode(key, value, index2);
             break;
           }
         }
       }
+      /**
+       * @param {Uint8Array} key
+       * @return {TstNode | null}
+       */
       search(key) {
         const keylength = key.length;
         let index2 = 0;
@@ -5006,7 +15862,12 @@ var require_tree = __commonJS({
       }
     };
     var TernarySearchTree = class {
+      /** @type {TstNode | null} */
       node = null;
+      /**
+       * @param {string} key
+       * @param {any} value
+       * */
       insert(key, value) {
         if (this.node === null) {
           this.node = new TstNode(key, value, 0);
@@ -5014,6 +15875,10 @@ var require_tree = __commonJS({
           this.node.add(key, value);
         }
       }
+      /**
+       * @param {Uint8Array} key
+       * @return {any}
+       */
       lookup(key) {
         return this.node?.search(key)?.value ?? null;
       }
@@ -5037,7 +15902,7 @@ var require_util = __commonJS({
     var assert = __require("node:assert");
     var { kDestroyed, kBodyUsed, kListeners, kBody } = require_symbols();
     var { IncomingMessage } = __require("node:http");
-    var stream2 = __require("node:stream");
+    var stream5 = __require("node:stream");
     var net = __require("node:net");
     var { Blob: Blob2 } = __require("node:buffer");
     var nodeUtil = __require("node:util");
@@ -5059,7 +15924,7 @@ var require_util = __commonJS({
       }
     };
     function wrapRequestBody(body) {
-      if (isStream(body)) {
+      if (isStream2(body)) {
         if (bodyLength(body) === 0) {
           body.on("data", function() {
             assert(false);
@@ -5082,7 +15947,7 @@ var require_util = __commonJS({
     }
     function nop() {
     }
-    function isStream(obj) {
+    function isStream2(obj) {
       return obj && typeof obj === "object" && typeof obj.pipe === "function" && typeof obj.on === "function";
     }
     function isBlobLike(object) {
@@ -5097,15 +15962,15 @@ var require_util = __commonJS({
         return (sTag === "Blob" || sTag === "File") && ("stream" in object && typeof object.stream === "function" || "arrayBuffer" in object && typeof object.arrayBuffer === "function");
       }
     }
-    function buildURL(url, queryParams) {
-      if (url.includes("?") || url.includes("#")) {
+    function buildURL2(url2, queryParams) {
+      if (url2.includes("?") || url2.includes("#")) {
         throw new Error('Query params cannot be passed when url already contains "?" or "#".');
       }
       const stringified = stringify2(queryParams);
       if (stringified) {
-        url += "?" + stringified;
+        url2 += "?" + stringified;
       }
-      return url;
+      return url2;
     }
     function isValidPort(port) {
       const value = parseInt(port, 10);
@@ -5114,58 +15979,58 @@ var require_util = __commonJS({
     function isHttpOrHttpsPrefixed(value) {
       return value != null && value[0] === "h" && value[1] === "t" && value[2] === "t" && value[3] === "p" && (value[4] === ":" || value[4] === "s" && value[5] === ":");
     }
-    function parseURL(url) {
-      if (typeof url === "string") {
-        url = new URL(url);
-        if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
+    function parseURL(url2) {
+      if (typeof url2 === "string") {
+        url2 = new URL(url2);
+        if (!isHttpOrHttpsPrefixed(url2.origin || url2.protocol)) {
           throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
         }
-        return url;
+        return url2;
       }
-      if (!url || typeof url !== "object") {
+      if (!url2 || typeof url2 !== "object") {
         throw new InvalidArgumentError("Invalid URL: The URL argument must be a non-null object.");
       }
-      if (!(url instanceof URL)) {
-        if (url.port != null && url.port !== "" && isValidPort(url.port) === false) {
+      if (!(url2 instanceof URL)) {
+        if (url2.port != null && url2.port !== "" && isValidPort(url2.port) === false) {
           throw new InvalidArgumentError("Invalid URL: port must be a valid integer or a string representation of an integer.");
         }
-        if (url.path != null && typeof url.path !== "string") {
+        if (url2.path != null && typeof url2.path !== "string") {
           throw new InvalidArgumentError("Invalid URL path: the path must be a string or null/undefined.");
         }
-        if (url.pathname != null && typeof url.pathname !== "string") {
+        if (url2.pathname != null && typeof url2.pathname !== "string") {
           throw new InvalidArgumentError("Invalid URL pathname: the pathname must be a string or null/undefined.");
         }
-        if (url.hostname != null && typeof url.hostname !== "string") {
+        if (url2.hostname != null && typeof url2.hostname !== "string") {
           throw new InvalidArgumentError("Invalid URL hostname: the hostname must be a string or null/undefined.");
         }
-        if (url.origin != null && typeof url.origin !== "string") {
+        if (url2.origin != null && typeof url2.origin !== "string") {
           throw new InvalidArgumentError("Invalid URL origin: the origin must be a string or null/undefined.");
         }
-        if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
+        if (!isHttpOrHttpsPrefixed(url2.origin || url2.protocol)) {
           throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
         }
-        const port = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
-        let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port}`;
-        let path = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
-        if (origin[origin.length - 1] === "/") {
-          origin = origin.slice(0, origin.length - 1);
+        const port = url2.port != null ? url2.port : url2.protocol === "https:" ? 443 : 80;
+        let origin2 = url2.origin != null ? url2.origin : `${url2.protocol || ""}//${url2.hostname || ""}:${port}`;
+        let path = url2.path != null ? url2.path : `${url2.pathname || ""}${url2.search || ""}`;
+        if (origin2[origin2.length - 1] === "/") {
+          origin2 = origin2.slice(0, origin2.length - 1);
         }
         if (path && path[0] !== "/") {
           path = `/${path}`;
         }
-        return new URL(`${origin}${path}`);
+        return new URL(`${origin2}${path}`);
       }
-      if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
+      if (!isHttpOrHttpsPrefixed(url2.origin || url2.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
       }
-      return url;
+      return url2;
     }
-    function parseOrigin(url) {
-      url = parseURL(url);
-      if (url.pathname !== "/" || url.search || url.hash) {
+    function parseOrigin(url2) {
+      url2 = parseURL(url2);
+      if (url2.pathname !== "/" || url2.search || url2.hash) {
         throw new InvalidArgumentError("invalid url");
       }
-      return url;
+      return url2;
     }
     function getHostname(host) {
       if (host[0] === "[") {
@@ -5201,35 +16066,35 @@ var require_util = __commonJS({
     function bodyLength(body) {
       if (body == null) {
         return 0;
-      } else if (isStream(body)) {
+      } else if (isStream2(body)) {
         const state = body._readableState;
         return state && state.objectMode === false && state.ended === true && Number.isFinite(state.length) ? state.length : null;
       } else if (isBlobLike(body)) {
         return body.size != null ? body.size : null;
-      } else if (isBuffer(body)) {
+      } else if (isBuffer2(body)) {
         return body.byteLength;
       }
       return null;
     }
     function isDestroyed(body) {
-      return body && !!(body.destroyed || body[kDestroyed] || stream2.isDestroyed?.(body));
+      return body && !!(body.destroyed || body[kDestroyed] || stream5.isDestroyed?.(body));
     }
-    function destroy(stream3, err) {
-      if (stream3 == null || !isStream(stream3) || isDestroyed(stream3)) {
+    function destroy(stream6, err) {
+      if (stream6 == null || !isStream2(stream6) || isDestroyed(stream6)) {
         return;
       }
-      if (typeof stream3.destroy === "function") {
-        if (Object.getPrototypeOf(stream3).constructor === IncomingMessage) {
-          stream3.socket = null;
+      if (typeof stream6.destroy === "function") {
+        if (Object.getPrototypeOf(stream6).constructor === IncomingMessage) {
+          stream6.socket = null;
         }
-        stream3.destroy(err);
+        stream6.destroy(err);
       } else if (err) {
         queueMicrotask(() => {
-          stream3.emit("error", err);
+          stream6.emit("error", err);
         });
       }
-      if (stream3.destroyed !== true) {
-        stream3[kDestroyed] = true;
+      if (stream6.destroyed !== true) {
+        stream6[kDestroyed] = true;
       }
     }
     var KEEPALIVE_TIMEOUT_EXPR = /timeout=(\d+)/;
@@ -5296,7 +16161,7 @@ var require_util = __commonJS({
       }
       return ret;
     }
-    function isBuffer(buffer) {
+    function isBuffer2(buffer) {
       return buffer instanceof Uint8Array || Buffer.isBuffer(buffer);
     }
     function validateHandler(handler3, method, upgrade) {
@@ -5329,13 +16194,13 @@ var require_util = __commonJS({
       }
     }
     function isDisturbed(body) {
-      return !!(body && (stream2.isDisturbed(body) || body[kBodyUsed]));
+      return !!(body && (stream5.isDisturbed(body) || body[kBodyUsed]));
     }
     function isErrored(body) {
-      return !!(body && stream2.isErrored(body));
+      return !!(body && stream5.isErrored(body));
     }
     function isReadable(body) {
-      return !!(body && stream2.isReadable(body));
+      return !!(body && stream5.isReadable(body));
     }
     function getSocketInfo(socket) {
       return {
@@ -5501,7 +16366,7 @@ var require_util = __commonJS({
       parseOrigin,
       parseURL,
       getServerName,
-      isStream,
+      isStream: isStream2,
       isIterable,
       isAsyncIterable,
       isDestroyed,
@@ -5517,11 +16382,11 @@ var require_util = __commonJS({
       bodyLength,
       deepClone,
       ReadableStreamFrom,
-      isBuffer,
+      isBuffer: isBuffer2,
       validateHandler,
       getSocketInfo,
       isFormDataLike,
-      buildURL,
+      buildURL: buildURL2,
       addAbortListener,
       isValidHTTPToken,
       isValidHeaderValue,
@@ -5544,21 +16409,24 @@ var require_diagnostics = __commonJS({
   "node_modules/undici/lib/core/diagnostics.js"(exports, module) {
     "use strict";
     var diagnosticsChannel = __require("node:diagnostics_channel");
-    var util = __require("node:util");
-    var undiciDebugLog = util.debuglog("undici");
-    var fetchDebuglog = util.debuglog("fetch");
-    var websocketDebuglog = util.debuglog("websocket");
+    var util3 = __require("node:util");
+    var undiciDebugLog = util3.debuglog("undici");
+    var fetchDebuglog = util3.debuglog("fetch");
+    var websocketDebuglog = util3.debuglog("websocket");
     var isClientSet = false;
     var channels = {
+      // Client
       beforeConnect: diagnosticsChannel.channel("undici:client:beforeConnect"),
       connected: diagnosticsChannel.channel("undici:client:connected"),
       connectError: diagnosticsChannel.channel("undici:client:connectError"),
       sendHeaders: diagnosticsChannel.channel("undici:client:sendHeaders"),
+      // Request
       create: diagnosticsChannel.channel("undici:request:create"),
       bodySent: diagnosticsChannel.channel("undici:request:bodySent"),
       headers: diagnosticsChannel.channel("undici:request:headers"),
       trailers: diagnosticsChannel.channel("undici:request:trailers"),
       error: diagnosticsChannel.channel("undici:request:error"),
+      // WebSocket
       open: diagnosticsChannel.channel("undici:websocket:open"),
       close: diagnosticsChannel.channel("undici:websocket:close"),
       socketError: diagnosticsChannel.channel("undici:websocket:socket_error"),
@@ -5604,38 +16472,38 @@ var require_diagnostics = __commonJS({
       });
       diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
         const {
-          request: { method, path, origin }
+          request: { method, path, origin: origin2 }
         } = evt;
-        debuglog("sending request to %s %s/%s", method, origin, path);
+        debuglog("sending request to %s %s/%s", method, origin2, path);
       });
       diagnosticsChannel.channel("undici:request:headers").subscribe((evt) => {
         const {
-          request: { method, path, origin },
+          request: { method, path, origin: origin2 },
           response: { statusCode }
         } = evt;
         debuglog(
           "received response to %s %s/%s - HTTP %d",
           method,
-          origin,
+          origin2,
           path,
           statusCode
         );
       });
       diagnosticsChannel.channel("undici:request:trailers").subscribe((evt) => {
         const {
-          request: { method, path, origin }
+          request: { method, path, origin: origin2 }
         } = evt;
-        debuglog("trailers received from %s %s/%s", method, origin, path);
+        debuglog("trailers received from %s %s/%s", method, origin2, path);
       });
       diagnosticsChannel.channel("undici:request:error").subscribe((evt) => {
         const {
-          request: { method, path, origin },
+          request: { method, path, origin: origin2 },
           error
         } = evt;
         debuglog(
           "request to %s %s/%s errored - %s",
           method,
-          origin,
+          origin2,
           path,
           error.message
         );
@@ -5685,9 +16553,9 @@ var require_diagnostics = __commonJS({
         });
         diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
           const {
-            request: { method, path, origin }
+            request: { method, path, origin: origin2 }
           } = evt;
-          debuglog("sending request to %s %s/%s", method, origin, path);
+          debuglog("sending request to %s %s/%s", method, origin2, path);
         });
       }
       diagnosticsChannel.channel("undici:websocket:open").subscribe((evt) => {
@@ -5733,13 +16601,13 @@ var require_request = __commonJS({
     var {
       isValidHTTPToken,
       isValidHeaderValue,
-      isStream,
+      isStream: isStream2,
       destroy,
-      isBuffer,
+      isBuffer: isBuffer2,
       isFormDataLike,
       isIterable,
       isBlobLike,
-      buildURL,
+      buildURL: buildURL2,
       validateHandler,
       getServerName,
       normalizedMethodRecords
@@ -5748,8 +16616,8 @@ var require_request = __commonJS({
     var { headerNameLowerCasedRecord } = require_constants();
     var invalidPathRegex = /[^\u0021-\u00ff]/;
     var kHandler = Symbol("handler");
-    var Request = class {
-      constructor(origin, {
+    var Request2 = class {
+      constructor(origin2, {
         path,
         method,
         body,
@@ -5799,7 +16667,7 @@ var require_request = __commonJS({
         this.abort = null;
         if (body == null) {
           this.body = null;
-        } else if (isStream(body)) {
+        } else if (isStream2(body)) {
           this.body = body;
           const rState = this.body._readableState;
           if (!rState || !rState.autoDestroy) {
@@ -5816,7 +16684,7 @@ var require_request = __commonJS({
             }
           };
           this.body.on("error", this.errorHandler);
-        } else if (isBuffer(body)) {
+        } else if (isBuffer2(body)) {
           this.body = body.byteLength ? body : null;
         } else if (ArrayBuffer.isView(body)) {
           this.body = body.buffer.byteLength ? Buffer.from(body.buffer, body.byteOffset, body.byteLength) : null;
@@ -5832,8 +16700,8 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? buildURL(path, query) : path;
-        this.origin = origin;
+        this.path = query ? buildURL2(path, query) : path;
+        this.origin = origin2;
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
         this.blocking = blocking == null ? false : blocking;
         this.reset = reset == null ? null : reset;
@@ -6041,7 +16909,7 @@ var require_request = __commonJS({
         request2.headers.push(key, val2);
       }
     }
-    module.exports = Request;
+    module.exports = Request2;
   }
 });
 
@@ -6049,8 +16917,8 @@ var require_request = __commonJS({
 var require_dispatcher = __commonJS({
   "node_modules/undici/lib/dispatcher/dispatcher.js"(exports, module) {
     "use strict";
-    var EventEmitter = __require("node:events");
-    var Dispatcher = class extends EventEmitter {
+    var EventEmitter2 = __require("node:events");
+    var Dispatcher = class extends EventEmitter2 {
       dispatch() {
         throw new Error("not implemented");
       }
@@ -6186,7 +17054,10 @@ var require_dispatcher_base = __commonJS({
         if (callback === void 0) {
           return new Promise((resolve, reject) => {
             this.destroy(err, (err2, data2) => {
-              return err2 ? reject(err2) : resolve(data2);
+              return err2 ? (
+                /* istanbul ignore next: should never error */
+                reject(err2)
+              ) : resolve(data2);
             });
           });
         }
@@ -6313,17 +17184,69 @@ var require_timers = __commonJS({
     }
     var FastTimer = class {
       [kFastTimer] = true;
+      /**
+       * The state of the timer, which can be one of the following:
+       * - NOT_IN_LIST (-2)
+       * - TO_BE_CLEARED (-1)
+       * - PENDING (0)
+       * - ACTIVE (1)
+       *
+       * @type {-2|-1|0|1}
+       * @private
+       */
       _state = NOT_IN_LIST;
+      /**
+       * The number of milliseconds to wait before calling the callback.
+       *
+       * @type {number}
+       * @private
+       */
       _idleTimeout = -1;
+      /**
+       * The time in milliseconds when the timer was started. This value is used to
+       * calculate when the timer should expire.
+       *
+       * @type {number}
+       * @default -1
+       * @private
+       */
       _idleStart = -1;
+      /**
+       * The function to be executed when the timer expires.
+       * @type {Function}
+       * @private
+       */
       _onTimeout;
+      /**
+       * The argument to be passed to the callback when the timer expires.
+       *
+       * @type {*}
+       * @private
+       */
       _timerArg;
+      /**
+       * @constructor
+       * @param {Function} callback A function to be executed after the timer
+       * expires.
+       * @param {number} delay The time, in milliseconds that the timer should wait
+       * before the specified function or code is executed.
+       * @param {*} arg
+       */
       constructor(callback, delay, arg) {
         this._onTimeout = callback;
         this._idleTimeout = delay;
         this._timerArg = arg;
         this.refresh();
       }
+      /**
+       * Sets the timer's start time to the current time, and reschedules the timer
+       * to call its callback at the previously specified duration adjusted to the
+       * current time.
+       * Using this on a timer that has already called its callback will reactivate
+       * the timer.
+       *
+       * @returns {void}
+       */
       refresh() {
         if (this._state === NOT_IN_LIST) {
           fastTimers.push(this);
@@ -6333,15 +17256,38 @@ var require_timers = __commonJS({
         }
         this._state = PENDING;
       }
+      /**
+       * The `clear` method cancels the timer, preventing it from executing.
+       *
+       * @returns {void}
+       * @private
+       */
       clear() {
         this._state = TO_BE_CLEARED;
         this._idleStart = -1;
       }
     };
     module.exports = {
+      /**
+       * The setTimeout() method sets a timer which executes a function once the
+       * timer expires.
+       * @param {Function} callback A function to be executed after the timer
+       * expires.
+       * @param {number} delay The time, in milliseconds that the timer should
+       * wait before the specified function or code is executed.
+       * @param {*} [arg] An optional argument to be passed to the callback function
+       * when the timer expires.
+       * @returns {NodeJS.Timeout|FastTimer}
+       */
       setTimeout(callback, delay, arg) {
         return delay <= RESOLUTION_MS ? setTimeout(callback, delay, arg) : new FastTimer(callback, delay, arg);
       },
+      /**
+       * The clearTimeout method cancels an instantiated Timer previously created
+       * by calling setTimeout.
+       *
+       * @param {NodeJS.Timeout|FastTimer} timeout
+       */
       clearTimeout(timeout) {
         if (timeout[kFastTimer]) {
           timeout.clear();
@@ -6349,26 +17295,66 @@ var require_timers = __commonJS({
           clearTimeout(timeout);
         }
       },
+      /**
+       * The setFastTimeout() method sets a fastTimer which executes a function once
+       * the timer expires.
+       * @param {Function} callback A function to be executed after the timer
+       * expires.
+       * @param {number} delay The time, in milliseconds that the timer should
+       * wait before the specified function or code is executed.
+       * @param {*} [arg] An optional argument to be passed to the callback function
+       * when the timer expires.
+       * @returns {FastTimer}
+       */
       setFastTimeout(callback, delay, arg) {
         return new FastTimer(callback, delay, arg);
       },
+      /**
+       * The clearTimeout method cancels an instantiated FastTimer previously
+       * created by calling setFastTimeout.
+       *
+       * @param {FastTimer} timeout
+       */
       clearFastTimeout(timeout) {
         timeout.clear();
       },
+      /**
+       * The now method returns the value of the internal fast timer clock.
+       *
+       * @returns {number}
+       */
       now() {
         return fastNow;
       },
+      /**
+       * Trigger the onTick function to process the fastTimers array.
+       * Exported for testing purposes only.
+       * Marking as deprecated to discourage any use outside of testing.
+       * @deprecated
+       * @param {number} [delay=0] The delay in milliseconds to add to the now value.
+       */
       tick(delay = 0) {
         fastNow += delay - RESOLUTION_MS + 1;
         onTick();
         onTick();
       },
+      /**
+       * Reset FastTimers.
+       * Exported for testing purposes only.
+       * Marking as deprecated to discourage any use outside of testing.
+       * @deprecated
+       */
       reset() {
         fastNow = 0;
         fastTimers.length = 0;
         clearTimeout(fastNowTimeout);
         fastNowTimeout = null;
       },
+      /**
+       * Exporting for testing purposes only.
+       * Marking as deprecated to discourage any use outside of testing.
+       * @deprecated
+       */
       kFastTimer
     };
   }
@@ -6380,10 +17366,10 @@ var require_connect = __commonJS({
     "use strict";
     var net = __require("node:net");
     var assert = __require("node:assert");
-    var util = require_util();
+    var util3 = require_util();
     var { InvalidArgumentError, ConnectTimeoutError } = require_errors();
     var timers = require_timers();
-    function noop2() {
+    function noop3() {
     }
     var tls;
     var SessionCache;
@@ -6449,19 +17435,22 @@ var require_connect = __commonJS({
           if (!tls) {
             tls = __require("node:tls");
           }
-          servername = servername || options.servername || util.getServerName(host) || null;
+          servername = servername || options.servername || util3.getServerName(host) || null;
           const sessionKey = servername || hostname;
           assert(sessionKey);
           const session = customSession || sessionCache.get(sessionKey) || null;
           port = port || 443;
           socket = tls.connect({
             highWaterMark: 16384,
+            // TLS in node can't have bigger HWM anyway...
             ...options,
             servername,
             session,
             localAddress,
+            // TODO(HTTP/2): Add support for h2c
             ALPNProtocols: allowH2 ? ["http/1.1", "h2"] : ["http/1.1"],
             socket: httpSocket,
+            // upgrade socket connection
             port,
             host: hostname
           });
@@ -6473,6 +17462,7 @@ var require_connect = __commonJS({
           port = port || 80;
           socket = net.connect({
             highWaterMark: 64 * 1024,
+            // Same as nodejs fs streams.
             ...options,
             localAddress,
             port,
@@ -6504,7 +17494,7 @@ var require_connect = __commonJS({
     }
     var setupConnectTimeout = process.platform === "win32" ? (socketWeakRef, opts) => {
       if (!opts.timeout) {
-        return noop2;
+        return noop3;
       }
       let s1 = null;
       let s2 = null;
@@ -6520,7 +17510,7 @@ var require_connect = __commonJS({
       };
     } : (socketWeakRef, opts) => {
       if (!opts.timeout) {
-        return noop2;
+        return noop3;
       }
       let s1 = null;
       const fastTimer = timers.setFastTimeout(() => {
@@ -6544,7 +17534,7 @@ var require_connect = __commonJS({
         message += ` (attempted address: ${opts.hostname}:${opts.port},`;
       }
       message += ` timeout: ${opts.timeout}ms)`;
-      util.destroy(socket, new ConnectTimeoutError(message));
+      util3.destroy(socket, new ConnectTimeoutError(message));
     }
     module.exports = buildConnector;
   }
@@ -6713,6 +17703,7 @@ var require_constants2 = __commonJS({
       METHODS.LINK,
       METHODS.UNLINK,
       METHODS.PRI,
+      // TODO(indutny): should we allow it with HTTP?
       METHODS.SOURCE
     ];
     exports.METHODS_ICE = [
@@ -6731,6 +17722,7 @@ var require_constants2 = __commonJS({
       METHODS.REDIRECT,
       METHODS.RECORD,
       METHODS.FLUSH,
+      // For AirPlay
       METHODS.GET,
       METHODS.POST
     ];
@@ -6911,147 +17903,193 @@ var require_llhttp_simd_wasm = __commonJS({
 var require_constants3 = __commonJS({
   "node_modules/undici/lib/web/fetch/constants.js"(exports, module) {
     "use strict";
-    var corsSafeListedMethods = ["GET", "HEAD", "POST"];
+    var corsSafeListedMethods = (
+      /** @type {const} */
+      ["GET", "HEAD", "POST"]
+    );
     var corsSafeListedMethodsSet = new Set(corsSafeListedMethods);
-    var nullBodyStatus = [101, 204, 205, 304];
-    var redirectStatus = [301, 302, 303, 307, 308];
+    var nullBodyStatus = (
+      /** @type {const} */
+      [101, 204, 205, 304]
+    );
+    var redirectStatus = (
+      /** @type {const} */
+      [301, 302, 303, 307, 308]
+    );
     var redirectStatusSet = new Set(redirectStatus);
-    var badPorts = [
-      "1",
-      "7",
-      "9",
-      "11",
-      "13",
-      "15",
-      "17",
-      "19",
-      "20",
-      "21",
-      "22",
-      "23",
-      "25",
-      "37",
-      "42",
-      "43",
-      "53",
-      "69",
-      "77",
-      "79",
-      "87",
-      "95",
-      "101",
-      "102",
-      "103",
-      "104",
-      "109",
-      "110",
-      "111",
-      "113",
-      "115",
-      "117",
-      "119",
-      "123",
-      "135",
-      "137",
-      "139",
-      "143",
-      "161",
-      "179",
-      "389",
-      "427",
-      "465",
-      "512",
-      "513",
-      "514",
-      "515",
-      "526",
-      "530",
-      "531",
-      "532",
-      "540",
-      "548",
-      "554",
-      "556",
-      "563",
-      "587",
-      "601",
-      "636",
-      "989",
-      "990",
-      "993",
-      "995",
-      "1719",
-      "1720",
-      "1723",
-      "2049",
-      "3659",
-      "4045",
-      "4190",
-      "5060",
-      "5061",
-      "6000",
-      "6566",
-      "6665",
-      "6666",
-      "6667",
-      "6668",
-      "6669",
-      "6679",
-      "6697",
-      "10080"
-    ];
+    var badPorts = (
+      /** @type {const} */
+      [
+        "1",
+        "7",
+        "9",
+        "11",
+        "13",
+        "15",
+        "17",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "25",
+        "37",
+        "42",
+        "43",
+        "53",
+        "69",
+        "77",
+        "79",
+        "87",
+        "95",
+        "101",
+        "102",
+        "103",
+        "104",
+        "109",
+        "110",
+        "111",
+        "113",
+        "115",
+        "117",
+        "119",
+        "123",
+        "135",
+        "137",
+        "139",
+        "143",
+        "161",
+        "179",
+        "389",
+        "427",
+        "465",
+        "512",
+        "513",
+        "514",
+        "515",
+        "526",
+        "530",
+        "531",
+        "532",
+        "540",
+        "548",
+        "554",
+        "556",
+        "563",
+        "587",
+        "601",
+        "636",
+        "989",
+        "990",
+        "993",
+        "995",
+        "1719",
+        "1720",
+        "1723",
+        "2049",
+        "3659",
+        "4045",
+        "4190",
+        "5060",
+        "5061",
+        "6000",
+        "6566",
+        "6665",
+        "6666",
+        "6667",
+        "6668",
+        "6669",
+        "6679",
+        "6697",
+        "10080"
+      ]
+    );
     var badPortsSet = new Set(badPorts);
-    var referrerPolicy = [
-      "",
-      "no-referrer",
-      "no-referrer-when-downgrade",
-      "same-origin",
-      "origin",
-      "strict-origin",
-      "origin-when-cross-origin",
-      "strict-origin-when-cross-origin",
-      "unsafe-url"
-    ];
+    var referrerPolicy = (
+      /** @type {const} */
+      [
+        "",
+        "no-referrer",
+        "no-referrer-when-downgrade",
+        "same-origin",
+        "origin",
+        "strict-origin",
+        "origin-when-cross-origin",
+        "strict-origin-when-cross-origin",
+        "unsafe-url"
+      ]
+    );
     var referrerPolicySet = new Set(referrerPolicy);
-    var requestRedirect = ["follow", "manual", "error"];
-    var safeMethods = ["GET", "HEAD", "OPTIONS", "TRACE"];
+    var requestRedirect = (
+      /** @type {const} */
+      ["follow", "manual", "error"]
+    );
+    var safeMethods = (
+      /** @type {const} */
+      ["GET", "HEAD", "OPTIONS", "TRACE"]
+    );
     var safeMethodsSet = new Set(safeMethods);
-    var requestMode = ["navigate", "same-origin", "no-cors", "cors"];
-    var requestCredentials = ["omit", "same-origin", "include"];
-    var requestCache = [
-      "default",
-      "no-store",
-      "reload",
-      "no-cache",
-      "force-cache",
-      "only-if-cached"
-    ];
-    var requestBodyHeader = [
-      "content-encoding",
-      "content-language",
-      "content-location",
-      "content-type",
-      "content-length"
-    ];
-    var requestDuplex = [
-      "half"
-    ];
-    var forbiddenMethods = ["CONNECT", "TRACE", "TRACK"];
+    var requestMode = (
+      /** @type {const} */
+      ["navigate", "same-origin", "no-cors", "cors"]
+    );
+    var requestCredentials = (
+      /** @type {const} */
+      ["omit", "same-origin", "include"]
+    );
+    var requestCache = (
+      /** @type {const} */
+      [
+        "default",
+        "no-store",
+        "reload",
+        "no-cache",
+        "force-cache",
+        "only-if-cached"
+      ]
+    );
+    var requestBodyHeader = (
+      /** @type {const} */
+      [
+        "content-encoding",
+        "content-language",
+        "content-location",
+        "content-type",
+        // See https://github.com/nodejs/undici/issues/2021
+        // 'Content-Length' is a forbidden header name, which is typically
+        // removed in the Headers implementation. However, undici doesn't
+        // filter out headers, so we add it here.
+        "content-length"
+      ]
+    );
+    var requestDuplex = (
+      /** @type {const} */
+      [
+        "half"
+      ]
+    );
+    var forbiddenMethods = (
+      /** @type {const} */
+      ["CONNECT", "TRACE", "TRACK"]
+    );
     var forbiddenMethodsSet = new Set(forbiddenMethods);
-    var subresource = [
-      "audio",
-      "audioworklet",
-      "font",
-      "image",
-      "manifest",
-      "paintworklet",
-      "script",
-      "style",
-      "track",
-      "video",
-      "xslt",
-      ""
-    ];
+    var subresource = (
+      /** @type {const} */
+      [
+        "audio",
+        "audioworklet",
+        "font",
+        "image",
+        "manifest",
+        "paintworklet",
+        "script",
+        "style",
+        "track",
+        "video",
+        "xslt",
+        ""
+      ]
+    );
     var subresourceSet = new Set(subresource);
     module.exports = {
       subresource,
@@ -7162,12 +18200,12 @@ var require_data_url = __commonJS({
       }
       return { mimeType: mimeTypeRecord, body };
     }
-    function URLSerializer(url, excludeFragment = false) {
+    function URLSerializer(url2, excludeFragment = false) {
       if (!excludeFragment) {
-        return url.href;
+        return url2.href;
       }
-      const href = url.href;
-      const hashLength = url.hash.length;
+      const href = url2.href;
+      const hashLength = url2.hash.length;
       const serialized = hashLength === 0 ? href : href.substring(0, href.length - hashLength);
       if (!hashLength && href.endsWith("#")) {
         return serialized.slice(0, -1);
@@ -7200,7 +18238,10 @@ var require_data_url = __commonJS({
       return byte >= 48 && byte <= 57 || byte >= 65 && byte <= 70 || byte >= 97 && byte <= 102;
     }
     function hexByteToNumber(byte) {
-      return byte >= 48 && byte <= 57 ? byte - 48 : (byte & 223) - 55;
+      return (
+        // 0-9
+        byte >= 48 && byte <= 57 ? byte - 48 : (byte & 223) - 55
+      );
     }
     function percentDecode(input) {
       const length = input.length;
@@ -7248,12 +18289,15 @@ var require_data_url = __commonJS({
       const mimeType = {
         type: typeLowercase,
         subtype: subtypeLowercase,
+        /** @type {Map<string, string>} */
         parameters: /* @__PURE__ */ new Map(),
+        // https://mimesniff.spec.whatwg.org/#mime-type-essence
         essence: `${typeLowercase}/${subtypeLowercase}`
       };
       while (position.position < input.length) {
         position.position++;
         collectASequenceOfCodePoints(
+          // https://fetch.spec.whatwg.org/#http-whitespace
           (char) => HTTP_WHITESPACE_REGEX.test(char),
           input,
           position
@@ -7887,7 +18931,7 @@ var require_util2 = __commonJS({
   "node_modules/undici/lib/web/fetch/util.js"(exports, module) {
     "use strict";
     var { Transform: Transform2 } = __require("node:stream");
-    var zlib = __require("node:zlib");
+    var zlib2 = __require("node:zlib");
     var { redirectStatusSet, referrerPolicySet: referrerPolicyTokens, badPortsSet } = require_constants3();
     var { getGlobalOrigin } = require_global();
     var { collectASequenceOfCodePoints, collectAnHTTPQuotedString, removeChars, parseMIMEType } = require_data_url();
@@ -7925,10 +18969,11 @@ var require_util2 = __commonJS({
       }
       return location;
     }
-    function isValidEncodedURL(url) {
-      for (let i = 0; i < url.length; ++i) {
-        const code = url.charCodeAt(i);
-        if (code > 126 || code < 32) {
+    function isValidEncodedURL(url2) {
+      for (let i = 0; i < url2.length; ++i) {
+        const code = url2.charCodeAt(i);
+        if (code > 126 || // Non-US-ASCII + DEL
+        code < 32) {
           return false;
         }
       }
@@ -7941,8 +18986,8 @@ var require_util2 = __commonJS({
       return request2.urlList[request2.urlList.length - 1];
     }
     function requestBadPort(request2) {
-      const url = requestCurrentURL(request2);
-      if (urlIsHttpHttpsScheme(url) && badPortsSet.has(url.port)) {
+      const url2 = requestCurrentURL(request2);
+      if (urlIsHttpHttpsScheme(url2) && badPortsSet.has(url2.port)) {
         return "blocked";
       }
       return "allowed";
@@ -7953,13 +18998,15 @@ var require_util2 = __commonJS({
     function isValidReasonPhrase(statusText) {
       for (let i = 0; i < statusText.length; ++i) {
         const c = statusText.charCodeAt(i);
-        if (!(c === 9 || c >= 32 && c <= 126 || c >= 128 && c <= 255)) {
+        if (!(c === 9 || // HTAB
+        c >= 32 && c <= 126 || // SP / VCHAR
+        c >= 128 && c <= 255)) {
           return false;
         }
       }
       return true;
     }
-    var isValidHeaderName = isValidHTTPToken;
+    var isValidHeaderName2 = isValidHTTPToken;
     function isValidHeaderValue(potentialValue) {
       return (potentialValue[0] === "	" || potentialValue[0] === " " || potentialValue[potentialValue.length - 1] === "	" || potentialValue[potentialValue.length - 1] === " " || potentialValue.includes("\n") || potentialValue.includes("\r") || potentialValue.includes("\0")) === false;
     }
@@ -8119,37 +19166,37 @@ var require_util2 = __commonJS({
           return isNonPotentiallyTrustWorthy ? "no-referrer" : referrerOrigin;
       }
     }
-    function stripURLForReferrer(url, originOnly) {
-      assert(url instanceof URL);
-      url = new URL(url);
-      if (url.protocol === "file:" || url.protocol === "about:" || url.protocol === "blank:") {
+    function stripURLForReferrer(url2, originOnly) {
+      assert(url2 instanceof URL);
+      url2 = new URL(url2);
+      if (url2.protocol === "file:" || url2.protocol === "about:" || url2.protocol === "blank:") {
         return "no-referrer";
       }
-      url.username = "";
-      url.password = "";
-      url.hash = "";
+      url2.username = "";
+      url2.password = "";
+      url2.hash = "";
       if (originOnly) {
-        url.pathname = "";
-        url.search = "";
+        url2.pathname = "";
+        url2.search = "";
       }
-      return url;
+      return url2;
     }
-    function isURLPotentiallyTrustworthy(url) {
-      if (!(url instanceof URL)) {
+    function isURLPotentiallyTrustworthy(url2) {
+      if (!(url2 instanceof URL)) {
         return false;
       }
-      if (url.href === "about:blank" || url.href === "about:srcdoc") {
+      if (url2.href === "about:blank" || url2.href === "about:srcdoc") {
         return true;
       }
-      if (url.protocol === "data:")
+      if (url2.protocol === "data:")
         return true;
-      if (url.protocol === "file:")
+      if (url2.protocol === "file:")
         return true;
-      return isOriginPotentiallyTrustworthy(url.origin);
-      function isOriginPotentiallyTrustworthy(origin) {
-        if (origin == null || origin === "null")
+      return isOriginPotentiallyTrustworthy(url2.origin);
+      function isOriginPotentiallyTrustworthy(origin2) {
+        if (origin2 == null || origin2 === "null")
           return false;
-        const originAsURL = new URL(origin);
+        const originAsURL = new URL(origin2);
         if (originAsURL.protocol === "https:" || originAsURL.protocol === "wss:") {
           return true;
         }
@@ -8294,9 +19341,17 @@ var require_util2 = __commonJS({
     var esIteratorPrototype = Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]()));
     function createIterator(name, kInternalIterator, keyIndex = 0, valueIndex = 1) {
       class FastIterableIterator {
+        /** @type {any} */
         #target;
+        /** @type {'key' | 'value' | 'key+value'} */
         #kind;
+        /** @type {number} */
         #index;
+        /**
+         * @see https://webidl.spec.whatwg.org/#dfn-default-iterator-object
+         * @param {unknown} target
+         * @param {'key' | 'value' | 'key+value'} kind
+         */
         constructor(target, kind) {
           this.#target = target;
           this.#kind = kind;
@@ -8386,7 +19441,7 @@ var require_util2 = __commonJS({
           writable: true,
           enumerable: true,
           configurable: true,
-          value: function forEach(callbackfn, thisArg = globalThis) {
+          value: function forEach2(callbackfn, thisArg = globalThis) {
             webidl.brandCheck(this, object);
             webidl.argumentLengthCheck(arguments, 1, `${name}.forEach`);
             if (typeof callbackfn !== "function") {
@@ -8426,8 +19481,8 @@ var require_util2 = __commonJS({
         errorSteps(e);
       }
     }
-    function isReadableStreamLike(stream2) {
-      return stream2 instanceof ReadableStream || stream2[Symbol.toStringTag] === "ReadableStream" && typeof stream2.tee === "function";
+    function isReadableStreamLike(stream5) {
+      return stream5 instanceof ReadableStream || stream5[Symbol.toStringTag] === "ReadableStream" && typeof stream5.tee === "function";
     }
     function readableStreamClose(controller) {
       try {
@@ -8459,17 +19514,17 @@ var require_util2 = __commonJS({
         byteLength += chunk.length;
       }
     }
-    function urlIsLocal(url) {
-      assert("protocol" in url);
-      const protocol = url.protocol;
+    function urlIsLocal(url2) {
+      assert("protocol" in url2);
+      const protocol = url2.protocol;
       return protocol === "about:" || protocol === "blob:" || protocol === "data:";
     }
-    function urlHasHttpsScheme(url) {
-      return typeof url === "string" && url[5] === ":" && url[0] === "h" && url[1] === "t" && url[2] === "t" && url[3] === "p" && url[4] === "s" || url.protocol === "https:";
+    function urlHasHttpsScheme(url2) {
+      return typeof url2 === "string" && url2[5] === ":" && url2[0] === "h" && url2[1] === "t" && url2[2] === "t" && url2[3] === "p" && url2[4] === "s" || url2.protocol === "https:";
     }
-    function urlIsHttpHttpsScheme(url) {
-      assert("protocol" in url);
-      const protocol = url.protocol;
+    function urlIsHttpHttpsScheme(url2) {
+      assert("protocol" in url2);
+      const protocol = url2.protocol;
       return protocol === "http:" || protocol === "https:";
     }
     function simpleRangeHeaderValue(value, allowWhitespace) {
@@ -8554,9 +19609,10 @@ var require_util2 = __commonJS({
     }
     var InflateStream = class extends Transform2 {
       #zlibOptions;
-      constructor(zlibOptions) {
+      /** @param {zlib.ZlibOptions} [zlibOptions] */
+      constructor(zlibOptions2) {
         super();
-        this.#zlibOptions = zlibOptions;
+        this.#zlibOptions = zlibOptions2;
       }
       _transform(chunk, encoding, callback) {
         if (!this._inflateStream) {
@@ -8564,7 +19620,7 @@ var require_util2 = __commonJS({
             callback();
             return;
           }
-          this._inflateStream = (chunk[0] & 15) === 8 ? zlib.createInflate(this.#zlibOptions) : zlib.createInflateRaw(this.#zlibOptions);
+          this._inflateStream = (chunk[0] & 15) === 8 ? zlib2.createInflate(this.#zlibOptions) : zlib2.createInflateRaw(this.#zlibOptions);
           this._inflateStream.on("data", this.push.bind(this));
           this._inflateStream.on("end", () => this.push(null));
           this._inflateStream.on("error", (err) => this.destroy(err));
@@ -8579,8 +19635,8 @@ var require_util2 = __commonJS({
         callback();
       }
     };
-    function createInflate(zlibOptions) {
-      return new InflateStream(zlibOptions);
+    function createInflate(zlibOptions2) {
+      return new InflateStream(zlibOptions2);
     }
     function extractMimeType(headers) {
       let charset = null;
@@ -8705,7 +19761,7 @@ var require_util2 = __commonJS({
       serializeJavascriptValueToJSONString,
       iteratorMixin,
       createIterator,
-      isValidHeaderName,
+      isValidHeaderName: isValidHeaderName2,
       isValidHeaderValue,
       isErrorLike,
       fullyReadBody,
@@ -8750,7 +19806,7 @@ var require_file = __commonJS({
     var { Blob: Blob2, File } = __require("node:buffer");
     var { kState } = require_symbols2();
     var { webidl } = require_webidl();
-    var FileLike = class {
+    var FileLike = class _FileLike {
       constructor(blobLike, fileName, options = {}) {
         const n = fileName;
         const t = options.type;
@@ -8763,35 +19819,35 @@ var require_file = __commonJS({
         };
       }
       stream(...args) {
-        webidl.brandCheck(this, FileLike);
+        webidl.brandCheck(this, _FileLike);
         return this[kState].blobLike.stream(...args);
       }
       arrayBuffer(...args) {
-        webidl.brandCheck(this, FileLike);
+        webidl.brandCheck(this, _FileLike);
         return this[kState].blobLike.arrayBuffer(...args);
       }
       slice(...args) {
-        webidl.brandCheck(this, FileLike);
+        webidl.brandCheck(this, _FileLike);
         return this[kState].blobLike.slice(...args);
       }
       text(...args) {
-        webidl.brandCheck(this, FileLike);
+        webidl.brandCheck(this, _FileLike);
         return this[kState].blobLike.text(...args);
       }
       get size() {
-        webidl.brandCheck(this, FileLike);
+        webidl.brandCheck(this, _FileLike);
         return this[kState].blobLike.size;
       }
       get type() {
-        webidl.brandCheck(this, FileLike);
+        webidl.brandCheck(this, _FileLike);
         return this[kState].blobLike.type;
       }
       get name() {
-        webidl.brandCheck(this, FileLike);
+        webidl.brandCheck(this, _FileLike);
         return this[kState].name;
       }
       get lastModified() {
-        webidl.brandCheck(this, FileLike);
+        webidl.brandCheck(this, _FileLike);
         return this[kState].lastModified;
       }
       get [Symbol.toStringTag]() {
@@ -8818,7 +19874,7 @@ var require_formdata = __commonJS({
     var { File: NativeFile } = __require("node:buffer");
     var nodeUtil = __require("node:util");
     var File = globalThis.File ?? NativeFile;
-    var FormData = class {
+    var FormData3 = class _FormData {
       constructor(form) {
         webidl.util.markAsUncloneable(this);
         if (form !== void 0) {
@@ -8831,7 +19887,7 @@ var require_formdata = __commonJS({
         this[kState] = [];
       }
       append(name, value, filename = void 0) {
-        webidl.brandCheck(this, FormData);
+        webidl.brandCheck(this, _FormData);
         const prefix = "FormData.append";
         webidl.argumentLengthCheck(arguments, 2, prefix);
         if (arguments.length === 3 && !isBlobLike(value)) {
@@ -8846,14 +19902,14 @@ var require_formdata = __commonJS({
         this[kState].push(entry);
       }
       delete(name) {
-        webidl.brandCheck(this, FormData);
+        webidl.brandCheck(this, _FormData);
         const prefix = "FormData.delete";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         name = webidl.converters.USVString(name, prefix, "name");
         this[kState] = this[kState].filter((entry) => entry.name !== name);
       }
       get(name) {
-        webidl.brandCheck(this, FormData);
+        webidl.brandCheck(this, _FormData);
         const prefix = "FormData.get";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         name = webidl.converters.USVString(name, prefix, "name");
@@ -8864,21 +19920,21 @@ var require_formdata = __commonJS({
         return this[kState][idx].value;
       }
       getAll(name) {
-        webidl.brandCheck(this, FormData);
+        webidl.brandCheck(this, _FormData);
         const prefix = "FormData.getAll";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         name = webidl.converters.USVString(name, prefix, "name");
         return this[kState].filter((entry) => entry.name === name).map((entry) => entry.value);
       }
       has(name) {
-        webidl.brandCheck(this, FormData);
+        webidl.brandCheck(this, _FormData);
         const prefix = "FormData.has";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         name = webidl.converters.USVString(name, prefix, "name");
         return this[kState].findIndex((entry) => entry.name === name) !== -1;
       }
       set(name, value, filename = void 0) {
-        webidl.brandCheck(this, FormData);
+        webidl.brandCheck(this, _FormData);
         const prefix = "FormData.set";
         webidl.argumentLengthCheck(arguments, 2, prefix);
         if (arguments.length === 3 && !isBlobLike(value)) {
@@ -8920,8 +19976,8 @@ var require_formdata = __commonJS({
         return `FormData ${output.slice(output.indexOf("]") + 2)}`;
       }
     };
-    iteratorMixin("FormData", FormData, kState, "name", "value");
-    Object.defineProperties(FormData.prototype, {
+    iteratorMixin("FormData", FormData3, kState, "name", "value");
+    Object.defineProperties(FormData3.prototype, {
       append: kEnumerableProperty,
       delete: kEnumerableProperty,
       get: kEnumerableProperty,
@@ -8949,7 +20005,7 @@ var require_formdata = __commonJS({
       }
       return { name, value };
     }
-    module.exports = { FormData, makeEntry };
+    module.exports = { FormData: FormData3, makeEntry };
   }
 });
 
@@ -9210,7 +20266,7 @@ var require_formdata_parser = __commonJS({
 var require_body = __commonJS({
   "node_modules/undici/lib/web/fetch/body.js"(exports, module) {
     "use strict";
-    var util = require_util();
+    var util3 = require_util();
     var {
       ReadableStreamFrom,
       isBlobLike,
@@ -9221,38 +20277,38 @@ var require_body = __commonJS({
       extractMimeType,
       utf8DecodeBytes
     } = require_util2();
-    var { FormData } = require_formdata();
+    var { FormData: FormData3 } = require_formdata();
     var { kState } = require_symbols2();
     var { webidl } = require_webidl();
     var { Blob: Blob2 } = __require("node:buffer");
     var assert = __require("node:assert");
     var { isErrored, isDisturbed } = __require("node:stream");
-    var { isArrayBuffer } = __require("node:util/types");
+    var { isArrayBuffer: isArrayBuffer2 } = __require("node:util/types");
     var { serializeAMimeType } = require_data_url();
     var { multipartFormDataParser } = require_formdata_parser();
-    var textEncoder = new TextEncoder();
-    function noop2() {
+    var textEncoder2 = new TextEncoder();
+    function noop3() {
     }
     var hasFinalizationRegistry = globalThis.FinalizationRegistry && process.version.indexOf("v18") !== 0;
     var streamRegistry;
     if (hasFinalizationRegistry) {
       streamRegistry = new FinalizationRegistry((weakRef) => {
-        const stream2 = weakRef.deref();
-        if (stream2 && !stream2.locked && !isDisturbed(stream2) && !isErrored(stream2)) {
-          stream2.cancel("Response object has been garbage collected").catch(noop2);
+        const stream5 = weakRef.deref();
+        if (stream5 && !stream5.locked && !isDisturbed(stream5) && !isErrored(stream5)) {
+          stream5.cancel("Response object has been garbage collected").catch(noop3);
         }
       });
     }
     function extractBody(object, keepalive = false) {
-      let stream2 = null;
+      let stream5 = null;
       if (object instanceof ReadableStream) {
-        stream2 = object;
+        stream5 = object;
       } else if (isBlobLike(object)) {
-        stream2 = object.stream();
+        stream5 = object.stream();
       } else {
-        stream2 = new ReadableStream({
+        stream5 = new ReadableStream({
           async pull(controller) {
-            const buffer = typeof source === "string" ? textEncoder.encode(source) : source;
+            const buffer = typeof source === "string" ? textEncoder2.encode(source) : source;
             if (buffer.byteLength) {
               controller.enqueue(buffer);
             }
@@ -9263,7 +20319,7 @@ var require_body = __commonJS({
           type: "bytes"
         });
       }
-      assert(isReadableStreamLike(stream2));
+      assert(isReadableStreamLike(stream5));
       let action = null;
       let source = null;
       let length = null;
@@ -9274,11 +20330,11 @@ var require_body = __commonJS({
       } else if (object instanceof URLSearchParams) {
         source = object.toString();
         type = "application/x-www-form-urlencoded;charset=UTF-8";
-      } else if (isArrayBuffer(object)) {
+      } else if (isArrayBuffer2(object)) {
         source = new Uint8Array(object.slice());
       } else if (ArrayBuffer.isView(object)) {
         source = new Uint8Array(object.buffer.slice(object.byteOffset, object.byteOffset + object.byteLength));
-      } else if (util.isFormDataLike(object)) {
+      } else if (util3.isFormDataLike(object)) {
         const boundary = `----formdata-undici-0${`${Math.floor(Math.random() * 1e11)}`.padStart(11, "0")}`;
         const prefix = `--${boundary}\r
 Content-Disposition: form-data`;
@@ -9290,14 +20346,14 @@ Content-Disposition: form-data`;
         let hasUnknownSizeValue = false;
         for (const [name, value] of object) {
           if (typeof value === "string") {
-            const chunk2 = textEncoder.encode(prefix + `; name="${escape2(normalizeLinefeeds(name))}"\r
+            const chunk2 = textEncoder2.encode(prefix + `; name="${escape2(normalizeLinefeeds(name))}"\r
 \r
 ${normalizeLinefeeds(value)}\r
 `);
             blobParts.push(chunk2);
             length += chunk2.byteLength;
           } else {
-            const chunk2 = textEncoder.encode(`${prefix}; name="${escape2(normalizeLinefeeds(name))}"` + (value.name ? `; filename="${escape2(value.name)}"` : "") + `\r
+            const chunk2 = textEncoder2.encode(`${prefix}; name="${escape2(normalizeLinefeeds(name))}"` + (value.name ? `; filename="${escape2(value.name)}"` : "") + `\r
 Content-Type: ${value.type || "application/octet-stream"}\r
 \r
 `);
@@ -9309,7 +20365,7 @@ Content-Type: ${value.type || "application/octet-stream"}\r
             }
           }
         }
-        const chunk = textEncoder.encode(`--${boundary}--`);
+        const chunk = textEncoder2.encode(`--${boundary}--`);
         blobParts.push(chunk);
         length += chunk.byteLength;
         if (hasUnknownSizeValue) {
@@ -9336,19 +20392,19 @@ Content-Type: ${value.type || "application/octet-stream"}\r
         if (keepalive) {
           throw new TypeError("keepalive");
         }
-        if (util.isDisturbed(object) || object.locked) {
+        if (util3.isDisturbed(object) || object.locked) {
           throw new TypeError(
             "Response body object should not be disturbed or locked"
           );
         }
-        stream2 = object instanceof ReadableStream ? object : ReadableStreamFrom(object);
+        stream5 = object instanceof ReadableStream ? object : ReadableStreamFrom(object);
       }
-      if (typeof source === "string" || util.isBuffer(source)) {
+      if (typeof source === "string" || util3.isBuffer(source)) {
         length = Buffer.byteLength(source);
       }
       if (action != null) {
         let iterator;
-        stream2 = new ReadableStream({
+        stream5 = new ReadableStream({
           async start() {
             iterator = action(object)[Symbol.asyncIterator]();
           },
@@ -9360,7 +20416,7 @@ Content-Type: ${value.type || "application/octet-stream"}\r
                 controller.byobRequest?.respond(0);
               });
             } else {
-              if (!isErrored(stream2)) {
+              if (!isErrored(stream5)) {
                 const buffer = new Uint8Array(value);
                 if (buffer.byteLength) {
                   controller.enqueue(buffer);
@@ -9375,12 +20431,12 @@ Content-Type: ${value.type || "application/octet-stream"}\r
           type: "bytes"
         });
       }
-      const body = { stream: stream2, source, length };
+      const body = { stream: stream5, source, length };
       return [body, type];
     }
     function safelyExtractBody(object, keepalive = false) {
       if (object instanceof ReadableStream) {
-        assert(!util.isDisturbed(object), "The body has already been consumed.");
+        assert(!util3.isDisturbed(object), "The body has already been consumed.");
         assert(!object.locked, "The stream is locked.");
       }
       return extractBody(object, keepalive);
@@ -9436,13 +20492,13 @@ Content-Type: ${value.type || "application/octet-stream"}\r
                   if (parsed === "failure") {
                     throw new TypeError("Failed to parse body as FormData.");
                   }
-                  const fd = new FormData();
+                  const fd = new FormData3();
                   fd[kState] = parsed;
                   return fd;
                 }
                 case "application/x-www-form-urlencoded": {
                   const entries = new URLSearchParams(value.toString());
-                  const fd = new FormData();
+                  const fd = new FormData3();
                   for (const [name, value2] of entries) {
                     fd.append(name, value2);
                   }
@@ -9463,8 +20519,8 @@ Content-Type: ${value.type || "application/octet-stream"}\r
       };
       return methods;
     }
-    function mixinBody(prototype) {
-      Object.assign(prototype.prototype, bodyMixinMethods(prototype));
+    function mixinBody(prototype3) {
+      Object.assign(prototype3.prototype, bodyMixinMethods(prototype3));
     }
     async function consumeBody(object, convertBytesToJSValue, instance) {
       webidl.brandCheck(object, instance);
@@ -9490,7 +20546,7 @@ Content-Type: ${value.type || "application/octet-stream"}\r
     }
     function bodyUnusable(object) {
       const body = object[kState].body;
-      return body != null && (body.stream.locked || util.isDisturbed(body.stream));
+      return body != null && (body.stream.locked || util3.isDisturbed(body.stream));
     }
     function parseJSONFromBytes(bytes) {
       return JSON.parse(utf8DecodeBytes(bytes));
@@ -9520,7 +20576,7 @@ var require_client_h1 = __commonJS({
   "node_modules/undici/lib/dispatcher/client-h1.js"(exports, module) {
     "use strict";
     var assert = __require("node:assert");
-    var util = require_util();
+    var util3 = require_util();
     var { channels } = require_diagnostics();
     var timers = require_timers();
     var {
@@ -9571,8 +20627,8 @@ var require_client_h1 = __commonJS({
     var constants = require_constants2();
     var EMPTY_BUF = Buffer.alloc(0);
     var FastBuffer = Buffer[Symbol.species];
-    var addListener = util.addListener;
-    var removeAllListeners = util.removeAllListeners;
+    var addListener = util3.addListener;
+    var removeAllListeners = util3.removeAllListeners;
     var extractBody;
     async function lazyllhttp() {
       const llhttpWasmData = process.env.JEST_WORKER_ID ? require_llhttp_wasm() : void 0;
@@ -9584,6 +20640,7 @@ var require_client_h1 = __commonJS({
       }
       return await WebAssembly.instantiate(mod, {
         env: {
+          /* eslint-disable camelcase */
           wasm_on_url: (p, at, len) => {
             return 0;
           },
@@ -9619,6 +20676,7 @@ var require_client_h1 = __commonJS({
             assert(currentParser.ptr === p);
             return currentParser.onMessageComplete() || 0;
           }
+          /* eslint-enable camelcase */
         }
       });
     }
@@ -9748,7 +20806,7 @@ var require_client_h1 = __commonJS({
             throw new HTTPParserError(message, constants.ERROR[ret], data2.slice(offset));
           }
         } catch (err) {
-          util.destroy(socket, err);
+          util3.destroy(socket, err);
         }
       }
       destroy() {
@@ -9795,13 +20853,13 @@ var require_client_h1 = __commonJS({
         }
         const key = this.headers[len - 2];
         if (key.length === 10) {
-          const headerName = util.bufferToLowerCasedHeaderName(key);
+          const headerName = util3.bufferToLowerCasedHeaderName(key);
           if (headerName === "keep-alive") {
             this.keepAlive += buf.toString();
           } else if (headerName === "connection") {
             this.connection += buf.toString();
           }
-        } else if (key.length === 14 && util.bufferToLowerCasedHeaderName(key) === "content-length") {
+        } else if (key.length === 14 && util3.bufferToLowerCasedHeaderName(key) === "content-length") {
           this.contentLength += buf.toString();
         }
         this.trackHeader(buf.length);
@@ -9809,7 +20867,7 @@ var require_client_h1 = __commonJS({
       trackHeader(len) {
         this.headersSize += len;
         if (this.headersSize >= this.headersMaxSize) {
-          util.destroy(this.socket, new HeadersOverflowError());
+          util3.destroy(this.socket, new HeadersOverflowError());
         }
       }
       onUpgrade(head) {
@@ -9840,7 +20898,7 @@ var require_client_h1 = __commonJS({
         try {
           request2.onUpgrade(statusCode, headers, socket);
         } catch (err) {
-          util.destroy(socket, err);
+          util3.destroy(socket, err);
         }
         client[kResume]();
       }
@@ -9856,16 +20914,17 @@ var require_client_h1 = __commonJS({
         assert(!this.upgrade);
         assert(this.statusCode < 200);
         if (statusCode === 100) {
-          util.destroy(socket, new SocketError("bad response", util.getSocketInfo(socket)));
+          util3.destroy(socket, new SocketError("bad response", util3.getSocketInfo(socket)));
           return -1;
         }
         if (upgrade && !request2.upgrade) {
-          util.destroy(socket, new SocketError("bad upgrade", util.getSocketInfo(socket)));
+          util3.destroy(socket, new SocketError("bad upgrade", util3.getSocketInfo(socket)));
           return -1;
         }
         assert(this.timeoutType === TIMEOUT_HEADERS);
         this.statusCode = statusCode;
-        this.shouldKeepAlive = shouldKeepAlive || request2.method === "HEAD" && !socket[kReset] && this.connection.toLowerCase() === "keep-alive";
+        this.shouldKeepAlive = shouldKeepAlive || // Override llhttp value which does not allow keepAlive for HEAD.
+        request2.method === "HEAD" && !socket[kReset] && this.connection.toLowerCase() === "keep-alive";
         if (this.statusCode >= 200) {
           const bodyTimeout = request2.bodyTimeout != null ? request2.bodyTimeout : client[kBodyTimeout];
           this.setTimeout(bodyTimeout, TIMEOUT_BODY);
@@ -9888,7 +20947,7 @@ var require_client_h1 = __commonJS({
         this.headers = [];
         this.headersSize = 0;
         if (this.shouldKeepAlive && client[kPipelining]) {
-          const keepAliveTimeout = this.keepAlive ? util.parseKeepAliveTimeout(this.keepAlive) : null;
+          const keepAliveTimeout = this.keepAlive ? util3.parseKeepAliveTimeout(this.keepAlive) : null;
           if (keepAliveTimeout != null) {
             const timeout = Math.min(
               keepAliveTimeout - client[kKeepAliveTimeoutThreshold],
@@ -9936,7 +20995,7 @@ var require_client_h1 = __commonJS({
         }
         assert(statusCode >= 200);
         if (maxResponseSize > -1 && this.bytesRead + buf.length > maxResponseSize) {
-          util.destroy(socket, new ResponseExceededMaxSizeError());
+          util3.destroy(socket, new ResponseExceededMaxSizeError());
           return -1;
         }
         this.bytesRead += buf.length;
@@ -9968,20 +21027,20 @@ var require_client_h1 = __commonJS({
           return;
         }
         if (request2.method !== "HEAD" && contentLength && bytesRead !== parseInt(contentLength, 10)) {
-          util.destroy(socket, new ResponseContentLengthMismatchError());
+          util3.destroy(socket, new ResponseContentLengthMismatchError());
           return -1;
         }
         request2.onComplete(headers);
         client[kQueue][client[kRunningIdx]++] = null;
         if (socket[kWriting]) {
           assert(client[kRunning] === 0);
-          util.destroy(socket, new InformationalError("reset"));
+          util3.destroy(socket, new InformationalError("reset"));
           return constants.ERROR.PAUSED;
         } else if (!shouldKeepAlive) {
-          util.destroy(socket, new InformationalError("reset"));
+          util3.destroy(socket, new InformationalError("reset"));
           return constants.ERROR.PAUSED;
         } else if (socket[kReset] && client[kRunning] === 0) {
-          util.destroy(socket, new InformationalError("reset"));
+          util3.destroy(socket, new InformationalError("reset"));
           return constants.ERROR.PAUSED;
         } else if (client[kPipelining] == null || client[kPipelining] === 1) {
           setImmediate(() => client[kResume]());
@@ -9995,15 +21054,15 @@ var require_client_h1 = __commonJS({
       if (timeoutType === TIMEOUT_HEADERS) {
         if (!socket[kWriting] || socket.writableNeedDrain || client[kRunning] > 1) {
           assert(!paused, "cannot be paused while waiting for headers");
-          util.destroy(socket, new HeadersTimeoutError());
+          util3.destroy(socket, new HeadersTimeoutError());
         }
       } else if (timeoutType === TIMEOUT_BODY) {
         if (!paused) {
-          util.destroy(socket, new BodyTimeoutError());
+          util3.destroy(socket, new BodyTimeoutError());
         }
       } else if (timeoutType === TIMEOUT_KEEP_ALIVE) {
         assert(client[kRunning] === 0 && client[kKeepAliveTimeoutValue]);
-        util.destroy(socket, new InformationalError("socket idle timeout"));
+        util3.destroy(socket, new InformationalError("socket idle timeout"));
       }
     }
     async function connectH1(client, socket) {
@@ -10039,7 +21098,7 @@ var require_client_h1 = __commonJS({
           parser.onMessageComplete();
           return;
         }
-        util.destroy(this, new SocketError("other side closed", util.getSocketInfo(this)));
+        util3.destroy(this, new SocketError("other side closed", util3.getSocketInfo(this)));
       });
       addListener(socket, "close", function() {
         const client2 = this[kClient];
@@ -10051,7 +21110,7 @@ var require_client_h1 = __commonJS({
           this[kParser].destroy();
           this[kParser] = null;
         }
-        const err = this[kError] || new SocketError("closed", util.getSocketInfo(this));
+        const err = this[kError] || new SocketError("closed", util3.getSocketInfo(this));
         client2[kSocket] = null;
         client2[kHTTPContext] = null;
         if (client2.destroyed) {
@@ -10059,12 +21118,12 @@ var require_client_h1 = __commonJS({
           const requests = client2[kQueue].splice(client2[kRunningIdx]);
           for (let i = 0; i < requests.length; i++) {
             const request2 = requests[i];
-            util.errorRequest(client2, request2, err);
+            util3.errorRequest(client2, request2, err);
           }
         } else if (client2[kRunning] > 0 && err.code !== "UND_ERR_INFO") {
           const request2 = client2[kQueue][client2[kRunningIdx]];
           client2[kQueue][client2[kRunningIdx]++] = null;
-          util.errorRequest(client2, request2, err);
+          util3.errorRequest(client2, request2, err);
         }
         client2[kPendingIdx] = client2[kRunningIdx];
         assert(client2[kRunning] === 0);
@@ -10105,7 +21164,7 @@ var require_client_h1 = __commonJS({
             if (client[kRunning] > 0 && (request2.upgrade || request2.method === "CONNECT")) {
               return true;
             }
-            if (client[kRunning] > 0 && util.bodyLength(request2.body) !== 0 && (util.isStream(request2.body) || util.isAsyncIterable(request2.body) || util.isFormDataLike(request2.body))) {
+            if (client[kRunning] > 0 && util3.bodyLength(request2.body) !== 0 && (util3.isStream(request2.body) || util3.isAsyncIterable(request2.body) || util3.isFormDataLike(request2.body))) {
               return true;
             }
           }
@@ -10145,7 +21204,7 @@ var require_client_h1 = __commonJS({
       const { method, path, host, upgrade, blocking, reset } = request2;
       let { body, headers, contentLength } = request2;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
-      if (util.isFormDataLike(body)) {
+      if (util3.isFormDataLike(body)) {
         if (!extractBody) {
           extractBody = require_body().extractBody;
         }
@@ -10155,13 +21214,13 @@ var require_client_h1 = __commonJS({
         }
         body = bodyStream.stream;
         contentLength = bodyStream.length;
-      } else if (util.isBlobLike(body) && request2.contentType == null && body.type) {
+      } else if (util3.isBlobLike(body) && request2.contentType == null && body.type) {
         headers.push("content-type", body.type);
       }
       if (body && typeof body.read === "function") {
         body.read(0);
       }
-      const bodyLength = util.bodyLength(body);
+      const bodyLength = util3.bodyLength(body);
       contentLength = bodyLength ?? contentLength;
       if (contentLength === null) {
         contentLength = request2.contentLength;
@@ -10171,7 +21230,7 @@ var require_client_h1 = __commonJS({
       }
       if (shouldSendContentLength(method) && contentLength > 0 && request2.contentLength !== null && request2.contentLength !== contentLength) {
         if (client[kStrictContentLength]) {
-          util.errorRequest(client, request2, new RequestContentLengthMismatchError());
+          util3.errorRequest(client, request2, new RequestContentLengthMismatchError());
           return false;
         }
         process.emitWarning(new RequestContentLengthMismatchError());
@@ -10181,14 +21240,14 @@ var require_client_h1 = __commonJS({
         if (request2.aborted || request2.completed) {
           return;
         }
-        util.errorRequest(client, request2, err || new RequestAbortedError());
-        util.destroy(body);
-        util.destroy(socket, new InformationalError("aborted"));
+        util3.errorRequest(client, request2, err || new RequestAbortedError());
+        util3.destroy(body);
+        util3.destroy(socket, new InformationalError("aborted"));
       };
       try {
         request2.onConnect(abort);
       } catch (err) {
-        util.errorRequest(client, request2, err);
+        util3.errorRequest(client, request2, err);
       }
       if (request2.aborted) {
         return false;
@@ -10245,17 +21304,17 @@ upgrade: ${upgrade}\r
       }
       if (!body || bodyLength === 0) {
         writeBuffer(abort, null, client, request2, socket, contentLength, header, expectsPayload);
-      } else if (util.isBuffer(body)) {
+      } else if (util3.isBuffer(body)) {
         writeBuffer(abort, body, client, request2, socket, contentLength, header, expectsPayload);
-      } else if (util.isBlobLike(body)) {
+      } else if (util3.isBlobLike(body)) {
         if (typeof body.stream === "function") {
           writeIterable(abort, body.stream(), client, request2, socket, contentLength, header, expectsPayload);
         } else {
           writeBlob(abort, body, client, request2, socket, contentLength, header, expectsPayload);
         }
-      } else if (util.isStream(body)) {
+      } else if (util3.isStream(body)) {
         writeStream(abort, body, client, request2, socket, contentLength, header, expectsPayload);
-      } else if (util.isIterable(body)) {
+      } else if (util3.isIterable(body)) {
         writeIterable(abort, body, client, request2, socket, contentLength, header, expectsPayload);
       } else {
         assert(false);
@@ -10275,7 +21334,7 @@ upgrade: ${upgrade}\r
             this.pause();
           }
         } catch (err) {
-          util.destroy(this, err);
+          util3.destroy(this, err);
         }
       };
       const onDrain = function() {
@@ -10312,9 +21371,9 @@ upgrade: ${upgrade}\r
         }
         writer.destroy(err);
         if (err && (err.code !== "UND_ERR_INFO" || err.message !== "reset")) {
-          util.destroy(body, err);
+          util3.destroy(body, err);
         } else {
-          util.destroy(body);
+          util3.destroy(body);
         }
       };
       body.on("data", onData).on("end", onFinished).on("error", onFinished).on("close", onClose);
@@ -10343,7 +21402,7 @@ upgrade: ${upgrade}\r
             socket.write(`${header}\r
 `, "latin1");
           }
-        } else if (util.isBuffer(body)) {
+        } else if (util3.isBuffer(body)) {
           assert(contentLength === body.byteLength, "buffer body must have content length");
           socket.cork();
           socket.write(`${header}content-length: ${contentLength}\r
@@ -10538,7 +21597,7 @@ var require_client_h2 = __commonJS({
     "use strict";
     var assert = __require("node:assert");
     var { pipeline } = __require("node:stream");
-    var util = require_util();
+    var util3 = require_util();
     var {
       RequestContentLengthMismatchError,
       RequestAbortedError,
@@ -10611,37 +21670,37 @@ var require_client_h2 = __commonJS({
       session[kOpenStreams] = 0;
       session[kClient] = client;
       session[kSocket] = socket;
-      util.addListener(session, "error", onHttp2SessionError);
-      util.addListener(session, "frameError", onHttp2FrameError);
-      util.addListener(session, "end", onHttp2SessionEnd);
-      util.addListener(session, "goaway", onHTTP2GoAway);
-      util.addListener(session, "close", function() {
+      util3.addListener(session, "error", onHttp2SessionError);
+      util3.addListener(session, "frameError", onHttp2FrameError);
+      util3.addListener(session, "end", onHttp2SessionEnd);
+      util3.addListener(session, "goaway", onHTTP2GoAway);
+      util3.addListener(session, "close", function() {
         const { [kClient]: client2 } = this;
         const { [kSocket]: socket2 } = client2;
-        const err = this[kSocket][kError] || this[kError] || new SocketError("closed", util.getSocketInfo(socket2));
+        const err = this[kSocket][kError] || this[kError] || new SocketError("closed", util3.getSocketInfo(socket2));
         client2[kHTTP2Session] = null;
         if (client2.destroyed) {
           assert(client2[kPending] === 0);
           const requests = client2[kQueue].splice(client2[kRunningIdx]);
           for (let i = 0; i < requests.length; i++) {
             const request2 = requests[i];
-            util.errorRequest(client2, request2, err);
+            util3.errorRequest(client2, request2, err);
           }
         }
       });
       session.unref();
       client[kHTTP2Session] = session;
       socket[kHTTP2Session] = session;
-      util.addListener(socket, "error", function(err) {
+      util3.addListener(socket, "error", function(err) {
         assert(err.code !== "ERR_TLS_CERT_ALTNAME_INVALID");
         this[kError] = err;
         this[kClient][kOnError](err);
       });
-      util.addListener(socket, "end", function() {
-        util.destroy(this, new SocketError("other side closed", util.getSocketInfo(this)));
+      util3.addListener(socket, "end", function() {
+        util3.destroy(this, new SocketError("other side closed", util3.getSocketInfo(this)));
       });
-      util.addListener(socket, "close", function() {
-        const err = this[kError] || new SocketError("closed", util.getSocketInfo(this));
+      util3.addListener(socket, "close", function() {
+        const err = this[kError] || new SocketError("closed", util3.getSocketInfo(this));
         client[kSocket] = null;
         if (this[kHTTP2Session] != null) {
           this[kHTTP2Session].destroy(err);
@@ -10704,12 +21763,12 @@ var require_client_h2 = __commonJS({
       }
     }
     function onHttp2SessionEnd() {
-      const err = new SocketError("other side closed", util.getSocketInfo(this[kSocket]));
+      const err = new SocketError("other side closed", util3.getSocketInfo(this[kSocket]));
       this.destroy(err);
-      util.destroy(this[kSocket], err);
+      util3.destroy(this[kSocket], err);
     }
     function onHTTP2GoAway(code) {
-      const err = this[kError] || new SocketError(`HTTP/2: "GOAWAY" frame received with code ${code}`, util.getSocketInfo(this));
+      const err = this[kError] || new SocketError(`HTTP/2: "GOAWAY" frame received with code ${code}`, util3.getSocketInfo(this));
       const client = this[kClient];
       client[kSocket] = null;
       client[kHTTPContext] = null;
@@ -10717,10 +21776,10 @@ var require_client_h2 = __commonJS({
         this[kHTTP2Session].destroy(err);
         this[kHTTP2Session] = null;
       }
-      util.destroy(this[kSocket], err);
+      util3.destroy(this[kSocket], err);
       const request2 = client[kQueue][client[kRunningIdx]];
       client[kQueue][client[kRunningIdx]++] = null;
-      util.errorRequest(client, request2, err);
+      util3.errorRequest(client, request2, err);
       client[kPendingIdx] = client[kRunningIdx];
       assert(client[kRunning] === 0);
       client.emit("disconnect", client[kUrl], [client], err);
@@ -10733,7 +21792,7 @@ var require_client_h2 = __commonJS({
       const session = client[kHTTP2Session];
       const { body, method, path, host, upgrade, expectContinue, signal, headers: reqHeaders } = request2;
       if (upgrade) {
-        util.errorRequest(client, request2, new Error("Upgrade not supported for H2"));
+        util3.errorRequest(client, request2, new Error("Upgrade not supported for H2"));
         return false;
       }
       const headers = {};
@@ -10752,7 +21811,7 @@ var require_client_h2 = __commonJS({
           headers[key] = val2;
         }
       }
-      let stream2;
+      let stream5;
       const { hostname, port } = client[kUrl];
       headers[HTTP2_HEADER_AUTHORITY] = host || `${hostname}${port ? `:${port}` : ""}`;
       headers[HTTP2_HEADER_METHOD] = method;
@@ -10761,37 +21820,37 @@ var require_client_h2 = __commonJS({
           return;
         }
         err = err || new RequestAbortedError();
-        util.errorRequest(client, request2, err);
-        if (stream2 != null) {
-          util.destroy(stream2, err);
+        util3.errorRequest(client, request2, err);
+        if (stream5 != null) {
+          util3.destroy(stream5, err);
         }
-        util.destroy(body, err);
+        util3.destroy(body, err);
         client[kQueue][client[kRunningIdx]++] = null;
         client[kResume]();
       };
       try {
         request2.onConnect(abort);
       } catch (err) {
-        util.errorRequest(client, request2, err);
+        util3.errorRequest(client, request2, err);
       }
       if (request2.aborted) {
         return false;
       }
       if (method === "CONNECT") {
         session.ref();
-        stream2 = session.request(headers, { endStream: false, signal });
-        if (stream2.id && !stream2.pending) {
-          request2.onUpgrade(null, null, stream2);
+        stream5 = session.request(headers, { endStream: false, signal });
+        if (stream5.id && !stream5.pending) {
+          request2.onUpgrade(null, null, stream5);
           ++session[kOpenStreams];
           client[kQueue][client[kRunningIdx]++] = null;
         } else {
-          stream2.once("ready", () => {
-            request2.onUpgrade(null, null, stream2);
+          stream5.once("ready", () => {
+            request2.onUpgrade(null, null, stream5);
             ++session[kOpenStreams];
             client[kQueue][client[kRunningIdx]++] = null;
           });
         }
-        stream2.once("close", () => {
+        stream5.once("close", () => {
           session[kOpenStreams] -= 1;
           if (session[kOpenStreams] === 0)
             session.unref();
@@ -10804,7 +21863,7 @@ var require_client_h2 = __commonJS({
       if (body && typeof body.read === "function") {
         body.read(0);
       }
-      let contentLength = util.bodyLength(body);
+      let contentLength = util3.bodyLength(body);
       if (contentLength == null) {
         contentLength = request2.contentLength;
       }
@@ -10813,7 +21872,7 @@ var require_client_h2 = __commonJS({
       }
       if (shouldSendContentLength(method) && contentLength > 0 && request2.contentLength != null && request2.contentLength !== contentLength) {
         if (client[kStrictContentLength]) {
-          util.errorRequest(client, request2, new RequestContentLengthMismatchError());
+          util3.errorRequest(client, request2, new RequestContentLengthMismatchError());
           return false;
         }
         process.emitWarning(new RequestContentLengthMismatchError());
@@ -10826,36 +21885,36 @@ var require_client_h2 = __commonJS({
       const shouldEndStream = method === "GET" || method === "HEAD" || body === null;
       if (expectContinue) {
         headers[HTTP2_HEADER_EXPECT] = "100-continue";
-        stream2 = session.request(headers, { endStream: shouldEndStream, signal });
-        stream2.once("continue", writeBodyH2);
+        stream5 = session.request(headers, { endStream: shouldEndStream, signal });
+        stream5.once("continue", writeBodyH2);
       } else {
-        stream2 = session.request(headers, {
+        stream5 = session.request(headers, {
           endStream: shouldEndStream,
           signal
         });
         writeBodyH2();
       }
       ++session[kOpenStreams];
-      stream2.once("response", (headers2) => {
+      stream5.once("response", (headers2) => {
         const { [HTTP2_HEADER_STATUS]: statusCode, ...realHeaders } = headers2;
         request2.onResponseStarted();
         if (request2.aborted) {
           const err = new RequestAbortedError();
-          util.errorRequest(client, request2, err);
-          util.destroy(stream2, err);
+          util3.errorRequest(client, request2, err);
+          util3.destroy(stream5, err);
           return;
         }
-        if (request2.onHeaders(Number(statusCode), parseH2Headers(realHeaders), stream2.resume.bind(stream2), "") === false) {
-          stream2.pause();
+        if (request2.onHeaders(Number(statusCode), parseH2Headers(realHeaders), stream5.resume.bind(stream5), "") === false) {
+          stream5.pause();
         }
-        stream2.on("data", (chunk) => {
+        stream5.on("data", (chunk) => {
           if (request2.onData(chunk) === false) {
-            stream2.pause();
+            stream5.pause();
           }
         });
       });
-      stream2.once("end", () => {
-        if (stream2.state?.state == null || stream2.state.state < 6) {
+      stream5.once("end", () => {
+        if (stream5.state?.state == null || stream5.state.state < 6) {
           request2.onComplete([]);
         }
         if (session[kOpenStreams] === 0) {
@@ -10866,16 +21925,16 @@ var require_client_h2 = __commonJS({
         client[kPendingIdx] = client[kRunningIdx];
         client[kResume]();
       });
-      stream2.once("close", () => {
+      stream5.once("close", () => {
         session[kOpenStreams] -= 1;
         if (session[kOpenStreams] === 0) {
           session.unref();
         }
       });
-      stream2.once("error", function(err) {
+      stream5.once("error", function(err) {
         abort(err);
       });
-      stream2.once("frameError", (type, code) => {
+      stream5.once("frameError", (type, code) => {
         abort(new InformationalError(`HTTP/2: "frameError" received - type ${type}, code ${code}`));
       });
       return true;
@@ -10883,7 +21942,7 @@ var require_client_h2 = __commonJS({
         if (!body || contentLength === 0) {
           writeBuffer(
             abort,
-            stream2,
+            stream5,
             null,
             client,
             request2,
@@ -10891,10 +21950,10 @@ var require_client_h2 = __commonJS({
             contentLength,
             expectsPayload
           );
-        } else if (util.isBuffer(body)) {
+        } else if (util3.isBuffer(body)) {
           writeBuffer(
             abort,
-            stream2,
+            stream5,
             body,
             client,
             request2,
@@ -10902,11 +21961,11 @@ var require_client_h2 = __commonJS({
             contentLength,
             expectsPayload
           );
-        } else if (util.isBlobLike(body)) {
+        } else if (util3.isBlobLike(body)) {
           if (typeof body.stream === "function") {
             writeIterable(
               abort,
-              stream2,
+              stream5,
               body.stream(),
               client,
               request2,
@@ -10917,7 +21976,7 @@ var require_client_h2 = __commonJS({
           } else {
             writeBlob(
               abort,
-              stream2,
+              stream5,
               body,
               client,
               request2,
@@ -10926,21 +21985,21 @@ var require_client_h2 = __commonJS({
               expectsPayload
             );
           }
-        } else if (util.isStream(body)) {
+        } else if (util3.isStream(body)) {
           writeStream(
             abort,
             client[kSocket],
             expectsPayload,
-            stream2,
+            stream5,
             body,
             client,
             request2,
             contentLength
           );
-        } else if (util.isIterable(body)) {
+        } else if (util3.isIterable(body)) {
           writeIterable(
             abort,
-            stream2,
+            stream5,
             body,
             client,
             request2,
@@ -10955,7 +22014,7 @@ var require_client_h2 = __commonJS({
     }
     function writeBuffer(abort, h2stream, body, client, request2, socket, contentLength, expectsPayload) {
       try {
-        if (body != null && util.isBuffer(body)) {
+        if (body != null && util3.isBuffer(body)) {
           assert(contentLength === body.byteLength, "buffer body must have content length");
           h2stream.cork();
           h2stream.write(body);
@@ -10979,10 +22038,10 @@ var require_client_h2 = __commonJS({
         h2stream,
         (err) => {
           if (err) {
-            util.destroy(pipe, err);
+            util3.destroy(pipe, err);
             abort(err);
           } else {
-            util.removeAllListeners(pipe);
+            util3.removeAllListeners(pipe);
             request2.onRequestSent();
             if (!expectsPayload) {
               socket[kReset] = true;
@@ -10991,7 +22050,7 @@ var require_client_h2 = __commonJS({
           }
         }
       );
-      util.addListener(pipe, "data", onPipeData);
+      util3.addListener(pipe, "data", onPipeData);
       function onPipeData(chunk) {
         request2.onBodySent(chunk);
       }
@@ -11067,7 +22126,7 @@ var require_client_h2 = __commonJS({
 var require_redirect_handler = __commonJS({
   "node_modules/undici/lib/handler/redirect-handler.js"(exports, module) {
     "use strict";
-    var util = require_util();
+    var util3 = require_util();
     var { kBodyUsed } = require_symbols();
     var assert = __require("node:assert");
     var { InvalidArgumentError } = require_errors();
@@ -11090,7 +22149,7 @@ var require_redirect_handler = __commonJS({
         if (maxRedirections != null && (!Number.isInteger(maxRedirections) || maxRedirections < 0)) {
           throw new InvalidArgumentError("maxRedirections must be a positive number");
         }
-        util.validateHandler(handler3, opts.method, opts.upgrade);
+        util3.validateHandler(handler3, opts.method, opts.upgrade);
         this.dispatch = dispatch;
         this.location = null;
         this.abort = null;
@@ -11099,8 +22158,8 @@ var require_redirect_handler = __commonJS({
         this.handler = handler3;
         this.history = [];
         this.redirectionLimitReached = false;
-        if (util.isStream(this.opts.body)) {
-          if (util.bodyLength(this.opts.body) === 0) {
+        if (util3.isStream(this.opts.body)) {
+          if (util3.bodyLength(this.opts.body) === 0) {
             this.opts.body.on("data", function() {
               assert(false);
             });
@@ -11113,7 +22172,7 @@ var require_redirect_handler = __commonJS({
           }
         } else if (this.opts.body && typeof this.opts.body.pipeTo === "function") {
           this.opts.body = new BodyAsyncIterable(this.opts.body);
-        } else if (this.opts.body && typeof this.opts.body !== "string" && !ArrayBuffer.isView(this.opts.body) && util.isIterable(this.opts.body)) {
+        } else if (this.opts.body && typeof this.opts.body !== "string" && !ArrayBuffer.isView(this.opts.body) && util3.isIterable(this.opts.body)) {
           this.opts.body = new BodyAsyncIterable(this.opts.body);
         }
       }
@@ -11128,7 +22187,7 @@ var require_redirect_handler = __commonJS({
         this.handler.onError(error);
       }
       onHeaders(statusCode, headers, resume, statusText) {
-        this.location = this.history.length >= this.maxRedirections || util.isDisturbed(this.opts.body) ? null : parseLocation(statusCode, headers);
+        this.location = this.history.length >= this.maxRedirections || util3.isDisturbed(this.opts.body) ? null : parseLocation(statusCode, headers);
         if (this.opts.throwOnMaxRedirect && this.history.length >= this.maxRedirections) {
           if (this.request) {
             this.request.abort(new Error("max redirects"));
@@ -11143,11 +22202,11 @@ var require_redirect_handler = __commonJS({
         if (!this.location) {
           return this.handler.onHeaders(statusCode, headers, resume, statusText);
         }
-        const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
+        const { origin: origin2, pathname, search } = util3.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
         const path = search ? `${pathname}${search}` : pathname;
-        this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
+        this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin2);
         this.opts.path = path;
-        this.opts.origin = origin;
+        this.opts.origin = origin2;
         this.opts.maxRedirections = 0;
         this.opts.query = null;
         if (statusCode === 303 && this.opts.method !== "HEAD") {
@@ -11181,20 +22240,20 @@ var require_redirect_handler = __commonJS({
         return null;
       }
       for (let i = 0; i < headers.length; i += 2) {
-        if (headers[i].length === 8 && util.headerNameToString(headers[i]) === "location") {
+        if (headers[i].length === 8 && util3.headerNameToString(headers[i]) === "location") {
           return headers[i + 1];
         }
       }
     }
     function shouldRemoveHeader(header, removeContent, unknownOrigin) {
       if (header.length === 4) {
-        return util.headerNameToString(header) === "host";
+        return util3.headerNameToString(header) === "host";
       }
-      if (removeContent && util.headerNameToString(header).startsWith("content-")) {
+      if (removeContent && util3.headerNameToString(header).startsWith("content-")) {
         return true;
       }
       if (unknownOrigin && (header.length === 13 || header.length === 6 || header.length === 19)) {
-        const name = util.headerNameToString(header);
+        const name = util3.headerNameToString(header);
         return name === "authorization" || name === "cookie" || name === "proxy-authorization";
       }
       return false;
@@ -11250,10 +22309,10 @@ var require_client = __commonJS({
     "use strict";
     var assert = __require("node:assert");
     var net = __require("node:net");
-    var http = __require("node:http");
-    var util = require_util();
+    var http2 = __require("node:http");
+    var util3 = require_util();
     var { channels } = require_diagnostics();
-    var Request = require_request();
+    var Request2 = require_request();
     var DispatcherBase = require_dispatcher_base();
     var {
       InvalidArgumentError,
@@ -11307,13 +22366,18 @@ var require_client = __commonJS({
     var connectH2 = require_client_h2();
     var deprecatedInterceptorWarned = false;
     var kClosedResolve = Symbol("kClosedResolve");
-    var noop2 = () => {
+    var noop3 = () => {
     };
     function getPipelining(client) {
       return client[kPipelining] ?? client[kHTTPContext]?.defaultPipelining ?? 1;
     }
     var Client = class extends DispatcherBase {
-      constructor(url, {
+      /**
+       *
+       * @param {string|URL} url
+       * @param {import('../../types/client.js').Client.Options} options
+       */
+      constructor(url2, {
         interceptors,
         maxHeaderSize,
         headersTimeout,
@@ -11339,6 +22403,7 @@ var require_client = __commonJS({
         maxResponseSize,
         autoSelectFamily,
         autoSelectFamilyAttemptTimeout,
+        // h2
         maxConcurrentStreams,
         allowH2
       } = {}) {
@@ -11428,10 +22493,10 @@ var require_client = __commonJS({
         } else {
           this[kInterceptors] = [createRedirectInterceptor({ maxRedirections })];
         }
-        this[kUrl] = util.parseOrigin(url);
+        this[kUrl] = util3.parseOrigin(url2);
         this[kConnector] = connect2;
         this[kPipelining] = pipelining != null ? pipelining : 1;
-        this[kMaxHeadersSize] = maxHeaderSize || http.maxHeaderSize;
+        this[kMaxHeadersSize] = maxHeaderSize || http2.maxHeaderSize;
         this[kKeepAliveDefaultTimeout] = keepAliveTimeout == null ? 4e3 : keepAliveTimeout;
         this[kKeepAliveMaxTimeout] = keepAliveMaxTimeout == null ? 6e5 : keepAliveMaxTimeout;
         this[kKeepAliveTimeoutThreshold] = keepAliveTimeoutThreshold == null ? 2e3 : keepAliveTimeoutThreshold;
@@ -11481,16 +22546,17 @@ var require_client = __commonJS({
           this[kHTTPContext]?.busy(null) || this[kSize] >= (getPipelining(this) || 1) || this[kPending] > 0
         );
       }
+      /* istanbul ignore: only used for test */
       [kConnect](cb) {
         connect(this);
         this.once("connect", cb);
       }
       [kDispatch](opts, handler3) {
-        const origin = opts.origin || this[kUrl].origin;
-        const request2 = new Request(origin, opts, handler3);
+        const origin2 = opts.origin || this[kUrl].origin;
+        const request2 = new Request2(origin2, opts, handler3);
         this[kQueue].push(request2);
         if (this[kResuming]) {
-        } else if (util.bodyLength(request2.body) == null && util.isIterable(request2.body)) {
+        } else if (util3.bodyLength(request2.body) == null && util3.isIterable(request2.body)) {
           this[kResuming] = 1;
           queueMicrotask(() => resume(this));
         } else {
@@ -11515,7 +22581,7 @@ var require_client = __commonJS({
           const requests = this[kQueue].splice(this[kPendingIdx]);
           for (let i = 0; i < requests.length; i++) {
             const request2 = requests[i];
-            util.errorRequest(this, request2, err);
+            util3.errorRequest(this, request2, err);
           }
           const callback = () => {
             if (this[kClosedResolve]) {
@@ -11541,7 +22607,7 @@ var require_client = __commonJS({
         const requests = client[kQueue].splice(client[kRunningIdx]);
         for (let i = 0; i < requests.length; i++) {
           const request2 = requests[i];
-          util.errorRequest(client, request2, err);
+          util3.errorRequest(client, request2, err);
         }
         assert(client[kSize] === 0);
       }
@@ -11590,14 +22656,14 @@ var require_client = __commonJS({
           });
         });
         if (client.destroyed) {
-          util.destroy(socket.on("error", noop2), new ClientDestroyedError());
+          util3.destroy(socket.on("error", noop3), new ClientDestroyedError());
           return;
         }
         assert(socket);
         try {
           client[kHTTPContext] = socket.alpnProtocol === "h2" ? await connectH2(client, socket) : await connectH1(client, socket);
         } catch (err) {
-          socket.destroy().on("error", noop2);
+          socket.destroy().on("error", noop3);
           throw err;
         }
         client[kConnecting] = false;
@@ -11645,7 +22711,7 @@ var require_client = __commonJS({
           assert(client[kRunning] === 0);
           while (client[kPending] > 0 && client[kQueue][client[kPendingIdx]].servername === client[kServerName]) {
             const request2 = client[kQueue][client[kPendingIdx]++];
-            util.errorRequest(client, request2, err);
+            util3.errorRequest(client, request2, err);
           }
         } else {
           onError(client, err);
@@ -11853,7 +22919,7 @@ var require_pool_base = __commonJS({
         this[kClients] = [];
         this[kQueued] = 0;
         const pool = this;
-        this[kOnDrain] = function onDrain(origin, targets) {
+        this[kOnDrain] = function onDrain(origin2, targets) {
           const queue = pool[kQueue];
           let needDrain = false;
           while (!needDrain) {
@@ -11867,20 +22933,20 @@ var require_pool_base = __commonJS({
           this[kNeedDrain] = needDrain;
           if (!this[kNeedDrain] && pool[kNeedDrain]) {
             pool[kNeedDrain] = false;
-            pool.emit("drain", origin, [pool, ...targets]);
+            pool.emit("drain", origin2, [pool, ...targets]);
           }
           if (pool[kClosedResolve] && queue.isEmpty()) {
             Promise.all(pool[kClients].map((c) => c.close())).then(pool[kClosedResolve]);
           }
         };
-        this[kOnConnect] = (origin, targets) => {
-          pool.emit("connect", origin, [pool, ...targets]);
+        this[kOnConnect] = (origin2, targets) => {
+          pool.emit("connect", origin2, [pool, ...targets]);
         };
-        this[kOnDisconnect] = (origin, targets, err) => {
-          pool.emit("disconnect", origin, [pool, ...targets], err);
+        this[kOnDisconnect] = (origin2, targets, err) => {
+          pool.emit("disconnect", origin2, [pool, ...targets], err);
         };
-        this[kOnConnectionError] = (origin, targets, err) => {
-          pool.emit("connectionError", origin, [pool, ...targets], err);
+        this[kOnConnectionError] = (origin2, targets, err) => {
+          pool.emit("connectionError", origin2, [pool, ...targets], err);
         };
         this[kStats] = new PoolStats(this);
       }
@@ -11996,17 +23062,17 @@ var require_pool = __commonJS({
     var {
       InvalidArgumentError
     } = require_errors();
-    var util = require_util();
+    var util3 = require_util();
     var { kUrl, kInterceptors } = require_symbols();
     var buildConnector = require_connect();
     var kOptions = Symbol("options");
     var kConnections = Symbol("connections");
     var kFactory = Symbol("factory");
-    function defaultFactory(origin, opts) {
-      return new Client(origin, opts);
+    function defaultFactory(origin2, opts) {
+      return new Client(origin2, opts);
     }
     var Pool = class extends PoolBase {
-      constructor(origin, {
+      constructor(origin2, {
         connections,
         factory = defaultFactory,
         connect,
@@ -12042,8 +23108,8 @@ var require_pool = __commonJS({
         }
         this[kInterceptors] = options.interceptors?.Pool && Array.isArray(options.interceptors.Pool) ? options.interceptors.Pool : [];
         this[kConnections] = connections || null;
-        this[kUrl] = util.parseOrigin(origin);
-        this[kOptions] = { ...util.deepClone(options), connect, allowH2 };
+        this[kUrl] = util3.parseOrigin(origin2);
+        this[kOptions] = { ...util3.deepClone(options), connect, allowH2 };
         this[kOptions].interceptors = options.interceptors ? { ...options.interceptors } : void 0;
         this[kFactory] = factory;
       }
@@ -12101,8 +23167,8 @@ var require_balanced_pool = __commonJS({
       }
       return a;
     }
-    function defaultFactory(origin, opts) {
-      return new Pool(origin, opts);
+    function defaultFactory(origin2, opts) {
+      return new Pool(origin2, opts);
     }
     var BalancedPool = class extends PoolBase {
       constructor(upstreams = [], { factory = defaultFactory, ...opts } = {}) {
@@ -12218,7 +23284,7 @@ var require_agent = __commonJS({
     var DispatcherBase = require_dispatcher_base();
     var Pool = require_pool();
     var Client = require_client();
-    var util = require_util();
+    var util3 = require_util();
     var createRedirectInterceptor = require_redirect_interceptor();
     var kOnConnect = Symbol("onConnect");
     var kOnDisconnect = Symbol("onDisconnect");
@@ -12227,8 +23293,8 @@ var require_agent = __commonJS({
     var kOnDrain = Symbol("onDrain");
     var kFactory = Symbol("factory");
     var kOptions = Symbol("options");
-    function defaultFactory(origin, opts) {
-      return opts && opts.connections === 1 ? new Client(origin, opts) : new Pool(origin, opts);
+    function defaultFactory(origin2, opts) {
+      return opts && opts.connections === 1 ? new Client(origin2, opts) : new Pool(origin2, opts);
     }
     var Agent = class extends DispatcherBase {
       constructor({ factory = defaultFactory, maxRedirections = 0, connect, ...options } = {}) {
@@ -12246,22 +23312,22 @@ var require_agent = __commonJS({
           connect = { ...connect };
         }
         this[kInterceptors] = options.interceptors?.Agent && Array.isArray(options.interceptors.Agent) ? options.interceptors.Agent : [createRedirectInterceptor({ maxRedirections })];
-        this[kOptions] = { ...util.deepClone(options), connect };
+        this[kOptions] = { ...util3.deepClone(options), connect };
         this[kOptions].interceptors = options.interceptors ? { ...options.interceptors } : void 0;
         this[kMaxRedirections] = maxRedirections;
         this[kFactory] = factory;
         this[kClients] = /* @__PURE__ */ new Map();
-        this[kOnDrain] = (origin, targets) => {
-          this.emit("drain", origin, [this, ...targets]);
+        this[kOnDrain] = (origin2, targets) => {
+          this.emit("drain", origin2, [this, ...targets]);
         };
-        this[kOnConnect] = (origin, targets) => {
-          this.emit("connect", origin, [this, ...targets]);
+        this[kOnConnect] = (origin2, targets) => {
+          this.emit("connect", origin2, [this, ...targets]);
         };
-        this[kOnDisconnect] = (origin, targets, err) => {
-          this.emit("disconnect", origin, [this, ...targets], err);
+        this[kOnDisconnect] = (origin2, targets, err) => {
+          this.emit("disconnect", origin2, [this, ...targets], err);
         };
-        this[kOnConnectionError] = (origin, targets, err) => {
-          this.emit("connectionError", origin, [this, ...targets], err);
+        this[kOnConnectionError] = (origin2, targets, err) => {
+          this.emit("connectionError", origin2, [this, ...targets], err);
         };
       }
       get [kRunning]() {
@@ -12326,10 +23392,10 @@ var require_proxy_agent = __commonJS({
     function defaultProtocolPort(protocol) {
       return protocol === "https:" ? 443 : 80;
     }
-    function defaultFactory(origin, opts) {
-      return new Pool(origin, opts);
+    function defaultFactory(origin2, opts) {
+      return new Pool(origin2, opts);
     }
-    var noop2 = () => {
+    var noop3 = () => {
     };
     var ProxyAgent = class extends DispatcherBase {
       constructor(opts) {
@@ -12341,8 +23407,8 @@ var require_proxy_agent = __commonJS({
         if (typeof clientFactory !== "function") {
           throw new InvalidArgumentError("Proxy opts.clientFactory must be a function.");
         }
-        const url = this.#getUrl(opts);
-        const { href, origin, port, protocol, username, password, hostname: proxyHostname } = url;
+        const url2 = this.#getUrl(opts);
+        const { href, origin: origin2, port, protocol, username, password, hostname: proxyHostname } = url2;
         this[kProxy] = { uri: href, protocol };
         this[kInterceptors] = opts.interceptors?.ProxyAgent && Array.isArray(opts.interceptors.ProxyAgent) ? opts.interceptors.ProxyAgent : [];
         this[kRequestTls] = opts.requestTls;
@@ -12359,7 +23425,7 @@ var require_proxy_agent = __commonJS({
         }
         const connect = buildConnector({ ...opts.proxyTls });
         this[kConnectEndpoint] = buildConnector({ ...opts.requestTls });
-        this[kClient] = clientFactory(url, { connect });
+        this[kClient] = clientFactory(url2, { connect });
         this[kAgent] = new Agent({
           ...opts,
           connect: async (opts2, callback) => {
@@ -12369,7 +23435,7 @@ var require_proxy_agent = __commonJS({
             }
             try {
               const { socket, statusCode } = await this[kClient].connect({
-                origin,
+                origin: origin2,
                 port,
                 path: requestedPath,
                 signal: opts2.signal,
@@ -12380,7 +23446,7 @@ var require_proxy_agent = __commonJS({
                 servername: this[kProxyTls]?.servername || proxyHostname
               });
               if (statusCode !== 200) {
-                socket.on("error", noop2).destroy();
+                socket.on("error", noop3).destroy();
                 callback(new RequestAbortedError(`Proxy response (${statusCode}) !== 200 when HTTP Tunneling`));
               }
               if (opts2.protocol !== "https:") {
@@ -12419,6 +23485,10 @@ var require_proxy_agent = __commonJS({
           handler3
         );
       }
+      /**
+       * @param {import('../types/proxy-agent').ProxyAgent.Options | string | URL} opts
+       * @returns {URL}
+       */
       #getUrl(opts) {
         if (typeof opts === "string") {
           return new URL2(opts);
@@ -12500,8 +23570,8 @@ var require_env_http_proxy_agent = __commonJS({
         this.#parseNoProxy();
       }
       [kDispatch](opts, handler3) {
-        const url = new URL(opts.origin);
-        const agent = this.#getProxyAgentForUrl(url);
+        const url2 = new URL(opts.origin);
+        const agent = this.#getProxyAgentForUrl(url2);
         return agent.dispatch(opts, handler3);
       }
       async [kClose]() {
@@ -12522,8 +23592,8 @@ var require_env_http_proxy_agent = __commonJS({
           await this[kHttpsProxyAgent].destroy(err);
         }
       }
-      #getProxyAgentForUrl(url) {
-        let { protocol, host: hostname, port } = url;
+      #getProxyAgentForUrl(url2) {
+        let { protocol, host: hostname, port } = url2;
         hostname = hostname.replace(/:\d*$/, "").toLowerCase();
         port = Number.parseInt(port, 10) || DEFAULT_PORTS[protocol] || 0;
         if (!this.#shouldProxy(hostname, port)) {
@@ -12610,15 +23680,17 @@ var require_retry_handler = __commonJS({
       const current = Date.now();
       return new Date(retryAfter).getTime() - current;
     }
-    var RetryHandler = class {
+    var RetryHandler = class _RetryHandler {
       constructor(opts, handlers) {
         const { retryOptions, ...dispatchOpts } = opts;
         const {
+          // Retry scoped
           retry: retryFn,
           maxRetries,
           maxTimeout,
           minTimeout,
           timeoutFactor,
+          // Response scoped
           methods,
           errorCodes,
           retryAfter,
@@ -12630,14 +23702,19 @@ var require_retry_handler = __commonJS({
         this.abort = null;
         this.aborted = false;
         this.retryOpts = {
-          retry: retryFn ?? RetryHandler[kRetryHandlerDefaultRetry],
+          retry: retryFn ?? _RetryHandler[kRetryHandlerDefaultRetry],
           retryAfter: retryAfter ?? true,
           maxTimeout: maxTimeout ?? 30 * 1e3,
+          // 30s,
           minTimeout: minTimeout ?? 500,
+          // .5s
           timeoutFactor: timeoutFactor ?? 2,
           maxRetries: maxRetries ?? 5,
+          // What errors we should retry
           methods: methods ?? ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "TRACE"],
+          // Indicates which errors to retry
           statusCodes: statusCodes ?? [500, 502, 503, 504, 429],
+          // List of errors to retry
           errorCodes: errorCodes ?? [
             "ECONNRESET",
             "ECONNREFUSED",
@@ -12925,9 +24002,9 @@ var require_readable = __commonJS({
   "node_modules/undici/lib/api/readable.js"(exports, module) {
     "use strict";
     var assert = __require("node:assert");
-    var { Readable } = __require("node:stream");
+    var { Readable: Readable2 } = __require("node:stream");
     var { RequestAbortedError, NotSupportedError, InvalidArgumentError, AbortError } = require_errors();
-    var util = require_util();
+    var util3 = require_util();
     var { ReadableStreamFrom } = require_util();
     var kConsume = Symbol("kConsume");
     var kReading = Symbol("kReading");
@@ -12935,15 +24012,16 @@ var require_readable = __commonJS({
     var kAbort = Symbol("kAbort");
     var kContentType = Symbol("kContentType");
     var kContentLength = Symbol("kContentLength");
-    var noop2 = () => {
+    var noop3 = () => {
     };
-    var BodyReadable = class extends Readable {
+    var BodyReadable = class extends Readable2 {
       constructor({
         resume,
         abort,
         contentType = "",
         contentLength,
         highWaterMark = 64 * 1024
+        // Same as nodejs fs streams.
       }) {
         super({
           autoDestroy: true,
@@ -13002,27 +24080,35 @@ var require_readable = __commonJS({
         }
         return super.push(chunk);
       }
+      // https://fetch.spec.whatwg.org/#dom-body-text
       async text() {
         return consume(this, "text");
       }
+      // https://fetch.spec.whatwg.org/#dom-body-json
       async json() {
         return consume(this, "json");
       }
+      // https://fetch.spec.whatwg.org/#dom-body-blob
       async blob() {
         return consume(this, "blob");
       }
+      // https://fetch.spec.whatwg.org/#dom-body-bytes
       async bytes() {
         return consume(this, "bytes");
       }
+      // https://fetch.spec.whatwg.org/#dom-body-arraybuffer
       async arrayBuffer() {
         return consume(this, "arrayBuffer");
       }
+      // https://fetch.spec.whatwg.org/#dom-body-formdata
       async formData() {
         throw new NotSupportedError();
       }
+      // https://fetch.spec.whatwg.org/#dom-body-bodyused
       get bodyUsed() {
-        return util.isDisturbed(this);
+        return util3.isDisturbed(this);
       }
+      // https://fetch.spec.whatwg.org/#dom-body-body
       get body() {
         if (!this[kBody]) {
           this[kBody] = ReadableStreamFrom(this);
@@ -13058,7 +24144,7 @@ var require_readable = __commonJS({
             } else {
               resolve(null);
             }
-          }).on("error", noop2).on("data", function(chunk) {
+          }).on("error", noop3).on("data", function(chunk) {
             limit -= chunk.length;
             if (limit <= 0) {
               this.destroy();
@@ -13067,19 +24153,19 @@ var require_readable = __commonJS({
         });
       }
     };
-    function isLocked(self) {
-      return self[kBody] && self[kBody].locked === true || self[kConsume];
+    function isLocked(self2) {
+      return self2[kBody] && self2[kBody].locked === true || self2[kConsume];
     }
-    function isUnusable(self) {
-      return util.isDisturbed(self) || isLocked(self);
+    function isUnusable(self2) {
+      return util3.isDisturbed(self2) || isLocked(self2);
     }
-    async function consume(stream2, type) {
-      assert(!stream2[kConsume]);
+    async function consume(stream5, type) {
+      assert(!stream5[kConsume]);
       return new Promise((resolve, reject) => {
-        if (isUnusable(stream2)) {
-          const rState = stream2._readableState;
+        if (isUnusable(stream5)) {
+          const rState = stream5._readableState;
           if (rState.destroyed && rState.closeEmitted === false) {
-            stream2.on("error", (err) => {
+            stream5.on("error", (err) => {
               reject(err);
             }).on("close", () => {
               reject(new TypeError("unusable"));
@@ -13089,22 +24175,22 @@ var require_readable = __commonJS({
           }
         } else {
           queueMicrotask(() => {
-            stream2[kConsume] = {
+            stream5[kConsume] = {
               type,
-              stream: stream2,
+              stream: stream5,
               resolve,
               reject,
               length: 0,
               body: []
             };
-            stream2.on("error", function(err) {
+            stream5.on("error", function(err) {
               consumeFinish(this[kConsume], err);
             }).on("close", function() {
               if (this[kConsume].body !== null) {
                 consumeFinish(this[kConsume], new RequestAbortedError());
               }
             });
-            consumeStart(stream2[kConsume]);
+            consumeStart(stream5[kConsume]);
           });
         }
       });
@@ -13162,7 +24248,7 @@ var require_readable = __commonJS({
       return buffer;
     }
     function consumeEnd(consume2) {
-      const { type, body, resolve, stream: stream2, length } = consume2;
+      const { type, body, resolve, stream: stream5, length } = consume2;
       try {
         if (type === "text") {
           resolve(chunksDecode(body, length));
@@ -13171,13 +24257,13 @@ var require_readable = __commonJS({
         } else if (type === "arrayBuffer") {
           resolve(chunksConcat(body, length).buffer);
         } else if (type === "blob") {
-          resolve(new Blob(body, { type: stream2[kContentType] }));
+          resolve(new Blob(body, { type: stream5[kContentType] }));
         } else if (type === "bytes") {
           resolve(chunksConcat(body, length));
         }
         consumeFinish(consume2);
       } catch (err) {
-        stream2.destroy(err);
+        stream5.destroy(err);
       }
     }
     function consumePush(consume2, chunk) {
@@ -13270,9 +24356,9 @@ var require_api_request = __commonJS({
   "node_modules/undici/lib/api/api-request.js"(exports, module) {
     "use strict";
     var assert = __require("node:assert");
-    var { Readable } = require_readable();
+    var { Readable: Readable2 } = require_readable();
     var { InvalidArgumentError, RequestAbortedError } = require_errors();
-    var util = require_util();
+    var util3 = require_util();
     var { getResolveErrorBodyCallback } = require_util3();
     var { AsyncResource } = __require("node:async_hooks");
     var RequestHandler = class extends AsyncResource {
@@ -13299,8 +24385,8 @@ var require_api_request = __commonJS({
           }
           super("UNDICI_REQUEST");
         } catch (err) {
-          if (util.isStream(body)) {
-            util.destroy(body.on("error", util.nop), err);
+          if (util3.isStream(body)) {
+            util3.destroy(body.on("error", util3.nop), err);
           }
           throw err;
         }
@@ -13319,7 +24405,7 @@ var require_api_request = __commonJS({
         this.signal = signal;
         this.reason = null;
         this.removeAbortListener = null;
-        if (util.isStream(body)) {
+        if (util3.isStream(body)) {
           body.on("error", (err) => {
             this.onError(err);
           });
@@ -13328,10 +24414,10 @@ var require_api_request = __commonJS({
           if (this.signal.aborted) {
             this.reason = this.signal.reason ?? new RequestAbortedError();
           } else {
-            this.removeAbortListener = util.addAbortListener(this.signal, () => {
+            this.removeAbortListener = util3.addAbortListener(this.signal, () => {
               this.reason = this.signal.reason ?? new RequestAbortedError();
               if (this.res) {
-                util.destroy(this.res, this.reason);
+                util3.destroy(this.res, this.reason);
               } else if (this.abort) {
                 this.abort(this.reason);
               }
@@ -13355,17 +24441,17 @@ var require_api_request = __commonJS({
       }
       onHeaders(statusCode, rawHeaders, resume, statusMessage) {
         const { callback, opaque, abort, context, responseHeaders, highWaterMark } = this;
-        const headers = responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
+        const headers = responseHeaders === "raw" ? util3.parseRawHeaders(rawHeaders) : util3.parseHeaders(rawHeaders);
         if (statusCode < 200) {
           if (this.onInfo) {
             this.onInfo({ statusCode, headers });
           }
           return;
         }
-        const parsedHeaders = responseHeaders === "raw" ? util.parseHeaders(rawHeaders) : headers;
+        const parsedHeaders = responseHeaders === "raw" ? util3.parseHeaders(rawHeaders) : headers;
         const contentType = parsedHeaders["content-type"];
         const contentLength = parsedHeaders["content-length"];
-        const res = new Readable({
+        const res = new Readable2({
           resume,
           abort,
           contentType,
@@ -13400,7 +24486,7 @@ var require_api_request = __commonJS({
         return this.res.push(chunk);
       }
       onComplete(trailers) {
-        util.parseHeaders(trailers, this.trailers);
+        util3.parseHeaders(trailers, this.trailers);
         this.res.push(null);
       }
       onError(err) {
@@ -13414,12 +24500,12 @@ var require_api_request = __commonJS({
         if (res) {
           this.res = null;
           queueMicrotask(() => {
-            util.destroy(res, err);
+            util3.destroy(res, err);
           });
         }
         if (body) {
           this.body = null;
-          util.destroy(body, err);
+          util3.destroy(body, err);
         }
         if (this.removeAbortListener) {
           res?.off("close", this.removeAbortListener);
@@ -13458,42 +24544,42 @@ var require_abort_signal = __commonJS({
     var { RequestAbortedError } = require_errors();
     var kListener = Symbol("kListener");
     var kSignal = Symbol("kSignal");
-    function abort(self) {
-      if (self.abort) {
-        self.abort(self[kSignal]?.reason);
+    function abort(self2) {
+      if (self2.abort) {
+        self2.abort(self2[kSignal]?.reason);
       } else {
-        self.reason = self[kSignal]?.reason ?? new RequestAbortedError();
+        self2.reason = self2[kSignal]?.reason ?? new RequestAbortedError();
       }
-      removeSignal(self);
+      removeSignal(self2);
     }
-    function addSignal(self, signal) {
-      self.reason = null;
-      self[kSignal] = null;
-      self[kListener] = null;
+    function addSignal(self2, signal) {
+      self2.reason = null;
+      self2[kSignal] = null;
+      self2[kListener] = null;
       if (!signal) {
         return;
       }
       if (signal.aborted) {
-        abort(self);
+        abort(self2);
         return;
       }
-      self[kSignal] = signal;
-      self[kListener] = () => {
-        abort(self);
+      self2[kSignal] = signal;
+      self2[kListener] = () => {
+        abort(self2);
       };
-      addAbortListener(self[kSignal], self[kListener]);
+      addAbortListener(self2[kSignal], self2[kListener]);
     }
-    function removeSignal(self) {
-      if (!self[kSignal]) {
+    function removeSignal(self2) {
+      if (!self2[kSignal]) {
         return;
       }
-      if ("removeEventListener" in self[kSignal]) {
-        self[kSignal].removeEventListener("abort", self[kListener]);
+      if ("removeEventListener" in self2[kSignal]) {
+        self2[kSignal].removeEventListener("abort", self2[kListener]);
       } else {
-        self[kSignal].removeListener("abort", self[kListener]);
+        self2[kSignal].removeListener("abort", self2[kListener]);
       }
-      self[kSignal] = null;
-      self[kListener] = null;
+      self2[kSignal] = null;
+      self2[kListener] = null;
     }
     module.exports = {
       addSignal,
@@ -13509,7 +24595,7 @@ var require_api_stream = __commonJS({
     var assert = __require("node:assert");
     var { finished, PassThrough } = __require("node:stream");
     var { InvalidArgumentError, InvalidReturnValueError } = require_errors();
-    var util = require_util();
+    var util3 = require_util();
     var { getResolveErrorBodyCallback } = require_util3();
     var { AsyncResource } = __require("node:async_hooks");
     var { addSignal, removeSignal } = require_abort_signal();
@@ -13537,8 +24623,8 @@ var require_api_stream = __commonJS({
           }
           super("UNDICI_STREAM");
         } catch (err) {
-          if (util.isStream(body)) {
-            util.destroy(body.on("error", util.nop), err);
+          if (util3.isStream(body)) {
+            util3.destroy(body.on("error", util3.nop), err);
           }
           throw err;
         }
@@ -13553,7 +24639,7 @@ var require_api_stream = __commonJS({
         this.body = body;
         this.onInfo = onInfo || null;
         this.throwOnError = throwOnError || false;
-        if (util.isStream(body)) {
+        if (util3.isStream(body)) {
           body.on("error", (err) => {
             this.onError(err);
           });
@@ -13571,7 +24657,7 @@ var require_api_stream = __commonJS({
       }
       onHeaders(statusCode, rawHeaders, resume, statusMessage) {
         const { factory, opaque, context, callback, responseHeaders } = this;
-        const headers = responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
+        const headers = responseHeaders === "raw" ? util3.parseRawHeaders(rawHeaders) : util3.parseHeaders(rawHeaders);
         if (statusCode < 200) {
           if (this.onInfo) {
             this.onInfo({ statusCode, headers });
@@ -13581,7 +24667,7 @@ var require_api_stream = __commonJS({
         this.factory = null;
         let res;
         if (this.throwOnError && statusCode >= 400) {
-          const parsedHeaders = responseHeaders === "raw" ? util.parseHeaders(rawHeaders) : headers;
+          const parsedHeaders = responseHeaders === "raw" ? util3.parseHeaders(rawHeaders) : headers;
           const contentType = parsedHeaders["content-type"];
           res = new PassThrough();
           this.callback = null;
@@ -13607,7 +24693,7 @@ var require_api_stream = __commonJS({
             const { callback: callback2, res: res2, opaque: opaque2, trailers, abort } = this;
             this.res = null;
             if (err || !res2.readable) {
-              util.destroy(res2, err);
+              util3.destroy(res2, err);
             }
             this.callback = null;
             this.runInAsyncScope(callback2, null, err || null, { opaque: opaque2, trailers });
@@ -13631,7 +24717,7 @@ var require_api_stream = __commonJS({
         if (!res) {
           return;
         }
-        this.trailers = util.parseHeaders(trailers);
+        this.trailers = util3.parseHeaders(trailers);
         res.end();
       }
       onError(err) {
@@ -13640,7 +24726,7 @@ var require_api_stream = __commonJS({
         this.factory = null;
         if (res) {
           this.res = null;
-          util.destroy(res, err);
+          util3.destroy(res, err);
         } else if (callback) {
           this.callback = null;
           queueMicrotask(() => {
@@ -13649,14 +24735,14 @@ var require_api_stream = __commonJS({
         }
         if (body) {
           this.body = null;
-          util.destroy(body, err);
+          util3.destroy(body, err);
         }
       }
     };
-    function stream2(opts, factory, callback) {
+    function stream5(opts, factory, callback) {
       if (callback === void 0) {
         return new Promise((resolve, reject) => {
-          stream2.call(this, opts, factory, (err, data2) => {
+          stream5.call(this, opts, factory, (err, data2) => {
             return err ? reject(err) : resolve(data2);
           });
         });
@@ -13671,7 +24757,7 @@ var require_api_stream = __commonJS({
         queueMicrotask(() => callback(err, { opaque }));
       }
     }
-    module.exports = stream2;
+    module.exports = stream5;
   }
 });
 
@@ -13680,7 +24766,7 @@ var require_api_pipeline = __commonJS({
   "node_modules/undici/lib/api/api-pipeline.js"(exports, module) {
     "use strict";
     var {
-      Readable,
+      Readable: Readable2,
       Duplex,
       PassThrough
     } = __require("node:stream");
@@ -13689,12 +24775,12 @@ var require_api_pipeline = __commonJS({
       InvalidReturnValueError,
       RequestAbortedError
     } = require_errors();
-    var util = require_util();
+    var util3 = require_util();
     var { AsyncResource } = __require("node:async_hooks");
     var { addSignal, removeSignal } = require_abort_signal();
     var assert = __require("node:assert");
     var kResume = Symbol("resume");
-    var PipelineRequest = class extends Readable {
+    var PipelineRequest = class extends Readable2 {
       constructor() {
         super({ autoDestroy: true });
         this[kResume] = null;
@@ -13711,7 +24797,7 @@ var require_api_pipeline = __commonJS({
         callback(err);
       }
     };
-    var PipelineResponse = class extends Readable {
+    var PipelineResponse = class extends Readable2 {
       constructor(resume) {
         super({ autoDestroy: true });
         this[kResume] = resume;
@@ -13751,7 +24837,7 @@ var require_api_pipeline = __commonJS({
         this.abort = null;
         this.context = null;
         this.onInfo = onInfo || null;
-        this.req = new PipelineRequest().on("error", util.nop);
+        this.req = new PipelineRequest().on("error", util3.nop);
         this.ret = new Duplex({
           readableObjectMode: opts.objectMode,
           autoDestroy: true,
@@ -13777,9 +24863,9 @@ var require_api_pipeline = __commonJS({
             if (abort && err) {
               abort();
             }
-            util.destroy(body, err);
-            util.destroy(req, err);
-            util.destroy(res, err);
+            util3.destroy(body, err);
+            util3.destroy(req, err);
+            util3.destroy(res, err);
             removeSignal(this);
             callback(err);
           }
@@ -13805,7 +24891,7 @@ var require_api_pipeline = __commonJS({
         const { opaque, handler: handler3, context } = this;
         if (statusCode < 200) {
           if (this.onInfo) {
-            const headers = this.responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
+            const headers = this.responseHeaders === "raw" ? util3.parseRawHeaders(rawHeaders) : util3.parseHeaders(rawHeaders);
             this.onInfo({ statusCode, headers });
           }
           return;
@@ -13814,7 +24900,7 @@ var require_api_pipeline = __commonJS({
         let body;
         try {
           this.handler = null;
-          const headers = this.responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
+          const headers = this.responseHeaders === "raw" ? util3.parseRawHeaders(rawHeaders) : util3.parseHeaders(rawHeaders);
           body = this.runInAsyncScope(handler3, null, {
             statusCode,
             headers,
@@ -13823,7 +24909,7 @@ var require_api_pipeline = __commonJS({
             context
           });
         } catch (err) {
-          this.res.on("error", util.nop);
+          this.res.on("error", util3.nop);
           throw err;
         }
         if (!body || typeof body.on !== "function") {
@@ -13836,14 +24922,14 @@ var require_api_pipeline = __commonJS({
           }
         }).on("error", (err) => {
           const { ret } = this;
-          util.destroy(ret, err);
+          util3.destroy(ret, err);
         }).on("end", () => {
           const { ret } = this;
           ret.push(null);
         }).on("close", () => {
           const { ret } = this;
           if (!ret._readableState.ended) {
-            util.destroy(ret, new RequestAbortedError());
+            util3.destroy(ret, new RequestAbortedError());
           }
         });
         this.body = body;
@@ -13859,7 +24945,7 @@ var require_api_pipeline = __commonJS({
       onError(err) {
         const { ret } = this;
         this.handler = null;
-        util.destroy(ret, err);
+        util3.destroy(ret, err);
       }
     };
     function pipeline(opts, handler3) {
@@ -13881,7 +24967,7 @@ var require_api_upgrade = __commonJS({
     "use strict";
     var { InvalidArgumentError, SocketError } = require_errors();
     var { AsyncResource } = __require("node:async_hooks");
-    var util = require_util();
+    var util3 = require_util();
     var { addSignal, removeSignal } = require_abort_signal();
     var assert = __require("node:assert");
     var UpgradeHandler = class extends AsyncResource {
@@ -13921,7 +25007,7 @@ var require_api_upgrade = __commonJS({
         const { callback, opaque, context } = this;
         removeSignal(this);
         this.callback = null;
-        const headers = this.responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
+        const headers = this.responseHeaders === "raw" ? util3.parseRawHeaders(rawHeaders) : util3.parseHeaders(rawHeaders);
         this.runInAsyncScope(callback, null, null, {
           headers,
           socket,
@@ -13974,7 +25060,7 @@ var require_api_connect = __commonJS({
     var assert = __require("node:assert");
     var { AsyncResource } = __require("node:async_hooks");
     var { InvalidArgumentError, SocketError } = require_errors();
-    var util = require_util();
+    var util3 = require_util();
     var { addSignal, removeSignal } = require_abort_signal();
     var ConnectHandler = class extends AsyncResource {
       constructor(opts, callback) {
@@ -14013,7 +25099,7 @@ var require_api_connect = __commonJS({
         this.callback = null;
         let headers = rawHeaders;
         if (headers != null) {
-          headers = this.responseHeaders === "raw" ? util.parseRawHeaders(rawHeaders) : util.parseHeaders(rawHeaders);
+          headers = this.responseHeaders === "raw" ? util3.parseRawHeaders(rawHeaders) : util3.parseHeaders(rawHeaders);
         }
         this.runInAsyncScope(callback, null, null, {
           statusCode,
@@ -14074,10 +25160,10 @@ var require_mock_errors = __commonJS({
   "node_modules/undici/lib/mock/mock-errors.js"(exports, module) {
     "use strict";
     var { UndiciError } = require_errors();
-    var MockNotMatchedError = class extends UndiciError {
+    var MockNotMatchedError = class _MockNotMatchedError extends UndiciError {
       constructor(message) {
         super(message);
-        Error.captureStackTrace(this, MockNotMatchedError);
+        Error.captureStackTrace(this, _MockNotMatchedError);
         this.name = "MockNotMatchedError";
         this.message = message || "The request does not match any registered mock dispatches";
         this.code = "UND_MOCK_ERR_MOCK_NOT_MATCHED";
@@ -14129,7 +25215,7 @@ var require_mock_utils = __commonJS({
       kOrigin,
       kGetNetConnect
     } = require_mock_symbols();
-    var { buildURL } = require_util();
+    var { buildURL: buildURL2 } = require_util();
     var { STATUS_CODES } = __require("node:http");
     var {
       types: {
@@ -14190,9 +25276,9 @@ var require_mock_utils = __commonJS({
       if (typeof headers !== "object" || typeof mockDispatch2.headers !== "object") {
         return false;
       }
-      for (const [matchHeaderName, matchHeaderValue] of Object.entries(mockDispatch2.headers)) {
+      for (const [matchHeaderName, matchHeaderValue2] of Object.entries(mockDispatch2.headers)) {
         const headerValue = getHeaderByName(headers, matchHeaderName);
-        if (!matchValue(matchHeaderValue, headerValue)) {
+        if (!matchValue(matchHeaderValue2, headerValue)) {
           return false;
         }
       }
@@ -14231,7 +25317,7 @@ var require_mock_utils = __commonJS({
       }
     }
     function getMockDispatch(mockDispatches, key) {
-      const basePath = key.query ? buildURL(key.path, key.query) : key.path;
+      const basePath = key.query ? buildURL2(key.path, key.query) : key.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
       let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path }) => matchValue(safeUrl(path), resolvedPath));
       if (matchedMockDispatches.length === 0) {
@@ -14352,7 +25438,7 @@ var require_mock_utils = __commonJS({
     }
     function buildMockDispatch() {
       const agent = this[kMockAgent];
-      const origin = this[kOrigin];
+      const origin2 = this[kOrigin];
       const originalDispatch = this[kOriginalDispatch];
       return function dispatch(opts, handler3) {
         if (agent.isMockActive) {
@@ -14362,12 +25448,12 @@ var require_mock_utils = __commonJS({
             if (error instanceof MockNotMatchedError) {
               const netConnect = agent[kGetNetConnect]();
               if (netConnect === false) {
-                throw new MockNotMatchedError(`${error.message}: subsequent request to origin ${origin} was not allowed (net.connect disabled)`);
+                throw new MockNotMatchedError(`${error.message}: subsequent request to origin ${origin2} was not allowed (net.connect disabled)`);
               }
-              if (checkNetConnect(netConnect, origin)) {
+              if (checkNetConnect(netConnect, origin2)) {
                 originalDispatch.call(this, opts, handler3);
               } else {
-                throw new MockNotMatchedError(`${error.message}: subsequent request to origin ${origin} was not allowed (net.connect is not enabled for this origin)`);
+                throw new MockNotMatchedError(`${error.message}: subsequent request to origin ${origin2} was not allowed (net.connect is not enabled for this origin)`);
               }
             } else {
               throw error;
@@ -14378,11 +25464,11 @@ var require_mock_utils = __commonJS({
         }
       };
     }
-    function checkNetConnect(netConnect, origin) {
-      const url = new URL(origin);
+    function checkNetConnect(netConnect, origin2) {
+      const url2 = new URL(origin2);
       if (netConnect === true) {
         return true;
-      } else if (Array.isArray(netConnect) && netConnect.some((matcher) => matchValue(matcher, url.host))) {
+      } else if (Array.isArray(netConnect) && netConnect.some((matcher) => matchValue(matcher, url2.host))) {
         return true;
       }
       return false;
@@ -14427,11 +25513,14 @@ var require_mock_interceptor = __commonJS({
       kMockDispatch
     } = require_mock_symbols();
     var { InvalidArgumentError } = require_errors();
-    var { buildURL } = require_util();
+    var { buildURL: buildURL2 } = require_util();
     var MockScope = class {
       constructor(mockDispatch) {
         this[kMockDispatch] = mockDispatch;
       }
+      /**
+       * Delay a reply by a set amount in ms.
+       */
       delay(waitInMs) {
         if (typeof waitInMs !== "number" || !Number.isInteger(waitInMs) || waitInMs <= 0) {
           throw new InvalidArgumentError("waitInMs must be a valid integer > 0");
@@ -14439,10 +25528,16 @@ var require_mock_interceptor = __commonJS({
         this[kMockDispatch].delay = waitInMs;
         return this;
       }
+      /**
+       * For a defined reply, never mark as consumed.
+       */
       persist() {
         this[kMockDispatch].persist = true;
         return this;
       }
+      /**
+       * Allow one to define a reply for a set amount of matching requests.
+       */
       times(repeatTimes) {
         if (typeof repeatTimes !== "number" || !Number.isInteger(repeatTimes) || repeatTimes <= 0) {
           throw new InvalidArgumentError("repeatTimes must be a valid integer > 0");
@@ -14464,7 +25559,7 @@ var require_mock_interceptor = __commonJS({
         }
         if (typeof opts.path === "string") {
           if (opts.query) {
-            opts.path = buildURL(opts.path, opts.query);
+            opts.path = buildURL2(opts.path, opts.query);
           } else {
             const parsedURL = new URL(opts.path, "data://");
             opts.path = parsedURL.pathname + parsedURL.search;
@@ -14494,6 +25589,9 @@ var require_mock_interceptor = __commonJS({
           throw new InvalidArgumentError("responseOptions must be an object");
         }
       }
+      /**
+       * Mock an undici request with a defined reply.
+       */
       reply(replyOptionsCallbackOrStatusCode) {
         if (typeof replyOptionsCallbackOrStatusCode === "function") {
           const wrappedDefaultsCallback = (opts) => {
@@ -14520,6 +25618,9 @@ var require_mock_interceptor = __commonJS({
         const newMockDispatch = addMockDispatch(this[kDispatches], this[kDispatchKey], dispatchData);
         return new MockScope(newMockDispatch);
       }
+      /**
+       * Mock an undici request with a defined error.
+       */
       replyWithError(error) {
         if (typeof error === "undefined") {
           throw new InvalidArgumentError("error must be defined");
@@ -14527,6 +25628,9 @@ var require_mock_interceptor = __commonJS({
         const newMockDispatch = addMockDispatch(this[kDispatches], this[kDispatchKey], { error });
         return new MockScope(newMockDispatch);
       }
+      /**
+       * Set default reply headers on the interceptor for subsequent replies
+       */
       defaultReplyHeaders(headers) {
         if (typeof headers === "undefined") {
           throw new InvalidArgumentError("headers must be defined");
@@ -14534,6 +25638,9 @@ var require_mock_interceptor = __commonJS({
         this[kDefaultHeaders] = headers;
         return this;
       }
+      /**
+       * Set default reply trailers on the interceptor for subsequent replies
+       */
       defaultReplyTrailers(trailers) {
         if (typeof trailers === "undefined") {
           throw new InvalidArgumentError("trailers must be defined");
@@ -14541,6 +25648,9 @@ var require_mock_interceptor = __commonJS({
         this[kDefaultTrailers] = trailers;
         return this;
       }
+      /**
+       * Set reply content length header for replies on the interceptor
+       */
       replyContentLength() {
         this[kContentLength] = true;
         return this;
@@ -14571,13 +25681,13 @@ var require_mock_client = __commonJS({
     var Symbols = require_symbols();
     var { InvalidArgumentError } = require_errors();
     var MockClient = class extends Client {
-      constructor(origin, opts) {
-        super(origin, opts);
+      constructor(origin2, opts) {
+        super(origin2, opts);
         if (!opts || !opts.agent || typeof opts.agent.dispatch !== "function") {
           throw new InvalidArgumentError("Argument opts.agent must implement Agent");
         }
         this[kMockAgent] = opts.agent;
-        this[kOrigin] = origin;
+        this[kOrigin] = origin2;
         this[kDispatches] = [];
         this[kConnected] = 1;
         this[kOriginalDispatch] = this.dispatch;
@@ -14588,6 +25698,9 @@ var require_mock_client = __commonJS({
       get [Symbols.kConnected]() {
         return this[kConnected];
       }
+      /**
+       * Sets up the base interceptor for mocking replies from undici.
+       */
       intercept(opts) {
         return new MockInterceptor(opts, this[kDispatches]);
       }
@@ -14621,13 +25734,13 @@ var require_mock_pool = __commonJS({
     var Symbols = require_symbols();
     var { InvalidArgumentError } = require_errors();
     var MockPool = class extends Pool {
-      constructor(origin, opts) {
-        super(origin, opts);
+      constructor(origin2, opts) {
+        super(origin2, opts);
         if (!opts || !opts.agent || typeof opts.agent.dispatch !== "function") {
           throw new InvalidArgumentError("Argument opts.agent must implement Agent");
         }
         this[kMockAgent] = opts.agent;
-        this[kOrigin] = origin;
+        this[kOrigin] = origin2;
         this[kDispatches] = [];
         this[kConnected] = 1;
         this[kOriginalDispatch] = this.dispatch;
@@ -14638,6 +25751,9 @@ var require_mock_pool = __commonJS({
       get [Symbols.kConnected]() {
         return this[kConnected];
       }
+      /**
+       * Sets up the base interceptor for mocking replies from undici.
+       */
       intercept(opts) {
         return new MockInterceptor(opts, this[kDispatches]);
       }
@@ -14706,9 +25822,9 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
+          ({ method, path, data: { statusCode }, persist, times, timesInvoked, origin: origin2 }) => ({
             Method: method,
-            Origin: origin,
+            Origin: origin2,
             Path: path,
             "Status code": statusCode,
             Persistent: persist ? PERSISTENT : NOT_PERSISTENT,
@@ -14760,11 +25876,11 @@ var require_mock_agent = __commonJS({
         this[kClients] = agent[kClients];
         this[kOptions] = buildMockOptions(opts);
       }
-      get(origin) {
-        let dispatcher = this[kMockAgentGet](origin);
+      get(origin2) {
+        let dispatcher = this[kMockAgentGet](origin2);
         if (!dispatcher) {
-          dispatcher = this[kFactory](origin);
-          this[kMockAgentSet](origin, dispatcher);
+          dispatcher = this[kFactory](origin2);
+          this[kMockAgentSet](origin2, dispatcher);
         }
         return dispatcher;
       }
@@ -14798,30 +25914,32 @@ var require_mock_agent = __commonJS({
       disableNetConnect() {
         this[kNetConnect] = false;
       }
+      // This is required to bypass issues caused by using global symbols - see:
+      // https://github.com/nodejs/undici/issues/1447
       get isMockActive() {
         return this[kIsMockActive];
       }
-      [kMockAgentSet](origin, dispatcher) {
-        this[kClients].set(origin, dispatcher);
+      [kMockAgentSet](origin2, dispatcher) {
+        this[kClients].set(origin2, dispatcher);
       }
-      [kFactory](origin) {
+      [kFactory](origin2) {
         const mockOptions = Object.assign({ agent: this }, this[kOptions]);
-        return this[kOptions] && this[kOptions].connections === 1 ? new MockClient(origin, mockOptions) : new MockPool(origin, mockOptions);
+        return this[kOptions] && this[kOptions].connections === 1 ? new MockClient(origin2, mockOptions) : new MockPool(origin2, mockOptions);
       }
-      [kMockAgentGet](origin) {
-        const client = this[kClients].get(origin);
+      [kMockAgentGet](origin2) {
+        const client = this[kClients].get(origin2);
         if (client) {
           return client;
         }
-        if (typeof origin !== "string") {
+        if (typeof origin2 !== "string") {
           const dispatcher = this[kFactory]("http://localhost:9999");
-          this[kMockAgentSet](origin, dispatcher);
+          this[kMockAgentSet](origin2, dispatcher);
           return dispatcher;
         }
         for (const [keyMatcher, nonExplicitDispatcher] of Array.from(this[kClients])) {
-          if (nonExplicitDispatcher && typeof keyMatcher !== "string" && matchValue(keyMatcher, origin)) {
-            const dispatcher = this[kFactory](origin);
-            this[kMockAgentSet](origin, dispatcher);
+          if (nonExplicitDispatcher && typeof keyMatcher !== "string" && matchValue(keyMatcher, origin2)) {
+            const dispatcher = this[kFactory](origin2);
+            this[kMockAgentSet](origin2, dispatcher);
             dispatcher[kDispatches] = nonExplicitDispatcher[kDispatches];
             return dispatcher;
           }
@@ -14832,7 +25950,7 @@ var require_mock_agent = __commonJS({
       }
       pendingInterceptors() {
         const mockAgentClients = this[kClients];
-        return Array.from(mockAgentClients.entries()).flatMap(([origin, scope]) => scope[kDispatches].map((dispatch) => ({ ...dispatch, origin }))).filter(({ pending }) => pending);
+        return Array.from(mockAgentClients.entries()).flatMap(([origin2, scope]) => scope[kDispatches].map((dispatch) => ({ ...dispatch, origin: origin2 }))).filter(({ pending }) => pending);
       }
       assertNoPendingInterceptors({ pendingInterceptorsFormatter = new PendingInterceptorsFormatter() } = {}) {
         const pending = this.pendingInterceptors();
@@ -14976,7 +26094,7 @@ var require_retry = __commonJS({
 var require_dump = __commonJS({
   "node_modules/undici/lib/interceptor/dump.js"(exports, module) {
     "use strict";
-    var util = require_util();
+    var util3 = require_util();
     var { InvalidArgumentError, RequestAbortedError } = require_errors();
     var DecoratorHandler = require_decorator_handler();
     var DumpHandler = class extends DecoratorHandler {
@@ -15003,8 +26121,9 @@ var require_dump = __commonJS({
         this.#aborted = true;
         this.#reason = reason;
       }
+      // TODO: will require adjustment after new hooks are out
       onHeaders(statusCode, rawHeaders, resume, statusMessage) {
-        const headers = util.parseHeaders(rawHeaders);
+        const headers = util3.parseHeaders(rawHeaders);
         const contentLength = headers["content-length"];
         if (contentLength != null && contentLength > this.#maxSize) {
           throw new RequestAbortedError(
@@ -15077,12 +26196,12 @@ var require_headers = __commonJS({
     var { kEnumerableProperty } = require_util();
     var {
       iteratorMixin,
-      isValidHeaderName,
+      isValidHeaderName: isValidHeaderName2,
       isValidHeaderValue
     } = require_util2();
     var { webidl } = require_webidl();
     var assert = __require("node:assert");
-    var util = __require("node:util");
+    var util3 = __require("node:util");
     var kHeadersMap = Symbol("headers map");
     var kHeadersSortedMap = Symbol("headers map sorted");
     function isHTTPWhiteSpaceCharCode(code) {
@@ -15124,7 +26243,7 @@ var require_headers = __commonJS({
     }
     function appendHeader(headers, name, value) {
       value = headerValueNormalize(value);
-      if (!isValidHeaderName(name)) {
+      if (!isValidHeaderName2(name)) {
         throw webidl.errors.invalidArgument({
           prefix: "Headers.append",
           value: name,
@@ -15145,10 +26264,11 @@ var require_headers = __commonJS({
     function compareHeaderName(a, b) {
       return a[0] < b[0] ? -1 : 1;
     }
-    var HeadersList = class {
+    var HeadersList = class _HeadersList {
+      /** @type {[string, string][]|null} */
       cookies = null;
       constructor(init) {
-        if (init instanceof HeadersList) {
+        if (init instanceof _HeadersList) {
           this[kHeadersMap] = new Map(init[kHeadersMap]);
           this[kHeadersSortedMap] = init[kHeadersSortedMap];
           this.cookies = init.cookies === null ? null : [...init.cookies];
@@ -15157,6 +26277,11 @@ var require_headers = __commonJS({
           this[kHeadersSortedMap] = null;
         }
       }
+      /**
+       * @see https://fetch.spec.whatwg.org/#header-list-contains
+       * @param {string} name
+       * @param {boolean} isLowerCase
+       */
       contains(name, isLowerCase) {
         return this[kHeadersMap].has(isLowerCase ? name : name.toLowerCase());
       }
@@ -15165,6 +26290,12 @@ var require_headers = __commonJS({
         this[kHeadersSortedMap] = null;
         this.cookies = null;
       }
+      /**
+       * @see https://fetch.spec.whatwg.org/#concept-header-list-append
+       * @param {string} name
+       * @param {string} value
+       * @param {boolean} isLowerCase
+       */
       append(name, value, isLowerCase) {
         this[kHeadersSortedMap] = null;
         const lowercaseName = isLowerCase ? name : name.toLowerCase();
@@ -15182,6 +26313,12 @@ var require_headers = __commonJS({
           (this.cookies ??= []).push(value);
         }
       }
+      /**
+       * @see https://fetch.spec.whatwg.org/#concept-header-list-set
+       * @param {string} name
+       * @param {string} value
+       * @param {boolean} isLowerCase
+       */
       set(name, value, isLowerCase) {
         this[kHeadersSortedMap] = null;
         const lowercaseName = isLowerCase ? name : name.toLowerCase();
@@ -15190,6 +26327,11 @@ var require_headers = __commonJS({
         }
         this[kHeadersMap].set(lowercaseName, { name, value });
       }
+      /**
+       * @see https://fetch.spec.whatwg.org/#concept-header-list-delete
+       * @param {string} name
+       * @param {boolean} isLowerCase
+       */
       delete(name, isLowerCase) {
         this[kHeadersSortedMap] = null;
         if (!isLowerCase)
@@ -15199,6 +26341,12 @@ var require_headers = __commonJS({
         }
         this[kHeadersMap].delete(name);
       }
+      /**
+       * @see https://fetch.spec.whatwg.org/#concept-header-list-get
+       * @param {string} name
+       * @param {boolean} isLowerCase
+       * @returns {string | null}
+       */
       get(name, isLowerCase) {
         return this[kHeadersMap].get(isLowerCase ? name : name.toLowerCase())?.value ?? null;
       }
@@ -15234,6 +26382,7 @@ var require_headers = __commonJS({
         }
         return headers;
       }
+      // https://fetch.spec.whatwg.org/#convert-header-names-to-a-sorted-lowercase-set
       toSortedArray() {
         const size = this[kHeadersMap].size;
         const array = new Array(size);
@@ -15281,7 +26430,7 @@ var require_headers = __commonJS({
         }
       }
     };
-    var Headers = class {
+    var Headers = class _Headers {
       #guard;
       #headersList;
       constructor(init = void 0) {
@@ -15296,20 +26445,22 @@ var require_headers = __commonJS({
           fill(this, init);
         }
       }
+      // https://fetch.spec.whatwg.org/#dom-headers-append
       append(name, value) {
-        webidl.brandCheck(this, Headers);
+        webidl.brandCheck(this, _Headers);
         webidl.argumentLengthCheck(arguments, 2, "Headers.append");
         const prefix = "Headers.append";
         name = webidl.converters.ByteString(name, prefix, "name");
         value = webidl.converters.ByteString(value, prefix, "value");
         return appendHeader(this, name, value);
       }
+      // https://fetch.spec.whatwg.org/#dom-headers-delete
       delete(name) {
-        webidl.brandCheck(this, Headers);
+        webidl.brandCheck(this, _Headers);
         webidl.argumentLengthCheck(arguments, 1, "Headers.delete");
         const prefix = "Headers.delete";
         name = webidl.converters.ByteString(name, prefix, "name");
-        if (!isValidHeaderName(name)) {
+        if (!isValidHeaderName2(name)) {
           throw webidl.errors.invalidArgument({
             prefix: "Headers.delete",
             value: name,
@@ -15324,12 +26475,13 @@ var require_headers = __commonJS({
         }
         this.#headersList.delete(name, false);
       }
+      // https://fetch.spec.whatwg.org/#dom-headers-get
       get(name) {
-        webidl.brandCheck(this, Headers);
+        webidl.brandCheck(this, _Headers);
         webidl.argumentLengthCheck(arguments, 1, "Headers.get");
         const prefix = "Headers.get";
         name = webidl.converters.ByteString(name, prefix, "name");
-        if (!isValidHeaderName(name)) {
+        if (!isValidHeaderName2(name)) {
           throw webidl.errors.invalidArgument({
             prefix,
             value: name,
@@ -15338,12 +26490,13 @@ var require_headers = __commonJS({
         }
         return this.#headersList.get(name, false);
       }
+      // https://fetch.spec.whatwg.org/#dom-headers-has
       has(name) {
-        webidl.brandCheck(this, Headers);
+        webidl.brandCheck(this, _Headers);
         webidl.argumentLengthCheck(arguments, 1, "Headers.has");
         const prefix = "Headers.has";
         name = webidl.converters.ByteString(name, prefix, "name");
-        if (!isValidHeaderName(name)) {
+        if (!isValidHeaderName2(name)) {
           throw webidl.errors.invalidArgument({
             prefix,
             value: name,
@@ -15352,14 +26505,15 @@ var require_headers = __commonJS({
         }
         return this.#headersList.contains(name, false);
       }
+      // https://fetch.spec.whatwg.org/#dom-headers-set
       set(name, value) {
-        webidl.brandCheck(this, Headers);
+        webidl.brandCheck(this, _Headers);
         webidl.argumentLengthCheck(arguments, 2, "Headers.set");
         const prefix = "Headers.set";
         name = webidl.converters.ByteString(name, prefix, "name");
         value = webidl.converters.ByteString(value, prefix, "value");
         value = headerValueNormalize(value);
-        if (!isValidHeaderName(name)) {
+        if (!isValidHeaderName2(name)) {
           throw webidl.errors.invalidArgument({
             prefix,
             value: name,
@@ -15377,14 +26531,16 @@ var require_headers = __commonJS({
         }
         this.#headersList.set(name, value, false);
       }
+      // https://fetch.spec.whatwg.org/#dom-headers-getsetcookie
       getSetCookie() {
-        webidl.brandCheck(this, Headers);
+        webidl.brandCheck(this, _Headers);
         const list = this.#headersList.cookies;
         if (list) {
           return [...list];
         }
         return [];
       }
+      // https://fetch.spec.whatwg.org/#concept-header-list-sort-and-combine
       get [kHeadersSortedMap]() {
         if (this.#headersList[kHeadersSortedMap]) {
           return this.#headersList[kHeadersSortedMap];
@@ -15407,9 +26563,9 @@ var require_headers = __commonJS({
         }
         return this.#headersList[kHeadersSortedMap] = headers;
       }
-      [util.inspect.custom](depth, options) {
+      [util3.inspect.custom](depth, options) {
         options.depth ??= depth;
-        return `Headers ${util.formatWithOptions(options, this.#headersList.entries)}`;
+        return `Headers ${util3.formatWithOptions(options, this.#headersList.entries)}`;
       }
       static getHeadersGuard(o) {
         return o.#guard;
@@ -15441,14 +26597,14 @@ var require_headers = __commonJS({
         value: "Headers",
         configurable: true
       },
-      [util.inspect.custom]: {
+      [util3.inspect.custom]: {
         enumerable: false
       }
     });
     webidl.converters.HeadersInit = function(V, prefix, argument) {
       if (webidl.util.Type(V) === "Object") {
         const iterator = Reflect.get(V, Symbol.iterator);
-        if (!util.types.isProxy(V) && iterator === Headers.prototype.entries) {
+        if (!util3.types.isProxy(V) && iterator === Headers.prototype.entries) {
           try {
             return getHeadersList(V).entriesList;
           } catch {
@@ -15467,6 +26623,7 @@ var require_headers = __commonJS({
     };
     module.exports = {
       fill,
+      // for test.
       compareHeaderName,
       Headers,
       HeadersList,
@@ -15484,9 +26641,9 @@ var require_response = __commonJS({
     "use strict";
     var { Headers, HeadersList, fill, getHeadersGuard, setHeadersGuard, setHeadersList } = require_headers();
     var { extractBody, cloneBody, mixinBody, hasFinalizationRegistry, streamRegistry, bodyUnusable } = require_body();
-    var util = require_util();
+    var util3 = require_util();
     var nodeUtil = __require("node:util");
-    var { kEnumerableProperty } = util;
+    var { kEnumerableProperty } = util3;
     var {
       isValidReasonPhrase,
       isCancelled,
@@ -15503,23 +26660,25 @@ var require_response = __commonJS({
     } = require_constants3();
     var { kState, kHeaders } = require_symbols2();
     var { webidl } = require_webidl();
-    var { FormData } = require_formdata();
+    var { FormData: FormData3 } = require_formdata();
     var { URLSerializer } = require_data_url();
     var { kConstruct } = require_symbols();
     var assert = __require("node:assert");
     var { types } = __require("node:util");
-    var textEncoder = new TextEncoder("utf-8");
-    var Response = class {
+    var textEncoder2 = new TextEncoder("utf-8");
+    var Response2 = class _Response {
+      // Creates network error Response.
       static error() {
         const responseObject = fromInnerResponse(makeNetworkError(), "immutable");
         return responseObject;
       }
+      // https://fetch.spec.whatwg.org/#dom-response-json
       static json(data2, init = {}) {
         webidl.argumentLengthCheck(arguments, 1, "Response.json");
         if (init !== null) {
           init = webidl.converters.ResponseInit(init);
         }
-        const bytes = textEncoder.encode(
+        const bytes = textEncoder2.encode(
           serializeJavascriptValueToJSONString(data2)
         );
         const body = extractBody(bytes);
@@ -15527,15 +26686,16 @@ var require_response = __commonJS({
         initializeResponse(responseObject, init, { body: body[0], type: "application/json" });
         return responseObject;
       }
-      static redirect(url, status = 302) {
+      // Creates a redirect Response that redirects to url with status status.
+      static redirect(url2, status = 302) {
         webidl.argumentLengthCheck(arguments, 1, "Response.redirect");
-        url = webidl.converters.USVString(url);
+        url2 = webidl.converters.USVString(url2);
         status = webidl.converters["unsigned short"](status);
         let parsedURL;
         try {
-          parsedURL = new URL(url, relevantRealm.settingsObject.baseUrl);
+          parsedURL = new URL(url2, relevantRealm.settingsObject.baseUrl);
         } catch (err) {
-          throw new TypeError(`Failed to parse URL from ${url}`, { cause: err });
+          throw new TypeError(`Failed to parse URL from ${url2}`, { cause: err });
         }
         if (!redirectStatusSet.has(status)) {
           throw new RangeError(`Invalid status code ${status}`);
@@ -15546,6 +26706,7 @@ var require_response = __commonJS({
         responseObject[kState].headersList.append("location", value, true);
         return responseObject;
       }
+      // https://fetch.spec.whatwg.org/#dom-response
       constructor(body = null, init = {}) {
         webidl.util.markAsUncloneable(this);
         if (body === kConstruct) {
@@ -15566,49 +26727,57 @@ var require_response = __commonJS({
         }
         initializeResponse(this, init, bodyWithType);
       }
+      // Returns response’s type, e.g., "cors".
       get type() {
-        webidl.brandCheck(this, Response);
+        webidl.brandCheck(this, _Response);
         return this[kState].type;
       }
+      // Returns response’s URL, if it has one; otherwise the empty string.
       get url() {
-        webidl.brandCheck(this, Response);
+        webidl.brandCheck(this, _Response);
         const urlList = this[kState].urlList;
-        const url = urlList[urlList.length - 1] ?? null;
-        if (url === null) {
+        const url2 = urlList[urlList.length - 1] ?? null;
+        if (url2 === null) {
           return "";
         }
-        return URLSerializer(url, true);
+        return URLSerializer(url2, true);
       }
+      // Returns whether response was obtained through a redirect.
       get redirected() {
-        webidl.brandCheck(this, Response);
+        webidl.brandCheck(this, _Response);
         return this[kState].urlList.length > 1;
       }
+      // Returns response’s status.
       get status() {
-        webidl.brandCheck(this, Response);
+        webidl.brandCheck(this, _Response);
         return this[kState].status;
       }
+      // Returns whether response’s status is an ok status.
       get ok() {
-        webidl.brandCheck(this, Response);
+        webidl.brandCheck(this, _Response);
         return this[kState].status >= 200 && this[kState].status <= 299;
       }
+      // Returns response’s status message.
       get statusText() {
-        webidl.brandCheck(this, Response);
+        webidl.brandCheck(this, _Response);
         return this[kState].statusText;
       }
+      // Returns response’s headers as Headers.
       get headers() {
-        webidl.brandCheck(this, Response);
+        webidl.brandCheck(this, _Response);
         return this[kHeaders];
       }
       get body() {
-        webidl.brandCheck(this, Response);
+        webidl.brandCheck(this, _Response);
         return this[kState].body ? this[kState].body.stream : null;
       }
       get bodyUsed() {
-        webidl.brandCheck(this, Response);
-        return !!this[kState].body && util.isDisturbed(this[kState].body.stream);
+        webidl.brandCheck(this, _Response);
+        return !!this[kState].body && util3.isDisturbed(this[kState].body.stream);
       }
+      // Returns a clone of response.
       clone() {
-        webidl.brandCheck(this, Response);
+        webidl.brandCheck(this, _Response);
         if (bodyUnusable(this)) {
           throw webidl.errors.exception({
             header: "Response.clone",
@@ -15637,8 +26806,8 @@ var require_response = __commonJS({
         return `Response ${nodeUtil.formatWithOptions(options, properties)}`;
       }
     };
-    mixinBody(Response);
-    Object.defineProperties(Response.prototype, {
+    mixinBody(Response2);
+    Object.defineProperties(Response2.prototype, {
       type: kEnumerableProperty,
       url: kEnumerableProperty,
       status: kEnumerableProperty,
@@ -15654,7 +26823,7 @@ var require_response = __commonJS({
         configurable: true
       }
     });
-    Object.defineProperties(Response, {
+    Object.defineProperties(Response2, {
       json: kEnumerableProperty,
       redirect: kEnumerableProperty,
       error: kEnumerableProperty
@@ -15698,7 +26867,11 @@ var require_response = __commonJS({
       });
     }
     function isNetworkError(response) {
-      return response.type === "error" && response.status === 0;
+      return (
+        // A network error is a response whose type is "error",
+        response.type === "error" && // status is 0
+        response.status === 0
+      );
     }
     function makeFilteredResponse(response, state) {
       state = {
@@ -15783,7 +26956,7 @@ var require_response = __commonJS({
       }
     }
     function fromInnerResponse(innerResponse, guard) {
-      const response = new Response(kConstruct);
+      const response = new Response2(kConstruct);
       response[kState] = innerResponse;
       response[kHeaders] = new Headers(kConstruct);
       setHeadersList(response[kHeaders], innerResponse.headersList);
@@ -15797,7 +26970,7 @@ var require_response = __commonJS({
       ReadableStream
     );
     webidl.converters.FormData = webidl.interfaceConverter(
-      FormData
+      FormData3
     );
     webidl.converters.URLSearchParams = webidl.interfaceConverter(
       URLSearchParams
@@ -15812,7 +26985,7 @@ var require_response = __commonJS({
       if (ArrayBuffer.isView(V) || types.isArrayBuffer(V)) {
         return webidl.converters.BufferSource(V, prefix, name);
       }
-      if (util.isFormDataLike(V)) {
+      if (util3.isFormDataLike(V)) {
         return webidl.converters.FormData(V, prefix, name, { strict: false });
       }
       if (V instanceof URLSearchParams) {
@@ -15851,7 +27024,7 @@ var require_response = __commonJS({
       makeResponse,
       makeAppropriateNetworkError,
       filterResponse,
-      Response,
+      Response: Response2,
       cloneResponse,
       fromInnerResponse
     };
@@ -15907,7 +27080,7 @@ var require_request2 = __commonJS({
     var { extractBody, mixinBody, cloneBody, bodyUnusable } = require_body();
     var { Headers, fill: fillHeaders, HeadersList, setHeadersGuard, getHeadersGuard, setHeadersList, getHeadersList } = require_headers();
     var { FinalizationRegistry: FinalizationRegistry2 } = require_dispatcher_weakref()();
-    var util = require_util();
+    var util3 = require_util();
     var nodeUtil = __require("node:util");
     var {
       isValidHTTPToken,
@@ -15924,7 +27097,7 @@ var require_request2 = __commonJS({
       requestCache,
       requestDuplex
     } = require_constants3();
-    var { kEnumerableProperty, normalizedMethodRecordsBase, normalizedMethodRecords } = util;
+    var { kEnumerableProperty, normalizedMethodRecordsBase, normalizedMethodRecords } = util3;
     var { kHeaders, kSignal, kState, kDispatcher } = require_symbols2();
     var { webidl } = require_webidl();
     var { URLSerializer } = require_data_url();
@@ -15961,7 +27134,8 @@ var require_request2 = __commonJS({
       }
     }
     var patchMethodWarning = false;
-    var Request = class {
+    var Request2 = class _Request {
+      // https://fetch.spec.whatwg.org/#dom-request
       constructor(input, init = {}) {
         webidl.util.markAsUncloneable(this);
         if (input === kConstruct) {
@@ -15992,39 +27166,62 @@ var require_request2 = __commonJS({
           fallbackMode = "cors";
         } else {
           this[kDispatcher] = init.dispatcher || input[kDispatcher];
-          assert(input instanceof Request);
+          assert(input instanceof _Request);
           request2 = input[kState];
           signal = input[kSignal];
         }
-        const origin = environmentSettingsObject.settingsObject.origin;
-        let window = "client";
-        if (request2.window?.constructor?.name === "EnvironmentSettingsObject" && sameOrigin(request2.window, origin)) {
-          window = request2.window;
+        const origin2 = environmentSettingsObject.settingsObject.origin;
+        let window2 = "client";
+        if (request2.window?.constructor?.name === "EnvironmentSettingsObject" && sameOrigin(request2.window, origin2)) {
+          window2 = request2.window;
         }
         if (init.window != null) {
-          throw new TypeError(`'window' option '${window}' must be null`);
+          throw new TypeError(`'window' option '${window2}' must be null`);
         }
         if ("window" in init) {
-          window = "no-window";
+          window2 = "no-window";
         }
         request2 = makeRequest({
+          // URL request’s URL.
+          // undici implementation note: this is set as the first item in request's urlList in makeRequest
+          // method request’s method.
           method: request2.method,
+          // header list A copy of request’s header list.
+          // undici implementation note: headersList is cloned in makeRequest
           headersList: request2.headersList,
+          // unsafe-request flag Set.
           unsafeRequest: request2.unsafeRequest,
+          // client This’s relevant settings object.
           client: environmentSettingsObject.settingsObject,
-          window,
+          // window window.
+          window: window2,
+          // priority request’s priority.
           priority: request2.priority,
+          // origin request’s origin. The propagation of the origin is only significant for navigation requests
+          // being handled by a service worker. In this scenario a request can have an origin that is different
+          // from the current client.
           origin: request2.origin,
+          // referrer request’s referrer.
           referrer: request2.referrer,
+          // referrer policy request’s referrer policy.
           referrerPolicy: request2.referrerPolicy,
+          // mode request’s mode.
           mode: request2.mode,
+          // credentials mode request’s credentials mode.
           credentials: request2.credentials,
+          // cache mode request’s cache mode.
           cache: request2.cache,
+          // redirect mode request’s redirect mode.
           redirect: request2.redirect,
+          // integrity metadata request’s integrity metadata.
           integrity: request2.integrity,
+          // keepalive request’s keepalive.
           keepalive: request2.keepalive,
+          // reload-navigation flag request’s reload-navigation flag.
           reloadNavigation: request2.reloadNavigation,
+          // history-navigation flag request’s history-navigation flag.
           historyNavigation: request2.historyNavigation,
+          // URL list A clone of request’s URL list.
           urlList: [...request2.urlList]
         });
         const initHasKey = Object.keys(init).length !== 0;
@@ -16051,7 +27248,7 @@ var require_request2 = __commonJS({
             } catch (err) {
               throw new TypeError(`Referrer "${referrer}" is not a valid URL.`, { cause: err });
             }
-            if (parsedReferrer.protocol === "about:" && parsedReferrer.hostname === "client" || origin && !sameOrigin(parsedReferrer, environmentSettingsObject.settingsObject.baseUrl)) {
+            if (parsedReferrer.protocol === "about:" && parsedReferrer.hostname === "client" || origin2 && !sameOrigin(parsedReferrer, environmentSettingsObject.settingsObject.baseUrl)) {
               request2.referrer = "client";
             } else {
               request2.referrer = parsedReferrer;
@@ -16145,7 +27342,7 @@ var require_request2 = __commonJS({
               }
             } catch {
             }
-            util.addAbortListener(signal, abort);
+            util3.addAbortListener(signal, abort);
             requestFinalizer.register(ac, { signal, abort }, abort);
           }
         }
@@ -16173,7 +27370,7 @@ var require_request2 = __commonJS({
             fillHeaders(this[kHeaders], headers);
           }
         }
-        const inputBody = input instanceof Request ? input[kState].body : null;
+        const inputBody = input instanceof _Request ? input[kState].body : null;
         if ((init.body != null || inputBody != null) && (request2.method === "GET" || request2.method === "HEAD")) {
           throw new TypeError("Request with GET/HEAD method cannot have body.");
         }
@@ -16217,24 +27414,36 @@ var require_request2 = __commonJS({
         }
         this[kState].body = finalBody;
       }
+      // Returns request’s HTTP method, which is "GET" by default.
       get method() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].method;
       }
+      // Returns the URL of request as a string.
       get url() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return URLSerializer(this[kState].url);
       }
+      // Returns a Headers object consisting of the headers associated with request.
+      // Note that headers added in the network layer by the user agent will not
+      // be accounted for in this object, e.g., the "Host" header.
       get headers() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kHeaders];
       }
+      // Returns the kind of resource requested by request, e.g., "document"
+      // or "script".
       get destination() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].destination;
       }
+      // Returns the referrer of request. Its value can be a same-origin URL if
+      // explicitly set in init, the empty string to indicate no referrer, and
+      // "about:client" when defaulting to the global’s default. This is used
+      // during fetching to determine the value of the `Referer` header of the
+      // request being made.
       get referrer() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         if (this[kState].referrer === "no-referrer") {
           return "";
         }
@@ -16243,59 +27452,88 @@ var require_request2 = __commonJS({
         }
         return this[kState].referrer.toString();
       }
+      // Returns the referrer policy associated with request.
+      // This is used during fetching to compute the value of the request’s
+      // referrer.
       get referrerPolicy() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].referrerPolicy;
       }
+      // Returns the mode associated with request, which is a string indicating
+      // whether the request will use CORS, or will be restricted to same-origin
+      // URLs.
       get mode() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].mode;
       }
+      // Returns the credentials mode associated with request,
+      // which is a string indicating whether credentials will be sent with the
+      // request always, never, or only when sent to a same-origin URL.
       get credentials() {
         return this[kState].credentials;
       }
+      // Returns the cache mode associated with request,
+      // which is a string indicating how the request will
+      // interact with the browser’s cache when fetching.
       get cache() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].cache;
       }
+      // Returns the redirect mode associated with request,
+      // which is a string indicating how redirects for the
+      // request will be handled during fetching. A request
+      // will follow redirects by default.
       get redirect() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].redirect;
       }
+      // Returns request’s subresource integrity metadata, which is a
+      // cryptographic hash of the resource being fetched. Its value
+      // consists of multiple hashes separated by whitespace. [SRI]
       get integrity() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].integrity;
       }
+      // Returns a boolean indicating whether or not request can outlive the
+      // global in which it was created.
       get keepalive() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].keepalive;
       }
+      // Returns a boolean indicating whether or not request is for a reload
+      // navigation.
       get isReloadNavigation() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].reloadNavigation;
       }
+      // Returns a boolean indicating whether or not request is for a history
+      // navigation (a.k.a. back-forward navigation).
       get isHistoryNavigation() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].historyNavigation;
       }
+      // Returns the signal associated with request, which is an AbortSignal
+      // object indicating whether or not request has been aborted, and its
+      // abort event handler.
       get signal() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kSignal];
       }
       get body() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return this[kState].body ? this[kState].body.stream : null;
       }
       get bodyUsed() {
-        webidl.brandCheck(this, Request);
-        return !!this[kState].body && util.isDisturbed(this[kState].body.stream);
+        webidl.brandCheck(this, _Request);
+        return !!this[kState].body && util3.isDisturbed(this[kState].body.stream);
       }
       get duplex() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         return "half";
       }
+      // Returns a clone of request.
       clone() {
-        webidl.brandCheck(this, Request);
+        webidl.brandCheck(this, _Request);
         if (bodyUnusable(this)) {
           throw new TypeError("unusable");
         }
@@ -16311,7 +27549,7 @@ var require_request2 = __commonJS({
           }
           const acRef = new WeakRef(ac);
           list.add(acRef);
-          util.addAbortListener(
+          util3.addAbortListener(
             ac.signal,
             buildAbort(acRef)
           );
@@ -16343,7 +27581,7 @@ var require_request2 = __commonJS({
         return `Request ${nodeUtil.formatWithOptions(options, properties)}`;
       }
     };
-    mixinBody(Request);
+    mixinBody(Request2);
     function makeRequest(init) {
       return {
         method: init.method ?? "GET",
@@ -16394,7 +27632,7 @@ var require_request2 = __commonJS({
       return newRequest;
     }
     function fromInnerRequest(innerRequest, signal, guard) {
-      const request2 = new Request(kConstruct);
+      const request2 = new Request2(kConstruct);
       request2[kState] = innerRequest;
       request2[kSignal] = signal;
       request2[kHeaders] = new Headers(kConstruct);
@@ -16402,7 +27640,7 @@ var require_request2 = __commonJS({
       setHeadersGuard(request2[kHeaders], guard);
       return request2;
     }
-    Object.defineProperties(Request.prototype, {
+    Object.defineProperties(Request2.prototype, {
       method: kEnumerableProperty,
       url: kEnumerableProperty,
       headers: kEnumerableProperty,
@@ -16429,13 +27667,13 @@ var require_request2 = __commonJS({
       }
     });
     webidl.converters.Request = webidl.interfaceConverter(
-      Request
+      Request2
     );
     webidl.converters.RequestInfo = function(V, prefix, argument) {
       if (typeof V === "string") {
         return webidl.converters.USVString(V, prefix, argument);
       }
-      if (V instanceof Request) {
+      if (V instanceof Request2) {
         return webidl.converters.Request(V, prefix, argument);
       }
       return webidl.converters.USVString(V, prefix, argument);
@@ -16465,26 +27703,31 @@ var require_request2 = __commonJS({
       {
         key: "referrerPolicy",
         converter: webidl.converters.DOMString,
+        // https://w3c.github.io/webappsec-referrer-policy/#referrer-policy
         allowedValues: referrerPolicy
       },
       {
         key: "mode",
         converter: webidl.converters.DOMString,
+        // https://fetch.spec.whatwg.org/#concept-request-mode
         allowedValues: requestMode
       },
       {
         key: "credentials",
         converter: webidl.converters.DOMString,
+        // https://fetch.spec.whatwg.org/#requestcredentials
         allowedValues: requestCredentials
       },
       {
         key: "cache",
         converter: webidl.converters.DOMString,
+        // https://fetch.spec.whatwg.org/#requestcache
         allowedValues: requestCache
       },
       {
         key: "redirect",
         converter: webidl.converters.DOMString,
+        // https://fetch.spec.whatwg.org/#requestredirect
         allowedValues: requestRedirect
       },
       {
@@ -16517,10 +27760,11 @@ var require_request2 = __commonJS({
       },
       {
         key: "dispatcher",
+        // undici specific option
         converter: webidl.converters.any
       }
     ]);
-    module.exports = { Request, makeRequest, fromInnerRequest, cloneRequest };
+    module.exports = { Request: Request2, makeRequest, fromInnerRequest, cloneRequest };
   }
 });
 
@@ -16536,8 +27780,8 @@ var require_fetch = __commonJS({
       fromInnerResponse
     } = require_response();
     var { HeadersList } = require_headers();
-    var { Request, cloneRequest } = require_request2();
-    var zlib = __require("node:zlib");
+    var { Request: Request2, cloneRequest } = require_request2();
+    var zlib2 = __require("node:zlib");
     var {
       bytesMatch,
       makePolicyContainer,
@@ -16584,7 +27828,7 @@ var require_fetch = __commonJS({
       subresourceSet
     } = require_constants3();
     var EE = __require("node:events");
-    var { Readable, pipeline, finished } = __require("node:stream");
+    var { Readable: Readable2, pipeline, finished } = __require("node:stream");
     var { addAbortListener, isErrored, isReadable, bufferToLowerCasedHeaderName } = require_util();
     var { dataURLProcessor, serializeAMimeType, minimizeSupportedMimeType } = require_data_url();
     var { getGlobalDispatcher } = require_global2();
@@ -16609,6 +27853,7 @@ var require_fetch = __commonJS({
         this.connection?.destroy(reason);
         this.emit("terminated", reason);
       }
+      // https://fetch.spec.whatwg.org/#fetch-controller-abort
       abort(error) {
         if (this.state !== "ongoing") {
           return;
@@ -16630,7 +27875,7 @@ var require_fetch = __commonJS({
       let p = createDeferredPromise();
       let requestObject;
       try {
-        requestObject = new Request(input, init);
+        requestObject = new Request2(input, init);
       } catch (e) {
         p.reject(e);
         return p.promise;
@@ -16678,6 +27923,7 @@ var require_fetch = __commonJS({
         processResponseEndOfBody: handleFetchDone,
         processResponse,
         dispatcher: requestObject[kDispatcher]
+        // undici
       });
       return p.promise;
     }
@@ -16748,6 +27994,7 @@ var require_fetch = __commonJS({
       processResponseConsumeBody,
       useParallelQueue = false,
       dispatcher = getGlobalDispatcher()
+      // undici
     }) {
       assert(dispatcher);
       let taskDestination = null;
@@ -16823,7 +28070,13 @@ var require_fetch = __commonJS({
       if (response === null) {
         response = await (async () => {
           const currentURL = requestCurrentURL(request2);
-          if (sameOrigin(currentURL, request2.url) && request2.responseTainting === "basic" || currentURL.protocol === "data:" || (request2.mode === "navigate" || request2.mode === "websocket")) {
+          if (
+            // - request’s current URL’s origin is same origin with request’s origin,
+            //   and request’s response tainting is "basic"
+            sameOrigin(currentURL, request2.url) && request2.responseTainting === "basic" || // request’s current URL’s scheme is "data"
+            currentURL.protocol === "data:" || // - request’s mode is "navigate" or "websocket"
+            (request2.mode === "navigate" || request2.mode === "websocket")
+          ) {
             request2.responseTainting = "basic";
             return await schemeFetch(fetchParams);
           }
@@ -17251,7 +28504,12 @@ var require_fetch = __commonJS({
         }
         return makeNetworkError("proxy authentication required");
       }
-      if (response.status === 421 && !isNewConnectionFetch && (request2.body == null || request2.body.source != null)) {
+      if (
+        // response’s status is 421
+        response.status === 421 && // isNewConnectionFetch is false
+        !isNewConnectionFetch && // request’s body is null, or request’s body is non-null and request’s body’s source is non-null
+        (request2.body == null || request2.body.source != null)
+      ) {
         if (isCancelled(fetchParams)) {
           return makeAppropriateNetworkError(fetchParams);
         }
@@ -17355,7 +28613,7 @@ var require_fetch = __commonJS({
           fetchParams.controller.abort(reason);
         }
       };
-      const stream2 = new ReadableStream(
+      const stream5 = new ReadableStream(
         {
           async start(controller) {
             fetchParams.controller.controller = controller;
@@ -17369,7 +28627,7 @@ var require_fetch = __commonJS({
           type: "bytes"
         }
       );
-      response.body = { stream: stream2, source: null, length: null };
+      response.body = { stream: stream5, source: null, length: null };
       fetchParams.controller.onAborted = onAborted;
       fetchParams.controller.on("terminated", onAborted);
       fetchParams.controller.resume = async () => {
@@ -17404,7 +28662,7 @@ var require_fetch = __commonJS({
           if (buffer.byteLength) {
             fetchParams.controller.controller.enqueue(buffer);
           }
-          if (isErrored(stream2)) {
+          if (isErrored(stream5)) {
             fetchParams.controller.terminate();
             return;
           }
@@ -17416,13 +28674,13 @@ var require_fetch = __commonJS({
       function onAborted(reason) {
         if (isAborted(fetchParams)) {
           response.aborted = true;
-          if (isReadable(stream2)) {
+          if (isReadable(stream5)) {
             fetchParams.controller.controller.error(
               fetchParams.controller.serializedAbortReason
             );
           }
         } else {
-          if (isReadable(stream2)) {
+          if (isReadable(stream5)) {
             fetchParams.controller.controller.error(new TypeError("terminated", {
               cause: isErrorLike(reason) ? reason : void 0
             }));
@@ -17432,12 +28690,12 @@ var require_fetch = __commonJS({
       }
       return response;
       function dispatch({ body }) {
-        const url = requestCurrentURL(request2);
+        const url2 = requestCurrentURL(request2);
         const agent = fetchParams.controller.dispatcher;
         return new Promise((resolve, reject) => agent.dispatch(
           {
-            path: url.pathname + url.search,
-            origin: url.origin,
+            path: url2.pathname + url2.search,
+            origin: url2.origin,
             method: request2.method,
             body: agent.isMockActive ? request2.body && (request2.body.source || request2.body.stream) : body,
             headers: request2.headersList.entries,
@@ -17476,26 +28734,30 @@ var require_fetch = __commonJS({
                 codings = contentEncoding.toLowerCase().split(",").map((x) => x.trim());
               }
               location = headersList.get("location", true);
-              this.body = new Readable({ read: resume });
+              this.body = new Readable2({ read: resume });
               const decoders = [];
               const willFollow = location && request2.redirect === "follow" && redirectStatusSet.has(status);
               if (codings.length !== 0 && request2.method !== "HEAD" && request2.method !== "CONNECT" && !nullBodyStatus.includes(status) && !willFollow) {
                 for (let i = codings.length - 1; i >= 0; --i) {
                   const coding = codings[i];
                   if (coding === "x-gzip" || coding === "gzip") {
-                    decoders.push(zlib.createGunzip({
-                      flush: zlib.constants.Z_SYNC_FLUSH,
-                      finishFlush: zlib.constants.Z_SYNC_FLUSH
+                    decoders.push(zlib2.createGunzip({
+                      // Be less strict when decoding compressed responses, since sometimes
+                      // servers send slightly invalid responses that are still accepted
+                      // by common browsers.
+                      // Always using Z_SYNC_FLUSH is what cURL does.
+                      flush: zlib2.constants.Z_SYNC_FLUSH,
+                      finishFlush: zlib2.constants.Z_SYNC_FLUSH
                     }));
                   } else if (coding === "deflate") {
                     decoders.push(createInflate({
-                      flush: zlib.constants.Z_SYNC_FLUSH,
-                      finishFlush: zlib.constants.Z_SYNC_FLUSH
+                      flush: zlib2.constants.Z_SYNC_FLUSH,
+                      finishFlush: zlib2.constants.Z_SYNC_FLUSH
                     }));
                   } else if (coding === "br") {
-                    decoders.push(zlib.createBrotliDecompress({
-                      flush: zlib.constants.BROTLI_OPERATION_FLUSH,
-                      finishFlush: zlib.constants.BROTLI_OPERATION_FLUSH
+                    decoders.push(zlib2.createBrotliDecompress({
+                      flush: zlib2.constants.BROTLI_OPERATION_FLUSH,
+                      finishFlush: zlib2.constants.BROTLI_OPERATION_FLUSH
                     }));
                   } else {
                     decoders.length = 0;
@@ -17592,7 +28854,7 @@ var require_progressevent = __commonJS({
     "use strict";
     var { webidl } = require_webidl();
     var kState = Symbol("ProgressEvent state");
-    var ProgressEvent = class extends Event {
+    var ProgressEvent = class _ProgressEvent extends Event {
       constructor(type, eventInitDict = {}) {
         type = webidl.converters.DOMString(type, "ProgressEvent constructor", "type");
         eventInitDict = webidl.converters.ProgressEventInit(eventInitDict ?? {});
@@ -17604,15 +28866,15 @@ var require_progressevent = __commonJS({
         };
       }
       get lengthComputable() {
-        webidl.brandCheck(this, ProgressEvent);
+        webidl.brandCheck(this, _ProgressEvent);
         return this[kState].lengthComputable;
       }
       get loaded() {
-        webidl.brandCheck(this, ProgressEvent);
+        webidl.brandCheck(this, _ProgressEvent);
         return this[kState].loaded;
       }
       get total() {
-        webidl.brandCheck(this, ProgressEvent);
+        webidl.brandCheck(this, _ProgressEvent);
         return this[kState].total;
       }
     };
@@ -17956,7 +29218,7 @@ var require_util4 = __commonJS({
     var { serializeAMimeType, parseMIMEType } = require_data_url();
     var { types } = __require("node:util");
     var { StringDecoder } = __require("string_decoder");
-    var { btoa } = __require("node:buffer");
+    var { btoa: btoa2 } = __require("node:buffer");
     var staticPropertyDescriptors = {
       enumerable: true,
       writable: false,
@@ -17969,8 +29231,8 @@ var require_util4 = __commonJS({
       fr[kState] = "loading";
       fr[kResult] = null;
       fr[kError] = null;
-      const stream2 = blob.stream();
-      const reader = stream2.getReader();
+      const stream5 = blob.stream();
+      const reader = stream5.getReader();
       const bytes = [];
       let chunkPromise = reader.read();
       let isFirstChunk = true;
@@ -18048,9 +29310,9 @@ var require_util4 = __commonJS({
           dataURL += ";base64,";
           const decoder = new StringDecoder("latin1");
           for (const chunk of bytes) {
-            dataURL += btoa(decoder.write(chunk));
+            dataURL += btoa2(decoder.write(chunk));
           }
-          dataURL += btoa(decoder.end());
+          dataURL += btoa2(decoder.end());
           return dataURL;
         }
         case "Text": {
@@ -18143,7 +29405,7 @@ var require_filereader = __commonJS({
     } = require_symbols3();
     var { webidl } = require_webidl();
     var { kEnumerableProperty } = require_util();
-    var FileReader = class extends EventTarget {
+    var FileReader = class _FileReader extends EventTarget {
       constructor() {
         super();
         this[kState] = "empty";
@@ -18158,20 +29420,33 @@ var require_filereader = __commonJS({
           loadstart: null
         };
       }
+      /**
+       * @see https://w3c.github.io/FileAPI/#dfn-readAsArrayBuffer
+       * @param {import('buffer').Blob} blob
+       */
       readAsArrayBuffer(blob) {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         webidl.argumentLengthCheck(arguments, 1, "FileReader.readAsArrayBuffer");
         blob = webidl.converters.Blob(blob, { strict: false });
         readOperation(this, blob, "ArrayBuffer");
       }
+      /**
+       * @see https://w3c.github.io/FileAPI/#readAsBinaryString
+       * @param {import('buffer').Blob} blob
+       */
       readAsBinaryString(blob) {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         webidl.argumentLengthCheck(arguments, 1, "FileReader.readAsBinaryString");
         blob = webidl.converters.Blob(blob, { strict: false });
         readOperation(this, blob, "BinaryString");
       }
+      /**
+       * @see https://w3c.github.io/FileAPI/#readAsDataText
+       * @param {import('buffer').Blob} blob
+       * @param {string?} encoding
+       */
       readAsText(blob, encoding = void 0) {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         webidl.argumentLengthCheck(arguments, 1, "FileReader.readAsText");
         blob = webidl.converters.Blob(blob, { strict: false });
         if (encoding !== void 0) {
@@ -18179,12 +29454,19 @@ var require_filereader = __commonJS({
         }
         readOperation(this, blob, "Text", encoding);
       }
+      /**
+       * @see https://w3c.github.io/FileAPI/#dfn-readAsDataURL
+       * @param {import('buffer').Blob} blob
+       */
       readAsDataURL(blob) {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         webidl.argumentLengthCheck(arguments, 1, "FileReader.readAsDataURL");
         blob = webidl.converters.Blob(blob, { strict: false });
         readOperation(this, blob, "DataURL");
       }
+      /**
+       * @see https://w3c.github.io/FileAPI/#dfn-abort
+       */
       abort() {
         if (this[kState] === "empty" || this[kState] === "done") {
           this[kResult] = null;
@@ -18200,8 +29482,11 @@ var require_filereader = __commonJS({
           fireAProgressEvent("loadend", this);
         }
       }
+      /**
+       * @see https://w3c.github.io/FileAPI/#dom-filereader-readystate
+       */
       get readyState() {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         switch (this[kState]) {
           case "empty":
             return this.EMPTY;
@@ -18211,20 +29496,26 @@ var require_filereader = __commonJS({
             return this.DONE;
         }
       }
+      /**
+       * @see https://w3c.github.io/FileAPI/#dom-filereader-result
+       */
       get result() {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         return this[kResult];
       }
+      /**
+       * @see https://w3c.github.io/FileAPI/#dom-filereader-error
+       */
       get error() {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         return this[kError];
       }
       get onloadend() {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         return this[kEvents].loadend;
       }
       set onloadend(fn) {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         if (this[kEvents].loadend) {
           this.removeEventListener("loadend", this[kEvents].loadend);
         }
@@ -18236,11 +29527,11 @@ var require_filereader = __commonJS({
         }
       }
       get onerror() {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         return this[kEvents].error;
       }
       set onerror(fn) {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         if (this[kEvents].error) {
           this.removeEventListener("error", this[kEvents].error);
         }
@@ -18252,11 +29543,11 @@ var require_filereader = __commonJS({
         }
       }
       get onloadstart() {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         return this[kEvents].loadstart;
       }
       set onloadstart(fn) {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         if (this[kEvents].loadstart) {
           this.removeEventListener("loadstart", this[kEvents].loadstart);
         }
@@ -18268,11 +29559,11 @@ var require_filereader = __commonJS({
         }
       }
       get onprogress() {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         return this[kEvents].progress;
       }
       set onprogress(fn) {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         if (this[kEvents].progress) {
           this.removeEventListener("progress", this[kEvents].progress);
         }
@@ -18284,11 +29575,11 @@ var require_filereader = __commonJS({
         }
       }
       get onload() {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         return this[kEvents].load;
       }
       set onload(fn) {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         if (this[kEvents].load) {
           this.removeEventListener("load", this[kEvents].load);
         }
@@ -18300,11 +29591,11 @@ var require_filereader = __commonJS({
         }
       }
       get onabort() {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         return this[kEvents].abort;
       }
       set onabort(fn) {
-        webidl.brandCheck(this, FileReader);
+        webidl.brandCheck(this, _FileReader);
         if (this[kEvents].abort) {
           this.removeEventListener("abort", this[kEvents].abort);
         }
@@ -18371,7 +29662,7 @@ var require_util5 = __commonJS({
     "use strict";
     var assert = __require("node:assert");
     var { URLSerializer } = require_data_url();
-    var { isValidHeaderName } = require_util2();
+    var { isValidHeaderName: isValidHeaderName2 } = require_util2();
     function urlEquals(A, B, excludeFragment = false) {
       const serializedA = URLSerializer(A, excludeFragment);
       const serializedB = URLSerializer(B, excludeFragment);
@@ -18382,7 +29673,7 @@ var require_util5 = __commonJS({
       const values = [];
       for (let value of header.split(",")) {
         value = value.trim();
-        if (isValidHeaderName(value)) {
+        if (isValidHeaderName2(value)) {
           values.push(value);
         }
       }
@@ -18403,13 +29694,17 @@ var require_cache = __commonJS({
     var { urlEquals, getFieldValues } = require_util5();
     var { kEnumerableProperty, isDisturbed } = require_util();
     var { webidl } = require_webidl();
-    var { Response, cloneResponse, fromInnerResponse } = require_response();
-    var { Request, fromInnerRequest } = require_request2();
+    var { Response: Response2, cloneResponse, fromInnerResponse } = require_response();
+    var { Request: Request2, fromInnerRequest } = require_request2();
     var { kState } = require_symbols2();
     var { fetching } = require_fetch();
     var { urlIsHttpHttpsScheme, createDeferredPromise, readAllBytes } = require_util2();
     var assert = __require("node:assert");
-    var Cache = class {
+    var Cache = class _Cache {
+      /**
+       * @see https://w3c.github.io/ServiceWorker/#dfn-relevant-request-response-list
+       * @type {requestResponseList}
+       */
       #relevantRequestResponseList;
       constructor() {
         if (arguments[0] !== kConstruct) {
@@ -18419,7 +29714,7 @@ var require_cache = __commonJS({
         this.#relevantRequestResponseList = arguments[1];
       }
       async match(request2, options = {}) {
-        webidl.brandCheck(this, Cache);
+        webidl.brandCheck(this, _Cache);
         const prefix = "Cache.match";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         request2 = webidl.converters.RequestInfo(request2, prefix, "request");
@@ -18431,7 +29726,7 @@ var require_cache = __commonJS({
         return p[0];
       }
       async matchAll(request2 = void 0, options = {}) {
-        webidl.brandCheck(this, Cache);
+        webidl.brandCheck(this, _Cache);
         const prefix = "Cache.matchAll";
         if (request2 !== void 0)
           request2 = webidl.converters.RequestInfo(request2, prefix, "request");
@@ -18439,7 +29734,7 @@ var require_cache = __commonJS({
         return this.#internalMatchAll(request2, options);
       }
       async add(request2) {
-        webidl.brandCheck(this, Cache);
+        webidl.brandCheck(this, _Cache);
         const prefix = "Cache.add";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         request2 = webidl.converters.RequestInfo(request2, prefix, "request");
@@ -18448,7 +29743,7 @@ var require_cache = __commonJS({
         return await responseArrayPromise;
       }
       async addAll(requests) {
-        webidl.brandCheck(this, Cache);
+        webidl.brandCheck(this, _Cache);
         const prefix = "Cache.addAll";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         const responsePromises = [];
@@ -18475,7 +29770,7 @@ var require_cache = __commonJS({
         }
         const fetchControllers = [];
         for (const request2 of requests) {
-          const r = new Request(request2)[kState];
+          const r = new Request2(request2)[kState];
           if (!urlIsHttpHttpsScheme(r.url)) {
             throw webidl.errors.exception({
               header: prefix,
@@ -18527,8 +29822,11 @@ var require_cache = __commonJS({
         for (const response of responses) {
           const operation = {
             type: "put",
+            // 7.3.2
             request: requestList[index2],
+            // 7.3.3
             response
+            // 7.3.4
           };
           operations.push(operation);
           index2++;
@@ -18550,16 +29848,16 @@ var require_cache = __commonJS({
         return cacheJobPromise.promise;
       }
       async put(request2, response) {
-        webidl.brandCheck(this, Cache);
+        webidl.brandCheck(this, _Cache);
         const prefix = "Cache.put";
         webidl.argumentLengthCheck(arguments, 2, prefix);
         request2 = webidl.converters.RequestInfo(request2, prefix, "request");
         response = webidl.converters.Response(response, prefix, "response");
         let innerRequest = null;
-        if (request2 instanceof Request) {
+        if (request2 instanceof Request2) {
           innerRequest = request2[kState];
         } else {
-          innerRequest = new Request(request2)[kState];
+          innerRequest = new Request2(request2)[kState];
         }
         if (!urlIsHttpHttpsScheme(innerRequest.url) || innerRequest.method !== "GET") {
           throw webidl.errors.exception({
@@ -18594,8 +29892,8 @@ var require_cache = __commonJS({
         const clonedResponse = cloneResponse(innerResponse);
         const bodyReadPromise = createDeferredPromise();
         if (innerResponse.body != null) {
-          const stream2 = innerResponse.body.stream;
-          const reader = stream2.getReader();
+          const stream5 = innerResponse.body.stream;
+          const reader = stream5.getReader();
           readAllBytes(reader).then(bodyReadPromise.resolve, bodyReadPromise.reject);
         } else {
           bodyReadPromise.resolve(void 0);
@@ -18603,8 +29901,11 @@ var require_cache = __commonJS({
         const operations = [];
         const operation = {
           type: "put",
+          // 14.
           request: innerRequest,
+          // 15.
           response: clonedResponse
+          // 16.
         };
         operations.push(operation);
         const bytes = await bodyReadPromise.promise;
@@ -18628,20 +29929,20 @@ var require_cache = __commonJS({
         return cacheJobPromise.promise;
       }
       async delete(request2, options = {}) {
-        webidl.brandCheck(this, Cache);
+        webidl.brandCheck(this, _Cache);
         const prefix = "Cache.delete";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         request2 = webidl.converters.RequestInfo(request2, prefix, "request");
         options = webidl.converters.CacheQueryOptions(options, prefix, "options");
         let r = null;
-        if (request2 instanceof Request) {
+        if (request2 instanceof Request2) {
           r = request2[kState];
           if (r.method !== "GET" && !options.ignoreMethod) {
             return false;
           }
         } else {
           assert(typeof request2 === "string");
-          r = new Request(request2)[kState];
+          r = new Request2(request2)[kState];
         }
         const operations = [];
         const operation = {
@@ -18667,21 +29968,27 @@ var require_cache = __commonJS({
         });
         return cacheJobPromise.promise;
       }
+      /**
+       * @see https://w3c.github.io/ServiceWorker/#dom-cache-keys
+       * @param {any} request
+       * @param {import('../../types/cache').CacheQueryOptions} options
+       * @returns {Promise<readonly Request[]>}
+       */
       async keys(request2 = void 0, options = {}) {
-        webidl.brandCheck(this, Cache);
+        webidl.brandCheck(this, _Cache);
         const prefix = "Cache.keys";
         if (request2 !== void 0)
           request2 = webidl.converters.RequestInfo(request2, prefix, "request");
         options = webidl.converters.CacheQueryOptions(options, prefix, "options");
         let r = null;
         if (request2 !== void 0) {
-          if (request2 instanceof Request) {
+          if (request2 instanceof Request2) {
             r = request2[kState];
             if (r.method !== "GET" && !options.ignoreMethod) {
               return [];
             }
           } else if (typeof request2 === "string") {
-            r = new Request(request2)[kState];
+            r = new Request2(request2)[kState];
           }
         }
         const promise = createDeferredPromise();
@@ -18710,6 +30017,11 @@ var require_cache = __commonJS({
         });
         return promise.promise;
       }
+      /**
+       * @see https://w3c.github.io/ServiceWorker/#batch-cache-operations-algorithm
+       * @param {CacheBatchOperation[]} operations
+       * @returns {requestResponseList}
+       */
       #batchCacheOperations(operations) {
         const cache = this.#relevantRequestResponseList;
         const backupCache = [...cache];
@@ -18787,6 +30099,13 @@ var require_cache = __commonJS({
           throw e;
         }
       }
+      /**
+       * @see https://w3c.github.io/ServiceWorker/#query-cache
+       * @param {any} requestQuery
+       * @param {import('../../types/cache').CacheQueryOptions} options
+       * @param {requestResponseList} targetStorage
+       * @returns {requestResponseList}
+       */
       #queryCache(requestQuery, options, targetStorage) {
         const resultList = [];
         const storage = targetStorage ?? this.#relevantRequestResponseList;
@@ -18798,6 +30117,14 @@ var require_cache = __commonJS({
         }
         return resultList;
       }
+      /**
+       * @see https://w3c.github.io/ServiceWorker/#request-matches-cached-item-algorithm
+       * @param {any} requestQuery
+       * @param {any} request
+       * @param {any | null} response
+       * @param {import('../../types/cache').CacheQueryOptions | undefined} options
+       * @returns {boolean}
+       */
       #requestMatchesCachedItem(requestQuery, request2, response = null, options) {
         const queryURL = new URL(requestQuery.url);
         const cachedURL = new URL(request2.url);
@@ -18827,13 +30154,13 @@ var require_cache = __commonJS({
       #internalMatchAll(request2, options, maxResponses = Infinity) {
         let r = null;
         if (request2 !== void 0) {
-          if (request2 instanceof Request) {
+          if (request2 instanceof Request2) {
             r = request2[kState];
             if (r.method !== "GET" && !options.ignoreMethod) {
               return [];
             }
           } else if (typeof request2 === "string") {
-            r = new Request(request2)[kState];
+            r = new Request2(request2)[kState];
           }
         }
         const responses = [];
@@ -18896,7 +30223,7 @@ var require_cache = __commonJS({
         converter: webidl.converters.DOMString
       }
     ]);
-    webidl.converters.Response = webidl.interfaceConverter(Response);
+    webidl.converters.Response = webidl.interfaceConverter(Response2);
     webidl.converters["sequence<RequestInfo>"] = webidl.sequenceConverter(
       webidl.converters.RequestInfo
     );
@@ -18914,7 +30241,11 @@ var require_cachestorage = __commonJS({
     var { Cache } = require_cache();
     var { webidl } = require_webidl();
     var { kEnumerableProperty } = require_util();
-    var CacheStorage = class {
+    var CacheStorage = class _CacheStorage {
+      /**
+       * @see https://w3c.github.io/ServiceWorker/#dfn-relevant-name-to-cache-map
+       * @type {Map<string, import('./cache').requestResponseList}
+       */
       #caches = /* @__PURE__ */ new Map();
       constructor() {
         if (arguments[0] !== kConstruct) {
@@ -18923,7 +30254,7 @@ var require_cachestorage = __commonJS({
         webidl.util.markAsUncloneable(this);
       }
       async match(request2, options = {}) {
-        webidl.brandCheck(this, CacheStorage);
+        webidl.brandCheck(this, _CacheStorage);
         webidl.argumentLengthCheck(arguments, 1, "CacheStorage.match");
         request2 = webidl.converters.RequestInfo(request2);
         options = webidl.converters.MultiCacheQueryOptions(options);
@@ -18943,15 +30274,25 @@ var require_cachestorage = __commonJS({
           }
         }
       }
+      /**
+       * @see https://w3c.github.io/ServiceWorker/#cache-storage-has
+       * @param {string} cacheName
+       * @returns {Promise<boolean>}
+       */
       async has(cacheName) {
-        webidl.brandCheck(this, CacheStorage);
+        webidl.brandCheck(this, _CacheStorage);
         const prefix = "CacheStorage.has";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         cacheName = webidl.converters.DOMString(cacheName, prefix, "cacheName");
         return this.#caches.has(cacheName);
       }
+      /**
+       * @see https://w3c.github.io/ServiceWorker/#dom-cachestorage-open
+       * @param {string} cacheName
+       * @returns {Promise<Cache>}
+       */
       async open(cacheName) {
-        webidl.brandCheck(this, CacheStorage);
+        webidl.brandCheck(this, _CacheStorage);
         const prefix = "CacheStorage.open";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         cacheName = webidl.converters.DOMString(cacheName, prefix, "cacheName");
@@ -18963,15 +30304,24 @@ var require_cachestorage = __commonJS({
         this.#caches.set(cacheName, cache);
         return new Cache(kConstruct, cache);
       }
+      /**
+       * @see https://w3c.github.io/ServiceWorker/#cache-storage-delete
+       * @param {string} cacheName
+       * @returns {Promise<boolean>}
+       */
       async delete(cacheName) {
-        webidl.brandCheck(this, CacheStorage);
+        webidl.brandCheck(this, _CacheStorage);
         const prefix = "CacheStorage.delete";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         cacheName = webidl.converters.DOMString(cacheName, prefix, "cacheName");
         return this.#caches.delete(cacheName);
       }
+      /**
+       * @see https://w3c.github.io/ServiceWorker/#cache-storage-keys
+       * @returns {Promise<string[]>}
+       */
       async keys() {
-        webidl.brandCheck(this, CacheStorage);
+        webidl.brandCheck(this, _CacheStorage);
         const keys = this.#caches.keys();
         return [...keys];
       }
@@ -19022,7 +30372,25 @@ var require_util6 = __commonJS({
     function validateCookieName(name) {
       for (let i = 0; i < name.length; ++i) {
         const code = name.charCodeAt(i);
-        if (code < 33 || code > 126 || code === 34 || code === 40 || code === 41 || code === 60 || code === 62 || code === 64 || code === 44 || code === 59 || code === 58 || code === 92 || code === 47 || code === 91 || code === 93 || code === 63 || code === 61 || code === 123 || code === 125) {
+        if (code < 33 || // exclude CTLs (0-31), SP and HT
+        code > 126 || // exclude non-ascii and DEL
+        code === 34 || // "
+        code === 40 || // (
+        code === 41 || // )
+        code === 60 || // <
+        code === 62 || // >
+        code === 64 || // @
+        code === 44 || // ,
+        code === 59 || // ;
+        code === 58 || // :
+        code === 92 || // \
+        code === 47 || // /
+        code === 91 || // [
+        code === 93 || // ]
+        code === 63 || // ?
+        code === 61 || // =
+        code === 123 || // {
+        code === 125) {
           throw new Error("Invalid cookie name");
         }
       }
@@ -19039,7 +30407,12 @@ var require_util6 = __commonJS({
       }
       while (i < len) {
         const code = value.charCodeAt(i++);
-        if (code < 33 || code > 126 || code === 34 || code === 44 || code === 59 || code === 92) {
+        if (code < 33 || // exclude CTLs (0-31)
+        code > 126 || // non-ascii and DEL (127)
+        code === 34 || // "
+        code === 44 || // ,
+        code === 59 || // ;
+        code === 92) {
           throw new Error("Invalid cookie value");
         }
       }
@@ -19047,7 +30420,9 @@ var require_util6 = __commonJS({
     function validateCookiePath(path) {
       for (let i = 0; i < path.length; ++i) {
         const code = path.charCodeAt(i);
-        if (code < 32 || code === 127 || code === 59) {
+        if (code < 32 || // exclude CTLs (0-31)
+        code === 127 || // DEL
+        code === 59) {
           throw new Error("Invalid cookie path");
         }
       }
@@ -19322,7 +30697,7 @@ var require_cookies = __commonJS({
       setCookie(headers, {
         name,
         value: "",
-        expires: new Date(0),
+        expires: /* @__PURE__ */ new Date(0),
         ...attributes2
       });
     }
@@ -19428,7 +30803,7 @@ var require_events = __commonJS({
     var { kEnumerableProperty } = require_util();
     var { kConstruct } = require_symbols();
     var { MessagePort } = __require("node:worker_threads");
-    var MessageEvent = class extends Event {
+    var MessageEvent = class _MessageEvent extends Event {
       #eventInit;
       constructor(type, eventInitDict = {}) {
         if (type === kConstruct) {
@@ -19445,43 +30820,43 @@ var require_events = __commonJS({
         webidl.util.markAsUncloneable(this);
       }
       get data() {
-        webidl.brandCheck(this, MessageEvent);
+        webidl.brandCheck(this, _MessageEvent);
         return this.#eventInit.data;
       }
       get origin() {
-        webidl.brandCheck(this, MessageEvent);
+        webidl.brandCheck(this, _MessageEvent);
         return this.#eventInit.origin;
       }
       get lastEventId() {
-        webidl.brandCheck(this, MessageEvent);
+        webidl.brandCheck(this, _MessageEvent);
         return this.#eventInit.lastEventId;
       }
       get source() {
-        webidl.brandCheck(this, MessageEvent);
+        webidl.brandCheck(this, _MessageEvent);
         return this.#eventInit.source;
       }
       get ports() {
-        webidl.brandCheck(this, MessageEvent);
+        webidl.brandCheck(this, _MessageEvent);
         if (!Object.isFrozen(this.#eventInit.ports)) {
           Object.freeze(this.#eventInit.ports);
         }
         return this.#eventInit.ports;
       }
-      initMessageEvent(type, bubbles = false, cancelable = false, data2 = null, origin = "", lastEventId = "", source = null, ports = []) {
-        webidl.brandCheck(this, MessageEvent);
+      initMessageEvent(type, bubbles = false, cancelable = false, data2 = null, origin2 = "", lastEventId = "", source = null, ports = []) {
+        webidl.brandCheck(this, _MessageEvent);
         webidl.argumentLengthCheck(arguments, 1, "MessageEvent.initMessageEvent");
-        return new MessageEvent(type, {
+        return new _MessageEvent(type, {
           bubbles,
           cancelable,
           data: data2,
-          origin,
+          origin: origin2,
           lastEventId,
           source,
           ports
         });
       }
       static createFastMessageEvent(type, init) {
-        const messageEvent = new MessageEvent(kConstruct, type, init);
+        const messageEvent = new _MessageEvent(kConstruct, type, init);
         messageEvent.#eventInit = init;
         messageEvent.#eventInit.data ??= null;
         messageEvent.#eventInit.origin ??= "";
@@ -19493,7 +30868,7 @@ var require_events = __commonJS({
     };
     var { createFastMessageEvent } = MessageEvent;
     delete MessageEvent.createFastMessageEvent;
-    var CloseEvent = class extends Event {
+    var CloseEvent = class _CloseEvent extends Event {
       #eventInit;
       constructor(type, eventInitDict = {}) {
         const prefix = "CloseEvent constructor";
@@ -19505,19 +30880,19 @@ var require_events = __commonJS({
         webidl.util.markAsUncloneable(this);
       }
       get wasClean() {
-        webidl.brandCheck(this, CloseEvent);
+        webidl.brandCheck(this, _CloseEvent);
         return this.#eventInit.wasClean;
       }
       get code() {
-        webidl.brandCheck(this, CloseEvent);
+        webidl.brandCheck(this, _CloseEvent);
         return this.#eventInit.code;
       }
       get reason() {
-        webidl.brandCheck(this, CloseEvent);
+        webidl.brandCheck(this, _CloseEvent);
         return this.#eventInit.reason;
       }
     };
-    var ErrorEvent = class extends Event {
+    var ErrorEvent = class _ErrorEvent extends Event {
       #eventInit;
       constructor(type, eventInitDict) {
         const prefix = "ErrorEvent constructor";
@@ -19529,23 +30904,23 @@ var require_events = __commonJS({
         this.#eventInit = eventInitDict;
       }
       get message() {
-        webidl.brandCheck(this, ErrorEvent);
+        webidl.brandCheck(this, _ErrorEvent);
         return this.#eventInit.message;
       }
       get filename() {
-        webidl.brandCheck(this, ErrorEvent);
+        webidl.brandCheck(this, _ErrorEvent);
         return this.#eventInit.filename;
       }
       get lineno() {
-        webidl.brandCheck(this, ErrorEvent);
+        webidl.brandCheck(this, _ErrorEvent);
         return this.#eventInit.lineno;
       }
       get colno() {
-        webidl.brandCheck(this, ErrorEvent);
+        webidl.brandCheck(this, _ErrorEvent);
         return this.#eventInit.colno;
       }
       get error() {
-        webidl.brandCheck(this, ErrorEvent);
+        webidl.brandCheck(this, _ErrorEvent);
         return this.#eventInit.error;
       }
     };
@@ -19621,6 +30996,8 @@ var require_events = __commonJS({
       },
       {
         key: "source",
+        // Node doesn't implement WindowProxy or ServiceWorker, so the only
+        // valid value for source is a MessagePort.
         converter: webidl.nullableConverter(webidl.converters.MessagePort),
         defaultValue: () => null
       },
@@ -19819,7 +31196,24 @@ var require_util7 = __commonJS({
       }
       for (let i = 0; i < protocol.length; ++i) {
         const code = protocol.charCodeAt(i);
-        if (code < 33 || code > 126 || code === 34 || code === 40 || code === 41 || code === 44 || code === 47 || code === 58 || code === 59 || code === 60 || code === 61 || code === 62 || code === 63 || code === 64 || code === 91 || code === 92 || code === 93 || code === 123 || code === 125) {
+        if (code < 33 || // CTL, contains SP (0x20) and HT (0x09)
+        code > 126 || code === 34 || // "
+        code === 40 || // (
+        code === 41 || // )
+        code === 44 || // ,
+        code === 47 || // /
+        code === 58 || // :
+        code === 59 || // ;
+        code === 60 || // <
+        code === 61 || // =
+        code === 62 || // >
+        code === 63 || // ?
+        code === 64 || // @
+        code === 91 || // [
+        code === 92 || // \
+        code === 93 || // ]
+        code === 123 || // {
+        code === 125) {
           return false;
         }
       }
@@ -19827,7 +31221,9 @@ var require_util7 = __commonJS({
     }
     function isValidStatusCode(code) {
       if (code >= 1e3 && code < 1015) {
-        return code !== 1004 && code !== 1005 && code !== 1006;
+        return code !== 1004 && // reserved
+        code !== 1005 && // "MUST NOT be set as a status code"
+        code !== 1006;
       }
       return code >= 3e3 && code <= 4999;
     }
@@ -19921,6 +31317,7 @@ var require_frame = __commonJS({
       crypto = __require("node:crypto");
     } catch {
       crypto = {
+        // not full compatibility, but minimum.
         randomFillSync: function randomFillSync(buffer2, _offset, _size) {
           for (let i = 0; i < buffer2.length; ++i) {
             buffer2[i] = Math.random() * 255 | 0;
@@ -19937,6 +31334,9 @@ var require_frame = __commonJS({
       return [buffer[bufIdx++], buffer[bufIdx++], buffer[bufIdx++], buffer[bufIdx++]];
     }
     var WebsocketFrameSend = class {
+      /**
+       * @param {Buffer|undefined} data
+       */
       constructor(data2) {
         this.frameData = data2;
       }
@@ -20006,9 +31406,9 @@ var require_connection = __commonJS({
       crypto = __require("node:crypto");
     } catch {
     }
-    function establishWebSocketConnection(url, protocols, client, ws, onEstablish, options) {
-      const requestURL = url;
-      requestURL.protocol = url.protocol === "ws:" ? "http:" : "https:";
+    function establishWebSocketConnection(url2, protocols, client, ws, onEstablish, options) {
+      const requestURL = url2;
+      requestURL.protocol = url2.protocol === "ws:" ? "http:" : "https:";
       const request2 = makeRequest({
         urlList: [requestURL],
         client,
@@ -20176,6 +31576,7 @@ var require_permessage_deflate = __commonJS({
     var kBuffer = Symbol("kBuffer");
     var kLength = Symbol("kLength");
     var PerMessageDeflate = class {
+      /** @type {import('node:zlib').InflateRaw} */
       #inflate;
       #options = {};
       constructor(extensions) {
@@ -20249,6 +31650,7 @@ var require_receiver = __commonJS({
       #state = parserStates.INFO;
       #info = {};
       #fragments = [];
+      /** @type {Map<string, PerMessageDeflate>} */
       #extensions;
       constructor(ws, extensions) {
         super();
@@ -20258,12 +31660,21 @@ var require_receiver = __commonJS({
           this.#extensions.set("permessage-deflate", new PerMessageDeflate(extensions));
         }
       }
+      /**
+       * @param {Buffer} chunk
+       * @param {() => void} callback
+       */
       _write(chunk, _, callback) {
         this.#buffers.push(chunk);
         this.#byteOffset += chunk.length;
         this.#loop = true;
         this.run(callback);
       }
+      /**
+       * Runs whenever a new chunk is received.
+       * Callback is called whenever there are no more chunks buffering,
+       * or not enough bytes are buffered to parse.
+       */
       run(callback) {
         while (this.#loop) {
           if (this.#state === parserStates.INFO) {
@@ -20394,6 +31805,11 @@ var require_receiver = __commonJS({
           }
         }
       }
+      /**
+       * Take n bytes from the buffered Buffers
+       * @param {number} n
+       * @returns {Buffer}
+       */
       consume(n) {
         if (n > this.#byteOffset) {
           throw new Error("Called consume() before buffers satiated.");
@@ -20444,6 +31860,10 @@ var require_receiver = __commonJS({
         }
         return { code, reason, error: false };
       }
+      /**
+       * Parses control frames.
+       * @param {Buffer} body
+       */
       parseControlFrame(body) {
         const { opcode, payloadLength } = this.#info;
         if (opcode === opcodes.CLOSE) {
@@ -20515,8 +31935,15 @@ var require_sender = __commonJS({
     var FixedQueue = require_fixed_queue();
     var FastBuffer = Buffer[Symbol.species];
     var SendQueue = class {
+      /**
+       * @type {FixedQueue}
+       */
       #queue = new FixedQueue();
+      /**
+       * @type {boolean}
+       */
       #running = false;
+      /** @type {import('node:net').Socket} */
       #socket;
       constructor(socket) {
         this.#socket = socket;
@@ -20612,7 +32039,7 @@ var require_websocket = __commonJS({
     var { types } = __require("node:util");
     var { ErrorEvent, CloseEvent } = require_events();
     var { SendQueue } = require_sender();
-    var WebSocket = class extends EventTarget {
+    var WebSocket = class _WebSocket extends EventTarget {
       #events = {
         open: null,
         error: null,
@@ -20622,19 +32049,24 @@ var require_websocket = __commonJS({
       #bufferedAmount = 0;
       #protocol = "";
       #extensions = "";
+      /** @type {SendQueue} */
       #sendQueue;
-      constructor(url, protocols = []) {
+      /**
+       * @param {string} url
+       * @param {string|string[]} protocols
+       */
+      constructor(url2, protocols = []) {
         super();
         webidl.util.markAsUncloneable(this);
         const prefix = "WebSocket constructor";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         const options = webidl.converters["DOMString or sequence<DOMString> or WebSocketInit"](protocols, prefix, "options");
-        url = webidl.converters.USVString(url, prefix, "url");
+        url2 = webidl.converters.USVString(url2, prefix, "url");
         protocols = options.protocols;
         const baseURL = environmentSettingsObject.settingsObject.baseUrl;
         let urlRecord;
         try {
-          urlRecord = new URL(url, baseURL);
+          urlRecord = new URL(url2, baseURL);
         } catch (e) {
           throw new DOMException(e, "SyntaxError");
         }
@@ -20671,12 +32103,17 @@ var require_websocket = __commonJS({
           (response, extensions) => this.#onConnectionEstablished(response, extensions),
           options
         );
-        this[kReadyState] = WebSocket.CONNECTING;
+        this[kReadyState] = _WebSocket.CONNECTING;
         this[kSentClose] = sentCloseFrameState.NOT_SENT;
         this[kBinaryType] = "blob";
       }
+      /**
+       * @see https://websockets.spec.whatwg.org/#dom-websocket-close
+       * @param {number|undefined} code
+       * @param {string|undefined} reason
+       */
       close(code = void 0, reason = void 0) {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         const prefix = "WebSocket.close";
         if (code !== void 0) {
           code = webidl.converters["unsigned short"](code, prefix, "code", { clamp: true });
@@ -20701,8 +32138,12 @@ var require_websocket = __commonJS({
         }
         closeWebSocketConnection(this, code, reason, reasonByteLength);
       }
+      /**
+       * @see https://websockets.spec.whatwg.org/#dom-websocket-send
+       * @param {NodeJS.TypedArray|ArrayBuffer|Blob|string} data
+       */
       send(data2) {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         const prefix = "WebSocket.send";
         webidl.argumentLengthCheck(arguments, 1, prefix);
         data2 = webidl.converters.WebSocketSendData(data2, prefix, "data");
@@ -20736,31 +32177,31 @@ var require_websocket = __commonJS({
         }
       }
       get readyState() {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         return this[kReadyState];
       }
       get bufferedAmount() {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         return this.#bufferedAmount;
       }
       get url() {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         return URLSerializer(this[kWebSocketURL]);
       }
       get extensions() {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         return this.#extensions;
       }
       get protocol() {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         return this.#protocol;
       }
       get onopen() {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         return this.#events.open;
       }
       set onopen(fn) {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         if (this.#events.open) {
           this.removeEventListener("open", this.#events.open);
         }
@@ -20772,11 +32213,11 @@ var require_websocket = __commonJS({
         }
       }
       get onerror() {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         return this.#events.error;
       }
       set onerror(fn) {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         if (this.#events.error) {
           this.removeEventListener("error", this.#events.error);
         }
@@ -20788,11 +32229,11 @@ var require_websocket = __commonJS({
         }
       }
       get onclose() {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         return this.#events.close;
       }
       set onclose(fn) {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         if (this.#events.close) {
           this.removeEventListener("close", this.#events.close);
         }
@@ -20804,11 +32245,11 @@ var require_websocket = __commonJS({
         }
       }
       get onmessage() {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         return this.#events.message;
       }
       set onmessage(fn) {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         if (this.#events.message) {
           this.removeEventListener("message", this.#events.message);
         }
@@ -20820,17 +32261,20 @@ var require_websocket = __commonJS({
         }
       }
       get binaryType() {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         return this[kBinaryType];
       }
       set binaryType(type) {
-        webidl.brandCheck(this, WebSocket);
+        webidl.brandCheck(this, _WebSocket);
         if (type !== "blob" && type !== "arraybuffer") {
           this[kBinaryType] = "blob";
         } else {
           this[kBinaryType] = type;
         }
       }
+      /**
+       * @see https://websockets.spec.whatwg.org/#feedback-from-the-protocol
+       */
       #onConnectionEstablished(response, parsedExtensions) {
         this[kResponse] = response;
         const parser = new ByteParser(this, parsedExtensions);
@@ -20989,10 +32433,26 @@ var require_eventsource_stream = __commonJS({
     var COLON = 58;
     var SPACE = 32;
     var EventSourceStream = class extends Transform2 {
+      /**
+       * @type {eventSourceSettings}
+       */
       state = null;
+      /**
+       * Leading byte-order-mark check.
+       * @type {boolean}
+       */
       checkBOM = true;
+      /**
+       * @type {boolean}
+       */
       crlfCheck = false;
+      /**
+       * @type {boolean}
+       */
       eventEndCheck = false;
+      /**
+       * @type {Buffer}
+       */
       buffer = null;
       pos = 0;
       event = {
@@ -21001,6 +32461,11 @@ var require_eventsource_stream = __commonJS({
         id: void 0,
         retry: void 0
       };
+      /**
+       * @param {object} options
+       * @param {eventSourceSettings} options.eventSourceSettings
+       * @param {Function} [options.push]
+       */
       constructor(options = {}) {
         options.readableObjectMode = true;
         super(options);
@@ -21009,6 +32474,12 @@ var require_eventsource_stream = __commonJS({
           this.push = options.push;
         }
       }
+      /**
+       * @param {Buffer} chunk
+       * @param {string} _encoding
+       * @param {Function} callback
+       * @returns {void}
+       */
       _transform(chunk, _encoding, callback) {
         if (chunk.length === 0) {
           callback();
@@ -21093,6 +32564,10 @@ var require_eventsource_stream = __commonJS({
         }
         callback();
       }
+      /**
+       * @param {Buffer} line
+       * @param {EventStreamEvent} event
+       */
       parseLine(line, event) {
         if (line.length === 0) {
           return;
@@ -21140,6 +32615,9 @@ ${value}`;
             break;
         }
       }
+      /**
+       * @param {EventSourceStreamEvent} event
+       */
       processEvent(event) {
         if (event.retry && isASCIINumber(event.retry)) {
           this.state.reconnectionTime = parseInt(event.retry, 10);
@@ -21195,7 +32673,7 @@ var require_eventsource = __commonJS({
     var CLOSED = 2;
     var ANONYMOUS = "anonymous";
     var USE_CREDENTIALS = "use-credentials";
-    var EventSource = class extends EventTarget {
+    var EventSource = class _EventSource extends EventTarget {
       #events = {
         open: null,
         error: null,
@@ -21207,8 +32685,17 @@ var require_eventsource = __commonJS({
       #request = null;
       #controller = null;
       #dispatcher;
+      /**
+       * @type {import('./eventsource-stream').eventSourceSettings}
+       */
       #state;
-      constructor(url, eventSourceInitDict = {}) {
+      /**
+       * Creates a new EventSource object.
+       * @param {string} url
+       * @param {EventSourceInit} [eventSourceInitDict]
+       * @see https://html.spec.whatwg.org/multipage/server-sent-events.html#the-eventsource-interface
+       */
+      constructor(url2, eventSourceInitDict = {}) {
         super();
         webidl.util.markAsUncloneable(this);
         const prefix = "EventSource constructor";
@@ -21219,7 +32706,7 @@ var require_eventsource = __commonJS({
             code: "UNDICI-ES"
           });
         }
-        url = webidl.converters.USVString(url, prefix, "url");
+        url2 = webidl.converters.USVString(url2, prefix, "url");
         eventSourceInitDict = webidl.converters.EventSourceInitDict(eventSourceInitDict, prefix, "eventSourceInitDict");
         this.#dispatcher = eventSourceInitDict.dispatcher;
         this.#state = {
@@ -21229,7 +32716,7 @@ var require_eventsource = __commonJS({
         const settings = environmentSettingsObject;
         let urlRecord;
         try {
-          urlRecord = new URL(url, settings.settingsObject.baseUrl);
+          urlRecord = new URL(url2, settings.settingsObject.baseUrl);
           this.#state.origin = urlRecord.origin;
         } catch (e) {
           throw new DOMException(e, "SyntaxError");
@@ -21243,6 +32730,7 @@ var require_eventsource = __commonJS({
         const initRequest = {
           redirect: "follow",
           keepalive: true,
+          // @see https://html.spec.whatwg.org/multipage/urls-and-fetching.html#cors-settings-attributes
           mode: "cors",
           credentials: corsAttributeState === "anonymous" ? "same-origin" : "omit",
           referrer: "no-referrer"
@@ -21255,12 +32743,27 @@ var require_eventsource = __commonJS({
         this.#request = makeRequest(initRequest);
         this.#connect();
       }
+      /**
+       * Returns the state of this EventSource object's connection. It can have the
+       * values described below.
+       * @returns {0|1|2}
+       * @readonly
+       */
       get readyState() {
         return this.#readyState;
       }
+      /**
+       * Returns the URL providing the event stream.
+       * @readonly
+       * @returns {string}
+       */
       get url() {
         return this.#url;
       }
+      /**
+       * Returns a boolean indicating whether the EventSource object was
+       * instantiated with CORS credentials set (true), or not (false, the default).
+       */
       get withCredentials() {
         return this.#withCredentials;
       }
@@ -21324,6 +32827,10 @@ var require_eventsource = __commonJS({
         };
         this.#controller = fetching(fetchParams);
       }
+      /**
+       * @see https://html.spec.whatwg.org/multipage/server-sent-events.html#sse-processing-model
+       * @returns {Promise<void>}
+       */
       async #reconnect() {
         if (this.#readyState === CLOSED)
           return;
@@ -21337,8 +32844,12 @@ var require_eventsource = __commonJS({
         }
         this.#connect();
       }
+      /**
+       * Closes the connection, if any, and sets the readyState attribute to
+       * CLOSED.
+       */
       close() {
-        webidl.brandCheck(this, EventSource);
+        webidl.brandCheck(this, _EventSource);
         if (this.#readyState === CLOSED)
           return;
         this.#readyState = CLOSED;
@@ -21430,6 +32941,7 @@ var require_eventsource = __commonJS({
       },
       {
         key: "dispatcher",
+        // undici only
         converter: webidl.converters.any
       }
     ]);
@@ -21453,7 +32965,7 @@ var require_undici = __commonJS({
     var EnvHttpProxyAgent = require_env_http_proxy_agent();
     var RetryAgent = require_retry_agent();
     var errors = require_errors();
-    var util = require_util();
+    var util3 = require_util();
     var { InvalidArgumentError } = errors;
     var api = require_api();
     var buildConnector = require_connect();
@@ -21487,16 +32999,16 @@ var require_undici = __commonJS({
     module.exports.buildConnector = buildConnector;
     module.exports.errors = errors;
     module.exports.util = {
-      parseHeaders: util.parseHeaders,
-      headerNameToString: util.headerNameToString
+      parseHeaders: util3.parseHeaders,
+      headerNameToString: util3.headerNameToString
     };
     function makeDispatcher(fn) {
-      return (url, opts, handler3) => {
+      return (url2, opts, handler3) => {
         if (typeof opts === "function") {
           handler3 = opts;
           opts = null;
         }
-        if (!url || typeof url !== "string" && typeof url !== "object" && !(url instanceof URL)) {
+        if (!url2 || typeof url2 !== "string" && typeof url2 !== "object" && !(url2 instanceof URL)) {
           throw new InvalidArgumentError("invalid url");
         }
         if (opts != null && typeof opts !== "object") {
@@ -21510,12 +33022,12 @@ var require_undici = __commonJS({
           if (!opts.path.startsWith("/")) {
             path = `/${path}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path);
+          url2 = new URL(util3.parseOrigin(url2).origin + path);
         } else {
           if (!opts) {
-            opts = typeof url === "object" ? url : {};
+            opts = typeof url2 === "object" ? url2 : {};
           }
-          url = util.parseURL(url);
+          url2 = util3.parseURL(url2);
         }
         const { agent, dispatcher = getGlobalDispatcher() } = opts;
         if (agent) {
@@ -21523,8 +33035,8 @@ var require_undici = __commonJS({
         }
         return fn.call(dispatcher, {
           ...opts,
-          origin: url.origin,
-          path: url.search ? `${url.pathname}${url.search}` : url.pathname,
+          origin: url2.origin,
+          path: url2.search ? `${url2.pathname}${url2.search}` : url2.pathname,
           method: opts.method || (opts.body ? "PUT" : "GET")
         }, handler3);
       };
@@ -22014,8 +33526,3306 @@ var require_fast_content_type_parse = __commonJS({
   }
 });
 
-// netlify/functions/scan-webpage-source.js
-import axios from "axios";
+// node_modules/axios/lib/helpers/bind.js
+function bind(fn, thisArg) {
+  return function wrap2() {
+    return fn.apply(thisArg, arguments);
+  };
+}
+
+// node_modules/axios/lib/utils.js
+var { toString } = Object.prototype;
+var { getPrototypeOf } = Object;
+var kindOf = /* @__PURE__ */ ((cache) => (thing) => {
+  const str = toString.call(thing);
+  return cache[str] || (cache[str] = str.slice(8, -1).toLowerCase());
+})(/* @__PURE__ */ Object.create(null));
+var kindOfTest = (type) => {
+  type = type.toLowerCase();
+  return (thing) => kindOf(thing) === type;
+};
+var typeOfTest = (type) => (thing) => typeof thing === type;
+var { isArray } = Array;
+var isUndefined = typeOfTest("undefined");
+function isBuffer(val2) {
+  return val2 !== null && !isUndefined(val2) && val2.constructor !== null && !isUndefined(val2.constructor) && isFunction(val2.constructor.isBuffer) && val2.constructor.isBuffer(val2);
+}
+var isArrayBuffer = kindOfTest("ArrayBuffer");
+function isArrayBufferView(val2) {
+  let result;
+  if (typeof ArrayBuffer !== "undefined" && ArrayBuffer.isView) {
+    result = ArrayBuffer.isView(val2);
+  } else {
+    result = val2 && val2.buffer && isArrayBuffer(val2.buffer);
+  }
+  return result;
+}
+var isString = typeOfTest("string");
+var isFunction = typeOfTest("function");
+var isNumber = typeOfTest("number");
+var isObject = (thing) => thing !== null && typeof thing === "object";
+var isBoolean = (thing) => thing === true || thing === false;
+var isPlainObject = (val2) => {
+  if (kindOf(val2) !== "object") {
+    return false;
+  }
+  const prototype3 = getPrototypeOf(val2);
+  return (prototype3 === null || prototype3 === Object.prototype || Object.getPrototypeOf(prototype3) === null) && !(Symbol.toStringTag in val2) && !(Symbol.iterator in val2);
+};
+var isDate = kindOfTest("Date");
+var isFile = kindOfTest("File");
+var isBlob = kindOfTest("Blob");
+var isFileList = kindOfTest("FileList");
+var isStream = (val2) => isObject(val2) && isFunction(val2.pipe);
+var isFormData = (thing) => {
+  let kind;
+  return thing && (typeof FormData === "function" && thing instanceof FormData || isFunction(thing.append) && ((kind = kindOf(thing)) === "formdata" || // detect form-data instance
+  kind === "object" && isFunction(thing.toString) && thing.toString() === "[object FormData]"));
+};
+var isURLSearchParams = kindOfTest("URLSearchParams");
+var [isReadableStream, isRequest, isResponse, isHeaders] = ["ReadableStream", "Request", "Response", "Headers"].map(kindOfTest);
+var trim = (str) => str.trim ? str.trim() : str.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
+function forEach(obj, fn, { allOwnKeys = false } = {}) {
+  if (obj === null || typeof obj === "undefined") {
+    return;
+  }
+  let i;
+  let l;
+  if (typeof obj !== "object") {
+    obj = [obj];
+  }
+  if (isArray(obj)) {
+    for (i = 0, l = obj.length; i < l; i++) {
+      fn.call(null, obj[i], i, obj);
+    }
+  } else {
+    const keys = allOwnKeys ? Object.getOwnPropertyNames(obj) : Object.keys(obj);
+    const len = keys.length;
+    let key;
+    for (i = 0; i < len; i++) {
+      key = keys[i];
+      fn.call(null, obj[key], key, obj);
+    }
+  }
+}
+function findKey(obj, key) {
+  key = key.toLowerCase();
+  const keys = Object.keys(obj);
+  let i = keys.length;
+  let _key;
+  while (i-- > 0) {
+    _key = keys[i];
+    if (key === _key.toLowerCase()) {
+      return _key;
+    }
+  }
+  return null;
+}
+var _global = (() => {
+  if (typeof globalThis !== "undefined")
+    return globalThis;
+  return typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : global;
+})();
+var isContextDefined = (context) => !isUndefined(context) && context !== _global;
+function merge() {
+  const { caseless } = isContextDefined(this) && this || {};
+  const result = {};
+  const assignValue = (val2, key) => {
+    const targetKey = caseless && findKey(result, key) || key;
+    if (isPlainObject(result[targetKey]) && isPlainObject(val2)) {
+      result[targetKey] = merge(result[targetKey], val2);
+    } else if (isPlainObject(val2)) {
+      result[targetKey] = merge({}, val2);
+    } else if (isArray(val2)) {
+      result[targetKey] = val2.slice();
+    } else {
+      result[targetKey] = val2;
+    }
+  };
+  for (let i = 0, l = arguments.length; i < l; i++) {
+    arguments[i] && forEach(arguments[i], assignValue);
+  }
+  return result;
+}
+var extend = (a, b, thisArg, { allOwnKeys } = {}) => {
+  forEach(b, (val2, key) => {
+    if (thisArg && isFunction(val2)) {
+      a[key] = bind(val2, thisArg);
+    } else {
+      a[key] = val2;
+    }
+  }, { allOwnKeys });
+  return a;
+};
+var stripBOM = (content) => {
+  if (content.charCodeAt(0) === 65279) {
+    content = content.slice(1);
+  }
+  return content;
+};
+var inherits = (constructor, superConstructor, props, descriptors2) => {
+  constructor.prototype = Object.create(superConstructor.prototype, descriptors2);
+  constructor.prototype.constructor = constructor;
+  Object.defineProperty(constructor, "super", {
+    value: superConstructor.prototype
+  });
+  props && Object.assign(constructor.prototype, props);
+};
+var toFlatObject = (sourceObj, destObj, filter5, propFilter) => {
+  let props;
+  let i;
+  let prop2;
+  const merged = {};
+  destObj = destObj || {};
+  if (sourceObj == null)
+    return destObj;
+  do {
+    props = Object.getOwnPropertyNames(sourceObj);
+    i = props.length;
+    while (i-- > 0) {
+      prop2 = props[i];
+      if ((!propFilter || propFilter(prop2, sourceObj, destObj)) && !merged[prop2]) {
+        destObj[prop2] = sourceObj[prop2];
+        merged[prop2] = true;
+      }
+    }
+    sourceObj = filter5 !== false && getPrototypeOf(sourceObj);
+  } while (sourceObj && (!filter5 || filter5(sourceObj, destObj)) && sourceObj !== Object.prototype);
+  return destObj;
+};
+var endsWith = (str, searchString, position) => {
+  str = String(str);
+  if (position === void 0 || position > str.length) {
+    position = str.length;
+  }
+  position -= searchString.length;
+  const lastIndex = str.indexOf(searchString, position);
+  return lastIndex !== -1 && lastIndex === position;
+};
+var toArray = (thing) => {
+  if (!thing)
+    return null;
+  if (isArray(thing))
+    return thing;
+  let i = thing.length;
+  if (!isNumber(i))
+    return null;
+  const arr = new Array(i);
+  while (i-- > 0) {
+    arr[i] = thing[i];
+  }
+  return arr;
+};
+var isTypedArray = /* @__PURE__ */ ((TypedArray) => {
+  return (thing) => {
+    return TypedArray && thing instanceof TypedArray;
+  };
+})(typeof Uint8Array !== "undefined" && getPrototypeOf(Uint8Array));
+var forEachEntry = (obj, fn) => {
+  const generator = obj && obj[Symbol.iterator];
+  const iterator = generator.call(obj);
+  let result;
+  while ((result = iterator.next()) && !result.done) {
+    const pair = result.value;
+    fn.call(obj, pair[0], pair[1]);
+  }
+};
+var matchAll = (regExp, str) => {
+  let matches;
+  const arr = [];
+  while ((matches = regExp.exec(str)) !== null) {
+    arr.push(matches);
+  }
+  return arr;
+};
+var isHTMLForm = kindOfTest("HTMLFormElement");
+var toCamelCase = (str) => {
+  return str.toLowerCase().replace(
+    /[-_\s]([a-z\d])(\w*)/g,
+    function replacer(m, p1, p2) {
+      return p1.toUpperCase() + p2;
+    }
+  );
+};
+var hasOwnProperty = (({ hasOwnProperty: hasOwnProperty2 }) => (obj, prop2) => hasOwnProperty2.call(obj, prop2))(Object.prototype);
+var isRegExp = kindOfTest("RegExp");
+var reduceDescriptors = (obj, reducer) => {
+  const descriptors2 = Object.getOwnPropertyDescriptors(obj);
+  const reducedDescriptors = {};
+  forEach(descriptors2, (descriptor, name) => {
+    let ret;
+    if ((ret = reducer(descriptor, name, obj)) !== false) {
+      reducedDescriptors[name] = ret || descriptor;
+    }
+  });
+  Object.defineProperties(obj, reducedDescriptors);
+};
+var freezeMethods = (obj) => {
+  reduceDescriptors(obj, (descriptor, name) => {
+    if (isFunction(obj) && ["arguments", "caller", "callee"].indexOf(name) !== -1) {
+      return false;
+    }
+    const value = obj[name];
+    if (!isFunction(value))
+      return;
+    descriptor.enumerable = false;
+    if ("writable" in descriptor) {
+      descriptor.writable = false;
+      return;
+    }
+    if (!descriptor.set) {
+      descriptor.set = () => {
+        throw Error("Can not rewrite read-only method '" + name + "'");
+      };
+    }
+  });
+};
+var toObjectSet = (arrayOrString, delimiter) => {
+  const obj = {};
+  const define = (arr) => {
+    arr.forEach((value) => {
+      obj[value] = true;
+    });
+  };
+  isArray(arrayOrString) ? define(arrayOrString) : define(String(arrayOrString).split(delimiter));
+  return obj;
+};
+var noop = () => {
+};
+var toFiniteNumber = (value, defaultValue) => {
+  return value != null && Number.isFinite(value = +value) ? value : defaultValue;
+};
+var ALPHA = "abcdefghijklmnopqrstuvwxyz";
+var DIGIT = "0123456789";
+var ALPHABET = {
+  DIGIT,
+  ALPHA,
+  ALPHA_DIGIT: ALPHA + ALPHA.toUpperCase() + DIGIT
+};
+var generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
+  let str = "";
+  const { length } = alphabet;
+  while (size--) {
+    str += alphabet[Math.random() * length | 0];
+  }
+  return str;
+};
+function isSpecCompliantForm(thing) {
+  return !!(thing && isFunction(thing.append) && thing[Symbol.toStringTag] === "FormData" && thing[Symbol.iterator]);
+}
+var toJSONObject = (obj) => {
+  const stack = new Array(10);
+  const visit = (source, i) => {
+    if (isObject(source)) {
+      if (stack.indexOf(source) >= 0) {
+        return;
+      }
+      if (!("toJSON" in source)) {
+        stack[i] = source;
+        const target = isArray(source) ? [] : {};
+        forEach(source, (value, key) => {
+          const reducedValue = visit(value, i + 1);
+          !isUndefined(reducedValue) && (target[key] = reducedValue);
+        });
+        stack[i] = void 0;
+        return target;
+      }
+    }
+    return source;
+  };
+  return visit(obj, 0);
+};
+var isAsyncFn = kindOfTest("AsyncFunction");
+var isThenable = (thing) => thing && (isObject(thing) || isFunction(thing)) && isFunction(thing.then) && isFunction(thing.catch);
+var _setImmediate = ((setImmediateSupported, postMessageSupported) => {
+  if (setImmediateSupported) {
+    return setImmediate;
+  }
+  return postMessageSupported ? ((token, callbacks) => {
+    _global.addEventListener("message", ({ source, data: data2 }) => {
+      if (source === _global && data2 === token) {
+        callbacks.length && callbacks.shift()();
+      }
+    }, false);
+    return (cb) => {
+      callbacks.push(cb);
+      _global.postMessage(token, "*");
+    };
+  })(`axios@${Math.random()}`, []) : (cb) => setTimeout(cb);
+})(
+  typeof setImmediate === "function",
+  isFunction(_global.postMessage)
+);
+var asap = typeof queueMicrotask !== "undefined" ? queueMicrotask.bind(_global) : typeof process !== "undefined" && process.nextTick || _setImmediate;
+var utils_default = {
+  isArray,
+  isArrayBuffer,
+  isBuffer,
+  isFormData,
+  isArrayBufferView,
+  isString,
+  isNumber,
+  isBoolean,
+  isObject,
+  isPlainObject,
+  isReadableStream,
+  isRequest,
+  isResponse,
+  isHeaders,
+  isUndefined,
+  isDate,
+  isFile,
+  isBlob,
+  isRegExp,
+  isFunction,
+  isStream,
+  isURLSearchParams,
+  isTypedArray,
+  isFileList,
+  forEach,
+  merge,
+  extend,
+  trim,
+  stripBOM,
+  inherits,
+  toFlatObject,
+  kindOf,
+  kindOfTest,
+  endsWith,
+  toArray,
+  forEachEntry,
+  matchAll,
+  isHTMLForm,
+  hasOwnProperty,
+  hasOwnProp: hasOwnProperty,
+  // an alias to avoid ESLint no-prototype-builtins detection
+  reduceDescriptors,
+  freezeMethods,
+  toObjectSet,
+  toCamelCase,
+  noop,
+  toFiniteNumber,
+  findKey,
+  global: _global,
+  isContextDefined,
+  ALPHABET,
+  generateString,
+  isSpecCompliantForm,
+  toJSONObject,
+  isAsyncFn,
+  isThenable,
+  setImmediate: _setImmediate,
+  asap
+};
+
+// node_modules/axios/lib/core/AxiosError.js
+function AxiosError(message, code, config, request2, response) {
+  Error.call(this);
+  if (Error.captureStackTrace) {
+    Error.captureStackTrace(this, this.constructor);
+  } else {
+    this.stack = new Error().stack;
+  }
+  this.message = message;
+  this.name = "AxiosError";
+  code && (this.code = code);
+  config && (this.config = config);
+  request2 && (this.request = request2);
+  if (response) {
+    this.response = response;
+    this.status = response.status ? response.status : null;
+  }
+}
+utils_default.inherits(AxiosError, Error, {
+  toJSON: function toJSON() {
+    return {
+      // Standard
+      message: this.message,
+      name: this.name,
+      // Microsoft
+      description: this.description,
+      number: this.number,
+      // Mozilla
+      fileName: this.fileName,
+      lineNumber: this.lineNumber,
+      columnNumber: this.columnNumber,
+      stack: this.stack,
+      // Axios
+      config: utils_default.toJSONObject(this.config),
+      code: this.code,
+      status: this.status
+    };
+  }
+});
+var prototype = AxiosError.prototype;
+var descriptors = {};
+[
+  "ERR_BAD_OPTION_VALUE",
+  "ERR_BAD_OPTION",
+  "ECONNABORTED",
+  "ETIMEDOUT",
+  "ERR_NETWORK",
+  "ERR_FR_TOO_MANY_REDIRECTS",
+  "ERR_DEPRECATED",
+  "ERR_BAD_RESPONSE",
+  "ERR_BAD_REQUEST",
+  "ERR_CANCELED",
+  "ERR_NOT_SUPPORT",
+  "ERR_INVALID_URL"
+  // eslint-disable-next-line func-names
+].forEach((code) => {
+  descriptors[code] = { value: code };
+});
+Object.defineProperties(AxiosError, descriptors);
+Object.defineProperty(prototype, "isAxiosError", { value: true });
+AxiosError.from = (error, code, config, request2, response, customProps) => {
+  const axiosError = Object.create(prototype);
+  utils_default.toFlatObject(error, axiosError, function filter5(obj) {
+    return obj !== Error.prototype;
+  }, (prop2) => {
+    return prop2 !== "isAxiosError";
+  });
+  AxiosError.call(axiosError, error.message, code, config, request2, response);
+  axiosError.cause = error;
+  axiosError.name = error.name;
+  customProps && Object.assign(axiosError, customProps);
+  return axiosError;
+};
+var AxiosError_default = AxiosError;
+
+// node_modules/axios/lib/platform/node/classes/FormData.js
+var import_form_data = __toESM(require_form_data(), 1);
+var FormData_default = import_form_data.default;
+
+// node_modules/axios/lib/helpers/toFormData.js
+function isVisitable(thing) {
+  return utils_default.isPlainObject(thing) || utils_default.isArray(thing);
+}
+function removeBrackets(key) {
+  return utils_default.endsWith(key, "[]") ? key.slice(0, -2) : key;
+}
+function renderKey(path, key, dots) {
+  if (!path)
+    return key;
+  return path.concat(key).map(function each2(token, i) {
+    token = removeBrackets(token);
+    return !dots && i ? "[" + token + "]" : token;
+  }).join(dots ? "." : "");
+}
+function isFlatArray(arr) {
+  return utils_default.isArray(arr) && !arr.some(isVisitable);
+}
+var predicates = utils_default.toFlatObject(utils_default, {}, null, function filter(prop2) {
+  return /^is[A-Z]/.test(prop2);
+});
+function toFormData(obj, formData, options) {
+  if (!utils_default.isObject(obj)) {
+    throw new TypeError("target must be an object");
+  }
+  formData = formData || new (FormData_default || FormData)();
+  options = utils_default.toFlatObject(options, {
+    metaTokens: true,
+    dots: false,
+    indexes: false
+  }, false, function defined(option, source) {
+    return !utils_default.isUndefined(source[option]);
+  });
+  const metaTokens = options.metaTokens;
+  const visitor = options.visitor || defaultVisitor;
+  const dots = options.dots;
+  const indexes = options.indexes;
+  const _Blob = options.Blob || typeof Blob !== "undefined" && Blob;
+  const useBlob = _Blob && utils_default.isSpecCompliantForm(formData);
+  if (!utils_default.isFunction(visitor)) {
+    throw new TypeError("visitor must be a function");
+  }
+  function convertValue(value) {
+    if (value === null)
+      return "";
+    if (utils_default.isDate(value)) {
+      return value.toISOString();
+    }
+    if (!useBlob && utils_default.isBlob(value)) {
+      throw new AxiosError_default("Blob is not supported. Use a Buffer instead.");
+    }
+    if (utils_default.isArrayBuffer(value) || utils_default.isTypedArray(value)) {
+      return useBlob && typeof Blob === "function" ? new Blob([value]) : Buffer.from(value);
+    }
+    return value;
+  }
+  function defaultVisitor(value, key, path) {
+    let arr = value;
+    if (value && !path && typeof value === "object") {
+      if (utils_default.endsWith(key, "{}")) {
+        key = metaTokens ? key : key.slice(0, -2);
+        value = JSON.stringify(value);
+      } else if (utils_default.isArray(value) && isFlatArray(value) || (utils_default.isFileList(value) || utils_default.endsWith(key, "[]")) && (arr = utils_default.toArray(value))) {
+        key = removeBrackets(key);
+        arr.forEach(function each2(el, index2) {
+          !(utils_default.isUndefined(el) || el === null) && formData.append(
+            // eslint-disable-next-line no-nested-ternary
+            indexes === true ? renderKey([key], index2, dots) : indexes === null ? key : key + "[]",
+            convertValue(el)
+          );
+        });
+        return false;
+      }
+    }
+    if (isVisitable(value)) {
+      return true;
+    }
+    formData.append(renderKey(path, key, dots), convertValue(value));
+    return false;
+  }
+  const stack = [];
+  const exposedHelpers = Object.assign(predicates, {
+    defaultVisitor,
+    convertValue,
+    isVisitable
+  });
+  function build(value, path) {
+    if (utils_default.isUndefined(value))
+      return;
+    if (stack.indexOf(value) !== -1) {
+      throw Error("Circular reference detected in " + path.join("."));
+    }
+    stack.push(value);
+    utils_default.forEach(value, function each2(el, key) {
+      const result = !(utils_default.isUndefined(el) || el === null) && visitor.call(
+        formData,
+        el,
+        utils_default.isString(key) ? key.trim() : key,
+        path,
+        exposedHelpers
+      );
+      if (result === true) {
+        build(el, path ? path.concat(key) : [key]);
+      }
+    });
+    stack.pop();
+  }
+  if (!utils_default.isObject(obj)) {
+    throw new TypeError("data must be an object");
+  }
+  build(obj);
+  return formData;
+}
+var toFormData_default = toFormData;
+
+// node_modules/axios/lib/helpers/AxiosURLSearchParams.js
+function encode(str) {
+  const charMap = {
+    "!": "%21",
+    "'": "%27",
+    "(": "%28",
+    ")": "%29",
+    "~": "%7E",
+    "%20": "+",
+    "%00": "\0"
+  };
+  return encodeURIComponent(str).replace(/[!'()~]|%20|%00/g, function replacer(match) {
+    return charMap[match];
+  });
+}
+function AxiosURLSearchParams(params, options) {
+  this._pairs = [];
+  params && toFormData_default(params, this, options);
+}
+var prototype2 = AxiosURLSearchParams.prototype;
+prototype2.append = function append(name, value) {
+  this._pairs.push([name, value]);
+};
+prototype2.toString = function toString2(encoder) {
+  const _encode = encoder ? function(value) {
+    return encoder.call(this, value, encode);
+  } : encode;
+  return this._pairs.map(function each2(pair) {
+    return _encode(pair[0]) + "=" + _encode(pair[1]);
+  }, "").join("&");
+};
+var AxiosURLSearchParams_default = AxiosURLSearchParams;
+
+// node_modules/axios/lib/helpers/buildURL.js
+function encode2(val2) {
+  return encodeURIComponent(val2).replace(/%3A/gi, ":").replace(/%24/g, "$").replace(/%2C/gi, ",").replace(/%20/g, "+").replace(/%5B/gi, "[").replace(/%5D/gi, "]");
+}
+function buildURL(url2, params, options) {
+  if (!params) {
+    return url2;
+  }
+  const _encode = options && options.encode || encode2;
+  if (utils_default.isFunction(options)) {
+    options = {
+      serialize: options
+    };
+  }
+  const serializeFn = options && options.serialize;
+  let serializedParams;
+  if (serializeFn) {
+    serializedParams = serializeFn(params, options);
+  } else {
+    serializedParams = utils_default.isURLSearchParams(params) ? params.toString() : new AxiosURLSearchParams_default(params, options).toString(_encode);
+  }
+  if (serializedParams) {
+    const hashmarkIndex = url2.indexOf("#");
+    if (hashmarkIndex !== -1) {
+      url2 = url2.slice(0, hashmarkIndex);
+    }
+    url2 += (url2.indexOf("?") === -1 ? "?" : "&") + serializedParams;
+  }
+  return url2;
+}
+
+// node_modules/axios/lib/core/InterceptorManager.js
+var InterceptorManager = class {
+  constructor() {
+    this.handlers = [];
+  }
+  /**
+   * Add a new interceptor to the stack
+   *
+   * @param {Function} fulfilled The function to handle `then` for a `Promise`
+   * @param {Function} rejected The function to handle `reject` for a `Promise`
+   *
+   * @return {Number} An ID used to remove interceptor later
+   */
+  use(fulfilled, rejected, options) {
+    this.handlers.push({
+      fulfilled,
+      rejected,
+      synchronous: options ? options.synchronous : false,
+      runWhen: options ? options.runWhen : null
+    });
+    return this.handlers.length - 1;
+  }
+  /**
+   * Remove an interceptor from the stack
+   *
+   * @param {Number} id The ID that was returned by `use`
+   *
+   * @returns {Boolean} `true` if the interceptor was removed, `false` otherwise
+   */
+  eject(id) {
+    if (this.handlers[id]) {
+      this.handlers[id] = null;
+    }
+  }
+  /**
+   * Clear all interceptors from the stack
+   *
+   * @returns {void}
+   */
+  clear() {
+    if (this.handlers) {
+      this.handlers = [];
+    }
+  }
+  /**
+   * Iterate over all the registered interceptors
+   *
+   * This method is particularly useful for skipping over any
+   * interceptors that may have become `null` calling `eject`.
+   *
+   * @param {Function} fn The function to call for each interceptor
+   *
+   * @returns {void}
+   */
+  forEach(fn) {
+    utils_default.forEach(this.handlers, function forEachHandler(h) {
+      if (h !== null) {
+        fn(h);
+      }
+    });
+  }
+};
+var InterceptorManager_default = InterceptorManager;
+
+// node_modules/axios/lib/defaults/transitional.js
+var transitional_default = {
+  silentJSONParsing: true,
+  forcedJSONParsing: true,
+  clarifyTimeoutError: false
+};
+
+// node_modules/axios/lib/platform/node/classes/URLSearchParams.js
+import url from "url";
+var URLSearchParams_default = url.URLSearchParams;
+
+// node_modules/axios/lib/platform/node/index.js
+var node_default = {
+  isNode: true,
+  classes: {
+    URLSearchParams: URLSearchParams_default,
+    FormData: FormData_default,
+    Blob: typeof Blob !== "undefined" && Blob || null
+  },
+  protocols: ["http", "https", "file", "data"]
+};
+
+// node_modules/axios/lib/platform/common/utils.js
+var utils_exports = {};
+__export(utils_exports, {
+  hasBrowserEnv: () => hasBrowserEnv,
+  hasStandardBrowserEnv: () => hasStandardBrowserEnv,
+  hasStandardBrowserWebWorkerEnv: () => hasStandardBrowserWebWorkerEnv,
+  navigator: () => _navigator,
+  origin: () => origin
+});
+var hasBrowserEnv = typeof window !== "undefined" && typeof document !== "undefined";
+var _navigator = typeof navigator === "object" && navigator || void 0;
+var hasStandardBrowserEnv = hasBrowserEnv && (!_navigator || ["ReactNative", "NativeScript", "NS"].indexOf(_navigator.product) < 0);
+var hasStandardBrowserWebWorkerEnv = (() => {
+  return typeof WorkerGlobalScope !== "undefined" && // eslint-disable-next-line no-undef
+  self instanceof WorkerGlobalScope && typeof self.importScripts === "function";
+})();
+var origin = hasBrowserEnv && window.location.href || "http://localhost";
+
+// node_modules/axios/lib/platform/index.js
+var platform_default = {
+  ...utils_exports,
+  ...node_default
+};
+
+// node_modules/axios/lib/helpers/toURLEncodedForm.js
+function toURLEncodedForm(data2, options) {
+  return toFormData_default(data2, new platform_default.classes.URLSearchParams(), Object.assign({
+    visitor: function(value, key, path, helpers) {
+      if (platform_default.isNode && utils_default.isBuffer(value)) {
+        this.append(key, value.toString("base64"));
+        return false;
+      }
+      return helpers.defaultVisitor.apply(this, arguments);
+    }
+  }, options));
+}
+
+// node_modules/axios/lib/helpers/formDataToJSON.js
+function parsePropPath(name) {
+  return utils_default.matchAll(/\w+|\[(\w*)]/g, name).map((match) => {
+    return match[0] === "[]" ? "" : match[1] || match[0];
+  });
+}
+function arrayToObject(arr) {
+  const obj = {};
+  const keys = Object.keys(arr);
+  let i;
+  const len = keys.length;
+  let key;
+  for (i = 0; i < len; i++) {
+    key = keys[i];
+    obj[key] = arr[key];
+  }
+  return obj;
+}
+function formDataToJSON(formData) {
+  function buildPath(path, value, target, index2) {
+    let name = path[index2++];
+    if (name === "__proto__")
+      return true;
+    const isNumericKey = Number.isFinite(+name);
+    const isLast = index2 >= path.length;
+    name = !name && utils_default.isArray(target) ? target.length : name;
+    if (isLast) {
+      if (utils_default.hasOwnProp(target, name)) {
+        target[name] = [target[name], value];
+      } else {
+        target[name] = value;
+      }
+      return !isNumericKey;
+    }
+    if (!target[name] || !utils_default.isObject(target[name])) {
+      target[name] = [];
+    }
+    const result = buildPath(path, value, target[name], index2);
+    if (result && utils_default.isArray(target[name])) {
+      target[name] = arrayToObject(target[name]);
+    }
+    return !isNumericKey;
+  }
+  if (utils_default.isFormData(formData) && utils_default.isFunction(formData.entries)) {
+    const obj = {};
+    utils_default.forEachEntry(formData, (name, value) => {
+      buildPath(parsePropPath(name), value, obj, 0);
+    });
+    return obj;
+  }
+  return null;
+}
+var formDataToJSON_default = formDataToJSON;
+
+// node_modules/axios/lib/defaults/index.js
+function stringifySafely(rawValue, parser, encoder) {
+  if (utils_default.isString(rawValue)) {
+    try {
+      (parser || JSON.parse)(rawValue);
+      return utils_default.trim(rawValue);
+    } catch (e) {
+      if (e.name !== "SyntaxError") {
+        throw e;
+      }
+    }
+  }
+  return (encoder || JSON.stringify)(rawValue);
+}
+var defaults = {
+  transitional: transitional_default,
+  adapter: ["xhr", "http", "fetch"],
+  transformRequest: [function transformRequest(data2, headers) {
+    const contentType = headers.getContentType() || "";
+    const hasJSONContentType = contentType.indexOf("application/json") > -1;
+    const isObjectPayload = utils_default.isObject(data2);
+    if (isObjectPayload && utils_default.isHTMLForm(data2)) {
+      data2 = new FormData(data2);
+    }
+    const isFormData2 = utils_default.isFormData(data2);
+    if (isFormData2) {
+      return hasJSONContentType ? JSON.stringify(formDataToJSON_default(data2)) : data2;
+    }
+    if (utils_default.isArrayBuffer(data2) || utils_default.isBuffer(data2) || utils_default.isStream(data2) || utils_default.isFile(data2) || utils_default.isBlob(data2) || utils_default.isReadableStream(data2)) {
+      return data2;
+    }
+    if (utils_default.isArrayBufferView(data2)) {
+      return data2.buffer;
+    }
+    if (utils_default.isURLSearchParams(data2)) {
+      headers.setContentType("application/x-www-form-urlencoded;charset=utf-8", false);
+      return data2.toString();
+    }
+    let isFileList2;
+    if (isObjectPayload) {
+      if (contentType.indexOf("application/x-www-form-urlencoded") > -1) {
+        return toURLEncodedForm(data2, this.formSerializer).toString();
+      }
+      if ((isFileList2 = utils_default.isFileList(data2)) || contentType.indexOf("multipart/form-data") > -1) {
+        const _FormData = this.env && this.env.FormData;
+        return toFormData_default(
+          isFileList2 ? { "files[]": data2 } : data2,
+          _FormData && new _FormData(),
+          this.formSerializer
+        );
+      }
+    }
+    if (isObjectPayload || hasJSONContentType) {
+      headers.setContentType("application/json", false);
+      return stringifySafely(data2);
+    }
+    return data2;
+  }],
+  transformResponse: [function transformResponse(data2) {
+    const transitional2 = this.transitional || defaults.transitional;
+    const forcedJSONParsing = transitional2 && transitional2.forcedJSONParsing;
+    const JSONRequested = this.responseType === "json";
+    if (utils_default.isResponse(data2) || utils_default.isReadableStream(data2)) {
+      return data2;
+    }
+    if (data2 && utils_default.isString(data2) && (forcedJSONParsing && !this.responseType || JSONRequested)) {
+      const silentJSONParsing = transitional2 && transitional2.silentJSONParsing;
+      const strictJSONParsing = !silentJSONParsing && JSONRequested;
+      try {
+        return JSON.parse(data2);
+      } catch (e) {
+        if (strictJSONParsing) {
+          if (e.name === "SyntaxError") {
+            throw AxiosError_default.from(e, AxiosError_default.ERR_BAD_RESPONSE, this, null, this.response);
+          }
+          throw e;
+        }
+      }
+    }
+    return data2;
+  }],
+  /**
+   * A timeout in milliseconds to abort a request. If set to 0 (default) a
+   * timeout is not created.
+   */
+  timeout: 0,
+  xsrfCookieName: "XSRF-TOKEN",
+  xsrfHeaderName: "X-XSRF-TOKEN",
+  maxContentLength: -1,
+  maxBodyLength: -1,
+  env: {
+    FormData: platform_default.classes.FormData,
+    Blob: platform_default.classes.Blob
+  },
+  validateStatus: function validateStatus(status) {
+    return status >= 200 && status < 300;
+  },
+  headers: {
+    common: {
+      "Accept": "application/json, text/plain, */*",
+      "Content-Type": void 0
+    }
+  }
+};
+utils_default.forEach(["delete", "get", "head", "post", "put", "patch"], (method) => {
+  defaults.headers[method] = {};
+});
+var defaults_default = defaults;
+
+// node_modules/axios/lib/helpers/parseHeaders.js
+var ignoreDuplicateOf = utils_default.toObjectSet([
+  "age",
+  "authorization",
+  "content-length",
+  "content-type",
+  "etag",
+  "expires",
+  "from",
+  "host",
+  "if-modified-since",
+  "if-unmodified-since",
+  "last-modified",
+  "location",
+  "max-forwards",
+  "proxy-authorization",
+  "referer",
+  "retry-after",
+  "user-agent"
+]);
+var parseHeaders_default = (rawHeaders) => {
+  const parsed = {};
+  let key;
+  let val2;
+  let i;
+  rawHeaders && rawHeaders.split("\n").forEach(function parser(line) {
+    i = line.indexOf(":");
+    key = line.substring(0, i).trim().toLowerCase();
+    val2 = line.substring(i + 1).trim();
+    if (!key || parsed[key] && ignoreDuplicateOf[key]) {
+      return;
+    }
+    if (key === "set-cookie") {
+      if (parsed[key]) {
+        parsed[key].push(val2);
+      } else {
+        parsed[key] = [val2];
+      }
+    } else {
+      parsed[key] = parsed[key] ? parsed[key] + ", " + val2 : val2;
+    }
+  });
+  return parsed;
+};
+
+// node_modules/axios/lib/core/AxiosHeaders.js
+var $internals = Symbol("internals");
+function normalizeHeader(header) {
+  return header && String(header).trim().toLowerCase();
+}
+function normalizeValue(value) {
+  if (value === false || value == null) {
+    return value;
+  }
+  return utils_default.isArray(value) ? value.map(normalizeValue) : String(value);
+}
+function parseTokens(str) {
+  const tokens = /* @__PURE__ */ Object.create(null);
+  const tokensRE = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
+  let match;
+  while (match = tokensRE.exec(str)) {
+    tokens[match[1]] = match[2];
+  }
+  return tokens;
+}
+var isValidHeaderName = (str) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str.trim());
+function matchHeaderValue(context, value, header, filter5, isHeaderNameFilter) {
+  if (utils_default.isFunction(filter5)) {
+    return filter5.call(this, value, header);
+  }
+  if (isHeaderNameFilter) {
+    value = header;
+  }
+  if (!utils_default.isString(value))
+    return;
+  if (utils_default.isString(filter5)) {
+    return value.indexOf(filter5) !== -1;
+  }
+  if (utils_default.isRegExp(filter5)) {
+    return filter5.test(value);
+  }
+}
+function formatHeader(header) {
+  return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str) => {
+    return char.toUpperCase() + str;
+  });
+}
+function buildAccessors(obj, header) {
+  const accessorName = utils_default.toCamelCase(" " + header);
+  ["get", "set", "has"].forEach((methodName) => {
+    Object.defineProperty(obj, methodName + accessorName, {
+      value: function(arg1, arg2, arg3) {
+        return this[methodName].call(this, header, arg1, arg2, arg3);
+      },
+      configurable: true
+    });
+  });
+}
+var AxiosHeaders = class {
+  constructor(headers) {
+    headers && this.set(headers);
+  }
+  set(header, valueOrRewrite, rewrite) {
+    const self2 = this;
+    function setHeader(_value, _header, _rewrite) {
+      const lHeader = normalizeHeader(_header);
+      if (!lHeader) {
+        throw new Error("header name must be a non-empty string");
+      }
+      const key = utils_default.findKey(self2, lHeader);
+      if (!key || self2[key] === void 0 || _rewrite === true || _rewrite === void 0 && self2[key] !== false) {
+        self2[key || _header] = normalizeValue(_value);
+      }
+    }
+    const setHeaders = (headers, _rewrite) => utils_default.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
+    if (utils_default.isPlainObject(header) || header instanceof this.constructor) {
+      setHeaders(header, valueOrRewrite);
+    } else if (utils_default.isString(header) && (header = header.trim()) && !isValidHeaderName(header)) {
+      setHeaders(parseHeaders_default(header), valueOrRewrite);
+    } else if (utils_default.isHeaders(header)) {
+      for (const [key, value] of header.entries()) {
+        setHeader(value, key, rewrite);
+      }
+    } else {
+      header != null && setHeader(valueOrRewrite, header, rewrite);
+    }
+    return this;
+  }
+  get(header, parser) {
+    header = normalizeHeader(header);
+    if (header) {
+      const key = utils_default.findKey(this, header);
+      if (key) {
+        const value = this[key];
+        if (!parser) {
+          return value;
+        }
+        if (parser === true) {
+          return parseTokens(value);
+        }
+        if (utils_default.isFunction(parser)) {
+          return parser.call(this, value, key);
+        }
+        if (utils_default.isRegExp(parser)) {
+          return parser.exec(value);
+        }
+        throw new TypeError("parser must be boolean|regexp|function");
+      }
+    }
+  }
+  has(header, matcher) {
+    header = normalizeHeader(header);
+    if (header) {
+      const key = utils_default.findKey(this, header);
+      return !!(key && this[key] !== void 0 && (!matcher || matchHeaderValue(this, this[key], key, matcher)));
+    }
+    return false;
+  }
+  delete(header, matcher) {
+    const self2 = this;
+    let deleted = false;
+    function deleteHeader(_header) {
+      _header = normalizeHeader(_header);
+      if (_header) {
+        const key = utils_default.findKey(self2, _header);
+        if (key && (!matcher || matchHeaderValue(self2, self2[key], key, matcher))) {
+          delete self2[key];
+          deleted = true;
+        }
+      }
+    }
+    if (utils_default.isArray(header)) {
+      header.forEach(deleteHeader);
+    } else {
+      deleteHeader(header);
+    }
+    return deleted;
+  }
+  clear(matcher) {
+    const keys = Object.keys(this);
+    let i = keys.length;
+    let deleted = false;
+    while (i--) {
+      const key = keys[i];
+      if (!matcher || matchHeaderValue(this, this[key], key, matcher, true)) {
+        delete this[key];
+        deleted = true;
+      }
+    }
+    return deleted;
+  }
+  normalize(format) {
+    const self2 = this;
+    const headers = {};
+    utils_default.forEach(this, (value, header) => {
+      const key = utils_default.findKey(headers, header);
+      if (key) {
+        self2[key] = normalizeValue(value);
+        delete self2[header];
+        return;
+      }
+      const normalized = format ? formatHeader(header) : String(header).trim();
+      if (normalized !== header) {
+        delete self2[header];
+      }
+      self2[normalized] = normalizeValue(value);
+      headers[normalized] = true;
+    });
+    return this;
+  }
+  concat(...targets) {
+    return this.constructor.concat(this, ...targets);
+  }
+  toJSON(asStrings) {
+    const obj = /* @__PURE__ */ Object.create(null);
+    utils_default.forEach(this, (value, header) => {
+      value != null && value !== false && (obj[header] = asStrings && utils_default.isArray(value) ? value.join(", ") : value);
+    });
+    return obj;
+  }
+  [Symbol.iterator]() {
+    return Object.entries(this.toJSON())[Symbol.iterator]();
+  }
+  toString() {
+    return Object.entries(this.toJSON()).map(([header, value]) => header + ": " + value).join("\n");
+  }
+  get [Symbol.toStringTag]() {
+    return "AxiosHeaders";
+  }
+  static from(thing) {
+    return thing instanceof this ? thing : new this(thing);
+  }
+  static concat(first2, ...targets) {
+    const computed = new this(first2);
+    targets.forEach((target) => computed.set(target));
+    return computed;
+  }
+  static accessor(header) {
+    const internals = this[$internals] = this[$internals] = {
+      accessors: {}
+    };
+    const accessors = internals.accessors;
+    const prototype3 = this.prototype;
+    function defineAccessor(_header) {
+      const lHeader = normalizeHeader(_header);
+      if (!accessors[lHeader]) {
+        buildAccessors(prototype3, _header);
+        accessors[lHeader] = true;
+      }
+    }
+    utils_default.isArray(header) ? header.forEach(defineAccessor) : defineAccessor(header);
+    return this;
+  }
+};
+AxiosHeaders.accessor(["Content-Type", "Content-Length", "Accept", "Accept-Encoding", "User-Agent", "Authorization"]);
+utils_default.reduceDescriptors(AxiosHeaders.prototype, ({ value }, key) => {
+  let mapped = key[0].toUpperCase() + key.slice(1);
+  return {
+    get: () => value,
+    set(headerValue) {
+      this[mapped] = headerValue;
+    }
+  };
+});
+utils_default.freezeMethods(AxiosHeaders);
+var AxiosHeaders_default = AxiosHeaders;
+
+// node_modules/axios/lib/core/transformData.js
+function transformData(fns, response) {
+  const config = this || defaults_default;
+  const context = response || config;
+  const headers = AxiosHeaders_default.from(context.headers);
+  let data2 = context.data;
+  utils_default.forEach(fns, function transform(fn) {
+    data2 = fn.call(config, data2, headers.normalize(), response ? response.status : void 0);
+  });
+  headers.normalize();
+  return data2;
+}
+
+// node_modules/axios/lib/cancel/isCancel.js
+function isCancel(value) {
+  return !!(value && value.__CANCEL__);
+}
+
+// node_modules/axios/lib/cancel/CanceledError.js
+function CanceledError(message, config, request2) {
+  AxiosError_default.call(this, message == null ? "canceled" : message, AxiosError_default.ERR_CANCELED, config, request2);
+  this.name = "CanceledError";
+}
+utils_default.inherits(CanceledError, AxiosError_default, {
+  __CANCEL__: true
+});
+var CanceledError_default = CanceledError;
+
+// node_modules/axios/lib/core/settle.js
+function settle(resolve, reject, response) {
+  const validateStatus2 = response.config.validateStatus;
+  if (!response.status || !validateStatus2 || validateStatus2(response.status)) {
+    resolve(response);
+  } else {
+    reject(new AxiosError_default(
+      "Request failed with status code " + response.status,
+      [AxiosError_default.ERR_BAD_REQUEST, AxiosError_default.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4],
+      response.config,
+      response.request,
+      response
+    ));
+  }
+}
+
+// node_modules/axios/lib/helpers/isAbsoluteURL.js
+function isAbsoluteURL(url2) {
+  return /^([a-z][a-z\d+\-.]*:)?\/\//i.test(url2);
+}
+
+// node_modules/axios/lib/helpers/combineURLs.js
+function combineURLs(baseURL, relativeURL) {
+  return relativeURL ? baseURL.replace(/\/?\/$/, "") + "/" + relativeURL.replace(/^\/+/, "") : baseURL;
+}
+
+// node_modules/axios/lib/core/buildFullPath.js
+function buildFullPath(baseURL, requestedURL) {
+  if (baseURL && !isAbsoluteURL(requestedURL)) {
+    return combineURLs(baseURL, requestedURL);
+  }
+  return requestedURL;
+}
+
+// node_modules/axios/lib/adapters/http.js
+var import_proxy_from_env = __toESM(require_proxy_from_env(), 1);
+var import_follow_redirects = __toESM(require_follow_redirects(), 1);
+import http from "http";
+import https from "https";
+import util2 from "util";
+import zlib from "zlib";
+
+// node_modules/axios/lib/env/data.js
+var VERSION = "1.7.9";
+
+// node_modules/axios/lib/helpers/parseProtocol.js
+function parseProtocol(url2) {
+  const match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url2);
+  return match && match[1] || "";
+}
+
+// node_modules/axios/lib/helpers/fromDataURI.js
+var DATA_URL_PATTERN = /^(?:([^;]+);)?(?:[^;]+;)?(base64|),([\s\S]*)$/;
+function fromDataURI(uri, asBlob, options) {
+  const _Blob = options && options.Blob || platform_default.classes.Blob;
+  const protocol = parseProtocol(uri);
+  if (asBlob === void 0 && _Blob) {
+    asBlob = true;
+  }
+  if (protocol === "data") {
+    uri = protocol.length ? uri.slice(protocol.length + 1) : uri;
+    const match = DATA_URL_PATTERN.exec(uri);
+    if (!match) {
+      throw new AxiosError_default("Invalid URL", AxiosError_default.ERR_INVALID_URL);
+    }
+    const mime = match[1];
+    const isBase64 = match[2];
+    const body = match[3];
+    const buffer = Buffer.from(decodeURIComponent(body), isBase64 ? "base64" : "utf8");
+    if (asBlob) {
+      if (!_Blob) {
+        throw new AxiosError_default("Blob is not supported", AxiosError_default.ERR_NOT_SUPPORT);
+      }
+      return new _Blob([buffer], { type: mime });
+    }
+    return buffer;
+  }
+  throw new AxiosError_default("Unsupported protocol " + protocol, AxiosError_default.ERR_NOT_SUPPORT);
+}
+
+// node_modules/axios/lib/adapters/http.js
+import stream3 from "stream";
+
+// node_modules/axios/lib/helpers/AxiosTransformStream.js
+import stream from "stream";
+var kInternals = Symbol("internals");
+var AxiosTransformStream = class extends stream.Transform {
+  constructor(options) {
+    options = utils_default.toFlatObject(options, {
+      maxRate: 0,
+      chunkSize: 64 * 1024,
+      minChunkSize: 100,
+      timeWindow: 500,
+      ticksRate: 2,
+      samplesCount: 15
+    }, null, (prop2, source) => {
+      return !utils_default.isUndefined(source[prop2]);
+    });
+    super({
+      readableHighWaterMark: options.chunkSize
+    });
+    const internals = this[kInternals] = {
+      timeWindow: options.timeWindow,
+      chunkSize: options.chunkSize,
+      maxRate: options.maxRate,
+      minChunkSize: options.minChunkSize,
+      bytesSeen: 0,
+      isCaptured: false,
+      notifiedBytesLoaded: 0,
+      ts: Date.now(),
+      bytes: 0,
+      onReadCallback: null
+    };
+    this.on("newListener", (event) => {
+      if (event === "progress") {
+        if (!internals.isCaptured) {
+          internals.isCaptured = true;
+        }
+      }
+    });
+  }
+  _read(size) {
+    const internals = this[kInternals];
+    if (internals.onReadCallback) {
+      internals.onReadCallback();
+    }
+    return super._read(size);
+  }
+  _transform(chunk, encoding, callback) {
+    const internals = this[kInternals];
+    const maxRate = internals.maxRate;
+    const readableHighWaterMark = this.readableHighWaterMark;
+    const timeWindow = internals.timeWindow;
+    const divider = 1e3 / timeWindow;
+    const bytesThreshold = maxRate / divider;
+    const minChunkSize = internals.minChunkSize !== false ? Math.max(internals.minChunkSize, bytesThreshold * 0.01) : 0;
+    const pushChunk = (_chunk, _callback) => {
+      const bytes = Buffer.byteLength(_chunk);
+      internals.bytesSeen += bytes;
+      internals.bytes += bytes;
+      internals.isCaptured && this.emit("progress", internals.bytesSeen);
+      if (this.push(_chunk)) {
+        process.nextTick(_callback);
+      } else {
+        internals.onReadCallback = () => {
+          internals.onReadCallback = null;
+          process.nextTick(_callback);
+        };
+      }
+    };
+    const transformChunk = (_chunk, _callback) => {
+      const chunkSize = Buffer.byteLength(_chunk);
+      let chunkRemainder = null;
+      let maxChunkSize = readableHighWaterMark;
+      let bytesLeft;
+      let passed = 0;
+      if (maxRate) {
+        const now = Date.now();
+        if (!internals.ts || (passed = now - internals.ts) >= timeWindow) {
+          internals.ts = now;
+          bytesLeft = bytesThreshold - internals.bytes;
+          internals.bytes = bytesLeft < 0 ? -bytesLeft : 0;
+          passed = 0;
+        }
+        bytesLeft = bytesThreshold - internals.bytes;
+      }
+      if (maxRate) {
+        if (bytesLeft <= 0) {
+          return setTimeout(() => {
+            _callback(null, _chunk);
+          }, timeWindow - passed);
+        }
+        if (bytesLeft < maxChunkSize) {
+          maxChunkSize = bytesLeft;
+        }
+      }
+      if (maxChunkSize && chunkSize > maxChunkSize && chunkSize - maxChunkSize > minChunkSize) {
+        chunkRemainder = _chunk.subarray(maxChunkSize);
+        _chunk = _chunk.subarray(0, maxChunkSize);
+      }
+      pushChunk(_chunk, chunkRemainder ? () => {
+        process.nextTick(_callback, null, chunkRemainder);
+      } : _callback);
+    };
+    transformChunk(chunk, function transformNextChunk(err, _chunk) {
+      if (err) {
+        return callback(err);
+      }
+      if (_chunk) {
+        transformChunk(_chunk, transformNextChunk);
+      } else {
+        callback(null);
+      }
+    });
+  }
+};
+var AxiosTransformStream_default = AxiosTransformStream;
+
+// node_modules/axios/lib/adapters/http.js
+import { EventEmitter } from "events";
+
+// node_modules/axios/lib/helpers/formDataToStream.js
+import util from "util";
+import { Readable } from "stream";
+
+// node_modules/axios/lib/helpers/readBlob.js
+var { asyncIterator } = Symbol;
+var readBlob = async function* (blob) {
+  if (blob.stream) {
+    yield* blob.stream();
+  } else if (blob.arrayBuffer) {
+    yield await blob.arrayBuffer();
+  } else if (blob[asyncIterator]) {
+    yield* blob[asyncIterator]();
+  } else {
+    yield blob;
+  }
+};
+var readBlob_default = readBlob;
+
+// node_modules/axios/lib/helpers/formDataToStream.js
+var BOUNDARY_ALPHABET = utils_default.ALPHABET.ALPHA_DIGIT + "-_";
+var textEncoder = typeof TextEncoder === "function" ? new TextEncoder() : new util.TextEncoder();
+var CRLF = "\r\n";
+var CRLF_BYTES = textEncoder.encode(CRLF);
+var CRLF_BYTES_COUNT = 2;
+var FormDataPart = class {
+  constructor(name, value) {
+    const { escapeName } = this.constructor;
+    const isStringValue = utils_default.isString(value);
+    let headers = `Content-Disposition: form-data; name="${escapeName(name)}"${!isStringValue && value.name ? `; filename="${escapeName(value.name)}"` : ""}${CRLF}`;
+    if (isStringValue) {
+      value = textEncoder.encode(String(value).replace(/\r?\n|\r\n?/g, CRLF));
+    } else {
+      headers += `Content-Type: ${value.type || "application/octet-stream"}${CRLF}`;
+    }
+    this.headers = textEncoder.encode(headers + CRLF);
+    this.contentLength = isStringValue ? value.byteLength : value.size;
+    this.size = this.headers.byteLength + this.contentLength + CRLF_BYTES_COUNT;
+    this.name = name;
+    this.value = value;
+  }
+  async *encode() {
+    yield this.headers;
+    const { value } = this;
+    if (utils_default.isTypedArray(value)) {
+      yield value;
+    } else {
+      yield* readBlob_default(value);
+    }
+    yield CRLF_BYTES;
+  }
+  static escapeName(name) {
+    return String(name).replace(/[\r\n"]/g, (match) => ({
+      "\r": "%0D",
+      "\n": "%0A",
+      '"': "%22"
+    })[match]);
+  }
+};
+var formDataToStream = (form, headersHandler, options) => {
+  const {
+    tag = "form-data-boundary",
+    size = 25,
+    boundary = tag + "-" + utils_default.generateString(size, BOUNDARY_ALPHABET)
+  } = options || {};
+  if (!utils_default.isFormData(form)) {
+    throw TypeError("FormData instance required");
+  }
+  if (boundary.length < 1 || boundary.length > 70) {
+    throw Error("boundary must be 10-70 characters long");
+  }
+  const boundaryBytes = textEncoder.encode("--" + boundary + CRLF);
+  const footerBytes = textEncoder.encode("--" + boundary + "--" + CRLF + CRLF);
+  let contentLength = footerBytes.byteLength;
+  const parts = Array.from(form.entries()).map(([name, value]) => {
+    const part = new FormDataPart(name, value);
+    contentLength += part.size;
+    return part;
+  });
+  contentLength += boundaryBytes.byteLength * parts.length;
+  contentLength = utils_default.toFiniteNumber(contentLength);
+  const computedHeaders = {
+    "Content-Type": `multipart/form-data; boundary=${boundary}`
+  };
+  if (Number.isFinite(contentLength)) {
+    computedHeaders["Content-Length"] = contentLength;
+  }
+  headersHandler && headersHandler(computedHeaders);
+  return Readable.from(async function* () {
+    for (const part of parts) {
+      yield boundaryBytes;
+      yield* part.encode();
+    }
+    yield footerBytes;
+  }());
+};
+var formDataToStream_default = formDataToStream;
+
+// node_modules/axios/lib/helpers/ZlibHeaderTransformStream.js
+import stream2 from "stream";
+var ZlibHeaderTransformStream = class extends stream2.Transform {
+  __transform(chunk, encoding, callback) {
+    this.push(chunk);
+    callback();
+  }
+  _transform(chunk, encoding, callback) {
+    if (chunk.length !== 0) {
+      this._transform = this.__transform;
+      if (chunk[0] !== 120) {
+        const header = Buffer.alloc(2);
+        header[0] = 120;
+        header[1] = 156;
+        this.push(header, encoding);
+      }
+    }
+    this.__transform(chunk, encoding, callback);
+  }
+};
+var ZlibHeaderTransformStream_default = ZlibHeaderTransformStream;
+
+// node_modules/axios/lib/helpers/callbackify.js
+var callbackify = (fn, reducer) => {
+  return utils_default.isAsyncFn(fn) ? function(...args) {
+    const cb = args.pop();
+    fn.apply(this, args).then((value) => {
+      try {
+        reducer ? cb(null, ...reducer(value)) : cb(null, value);
+      } catch (err) {
+        cb(err);
+      }
+    }, cb);
+  } : fn;
+};
+var callbackify_default = callbackify;
+
+// node_modules/axios/lib/helpers/speedometer.js
+function speedometer(samplesCount, min) {
+  samplesCount = samplesCount || 10;
+  const bytes = new Array(samplesCount);
+  const timestamps = new Array(samplesCount);
+  let head = 0;
+  let tail = 0;
+  let firstSampleTS;
+  min = min !== void 0 ? min : 1e3;
+  return function push(chunkLength) {
+    const now = Date.now();
+    const startedAt = timestamps[tail];
+    if (!firstSampleTS) {
+      firstSampleTS = now;
+    }
+    bytes[head] = chunkLength;
+    timestamps[head] = now;
+    let i = tail;
+    let bytesCount = 0;
+    while (i !== head) {
+      bytesCount += bytes[i++];
+      i = i % samplesCount;
+    }
+    head = (head + 1) % samplesCount;
+    if (head === tail) {
+      tail = (tail + 1) % samplesCount;
+    }
+    if (now - firstSampleTS < min) {
+      return;
+    }
+    const passed = startedAt && now - startedAt;
+    return passed ? Math.round(bytesCount * 1e3 / passed) : void 0;
+  };
+}
+var speedometer_default = speedometer;
+
+// node_modules/axios/lib/helpers/throttle.js
+function throttle(fn, freq) {
+  let timestamp = 0;
+  let threshold = 1e3 / freq;
+  let lastArgs;
+  let timer;
+  const invoke = (args, now = Date.now()) => {
+    timestamp = now;
+    lastArgs = null;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    fn.apply(null, args);
+  };
+  const throttled = (...args) => {
+    const now = Date.now();
+    const passed = now - timestamp;
+    if (passed >= threshold) {
+      invoke(args, now);
+    } else {
+      lastArgs = args;
+      if (!timer) {
+        timer = setTimeout(() => {
+          timer = null;
+          invoke(lastArgs);
+        }, threshold - passed);
+      }
+    }
+  };
+  const flush = () => lastArgs && invoke(lastArgs);
+  return [throttled, flush];
+}
+var throttle_default = throttle;
+
+// node_modules/axios/lib/helpers/progressEventReducer.js
+var progressEventReducer = (listener, isDownloadStream, freq = 3) => {
+  let bytesNotified = 0;
+  const _speedometer = speedometer_default(50, 250);
+  return throttle_default((e) => {
+    const loaded = e.loaded;
+    const total = e.lengthComputable ? e.total : void 0;
+    const progressBytes = loaded - bytesNotified;
+    const rate = _speedometer(progressBytes);
+    const inRange = loaded <= total;
+    bytesNotified = loaded;
+    const data2 = {
+      loaded,
+      total,
+      progress: total ? loaded / total : void 0,
+      bytes: progressBytes,
+      rate: rate ? rate : void 0,
+      estimated: rate && total && inRange ? (total - loaded) / rate : void 0,
+      event: e,
+      lengthComputable: total != null,
+      [isDownloadStream ? "download" : "upload"]: true
+    };
+    listener(data2);
+  }, freq);
+};
+var progressEventDecorator = (total, throttled) => {
+  const lengthComputable = total != null;
+  return [(loaded) => throttled[0]({
+    lengthComputable,
+    total,
+    loaded
+  }), throttled[1]];
+};
+var asyncDecorator = (fn) => (...args) => utils_default.asap(() => fn(...args));
+
+// node_modules/axios/lib/adapters/http.js
+var zlibOptions = {
+  flush: zlib.constants.Z_SYNC_FLUSH,
+  finishFlush: zlib.constants.Z_SYNC_FLUSH
+};
+var brotliOptions = {
+  flush: zlib.constants.BROTLI_OPERATION_FLUSH,
+  finishFlush: zlib.constants.BROTLI_OPERATION_FLUSH
+};
+var isBrotliSupported = utils_default.isFunction(zlib.createBrotliDecompress);
+var { http: httpFollow, https: httpsFollow } = import_follow_redirects.default;
+var isHttps = /https:?/;
+var supportedProtocols = platform_default.protocols.map((protocol) => {
+  return protocol + ":";
+});
+var flushOnFinish = (stream5, [throttled, flush]) => {
+  stream5.on("end", flush).on("error", flush);
+  return throttled;
+};
+function dispatchBeforeRedirect(options, responseDetails) {
+  if (options.beforeRedirects.proxy) {
+    options.beforeRedirects.proxy(options);
+  }
+  if (options.beforeRedirects.config) {
+    options.beforeRedirects.config(options, responseDetails);
+  }
+}
+function setProxy(options, configProxy, location) {
+  let proxy = configProxy;
+  if (!proxy && proxy !== false) {
+    const proxyUrl = import_proxy_from_env.default.getProxyForUrl(location);
+    if (proxyUrl) {
+      proxy = new URL(proxyUrl);
+    }
+  }
+  if (proxy) {
+    if (proxy.username) {
+      proxy.auth = (proxy.username || "") + ":" + (proxy.password || "");
+    }
+    if (proxy.auth) {
+      if (proxy.auth.username || proxy.auth.password) {
+        proxy.auth = (proxy.auth.username || "") + ":" + (proxy.auth.password || "");
+      }
+      const base64 = Buffer.from(proxy.auth, "utf8").toString("base64");
+      options.headers["Proxy-Authorization"] = "Basic " + base64;
+    }
+    options.headers.host = options.hostname + (options.port ? ":" + options.port : "");
+    const proxyHost = proxy.hostname || proxy.host;
+    options.hostname = proxyHost;
+    options.host = proxyHost;
+    options.port = proxy.port;
+    options.path = location;
+    if (proxy.protocol) {
+      options.protocol = proxy.protocol.includes(":") ? proxy.protocol : `${proxy.protocol}:`;
+    }
+  }
+  options.beforeRedirects.proxy = function beforeRedirect(redirectOptions) {
+    setProxy(redirectOptions, configProxy, redirectOptions.href);
+  };
+}
+var isHttpAdapterSupported = typeof process !== "undefined" && utils_default.kindOf(process) === "process";
+var wrapAsync = (asyncExecutor) => {
+  return new Promise((resolve, reject) => {
+    let onDone;
+    let isDone;
+    const done = (value, isRejected) => {
+      if (isDone)
+        return;
+      isDone = true;
+      onDone && onDone(value, isRejected);
+    };
+    const _resolve = (value) => {
+      done(value);
+      resolve(value);
+    };
+    const _reject = (reason) => {
+      done(reason, true);
+      reject(reason);
+    };
+    asyncExecutor(_resolve, _reject, (onDoneHandler) => onDone = onDoneHandler).catch(_reject);
+  });
+};
+var resolveFamily = ({ address, family }) => {
+  if (!utils_default.isString(address)) {
+    throw TypeError("address must be a string");
+  }
+  return {
+    address,
+    family: family || (address.indexOf(".") < 0 ? 6 : 4)
+  };
+};
+var buildAddressEntry = (address, family) => resolveFamily(utils_default.isObject(address) ? address : { address, family });
+var http_default = isHttpAdapterSupported && function httpAdapter(config) {
+  return wrapAsync(async function dispatchHttpRequest(resolve, reject, onDone) {
+    let { data: data2, lookup, family } = config;
+    const { responseType, responseEncoding } = config;
+    const method = config.method.toUpperCase();
+    let isDone;
+    let rejected = false;
+    let req;
+    if (lookup) {
+      const _lookup = callbackify_default(lookup, (value) => utils_default.isArray(value) ? value : [value]);
+      lookup = (hostname, opt, cb) => {
+        _lookup(hostname, opt, (err, arg0, arg1) => {
+          if (err) {
+            return cb(err);
+          }
+          const addresses = utils_default.isArray(arg0) ? arg0.map((addr) => buildAddressEntry(addr)) : [buildAddressEntry(arg0, arg1)];
+          opt.all ? cb(err, addresses) : cb(err, addresses[0].address, addresses[0].family);
+        });
+      };
+    }
+    const emitter = new EventEmitter();
+    const onFinished = () => {
+      if (config.cancelToken) {
+        config.cancelToken.unsubscribe(abort);
+      }
+      if (config.signal) {
+        config.signal.removeEventListener("abort", abort);
+      }
+      emitter.removeAllListeners();
+    };
+    onDone((value, isRejected) => {
+      isDone = true;
+      if (isRejected) {
+        rejected = true;
+        onFinished();
+      }
+    });
+    function abort(reason) {
+      emitter.emit("abort", !reason || reason.type ? new CanceledError_default(null, config, req) : reason);
+    }
+    emitter.once("abort", reject);
+    if (config.cancelToken || config.signal) {
+      config.cancelToken && config.cancelToken.subscribe(abort);
+      if (config.signal) {
+        config.signal.aborted ? abort() : config.signal.addEventListener("abort", abort);
+      }
+    }
+    const fullPath = buildFullPath(config.baseURL, config.url);
+    const parsed = new URL(fullPath, platform_default.hasBrowserEnv ? platform_default.origin : void 0);
+    const protocol = parsed.protocol || supportedProtocols[0];
+    if (protocol === "data:") {
+      let convertedData;
+      if (method !== "GET") {
+        return settle(resolve, reject, {
+          status: 405,
+          statusText: "method not allowed",
+          headers: {},
+          config
+        });
+      }
+      try {
+        convertedData = fromDataURI(config.url, responseType === "blob", {
+          Blob: config.env && config.env.Blob
+        });
+      } catch (err) {
+        throw AxiosError_default.from(err, AxiosError_default.ERR_BAD_REQUEST, config);
+      }
+      if (responseType === "text") {
+        convertedData = convertedData.toString(responseEncoding);
+        if (!responseEncoding || responseEncoding === "utf8") {
+          convertedData = utils_default.stripBOM(convertedData);
+        }
+      } else if (responseType === "stream") {
+        convertedData = stream3.Readable.from(convertedData);
+      }
+      return settle(resolve, reject, {
+        data: convertedData,
+        status: 200,
+        statusText: "OK",
+        headers: new AxiosHeaders_default(),
+        config
+      });
+    }
+    if (supportedProtocols.indexOf(protocol) === -1) {
+      return reject(new AxiosError_default(
+        "Unsupported protocol " + protocol,
+        AxiosError_default.ERR_BAD_REQUEST,
+        config
+      ));
+    }
+    const headers = AxiosHeaders_default.from(config.headers).normalize();
+    headers.set("User-Agent", "axios/" + VERSION, false);
+    const { onUploadProgress, onDownloadProgress } = config;
+    const maxRate = config.maxRate;
+    let maxUploadRate = void 0;
+    let maxDownloadRate = void 0;
+    if (utils_default.isSpecCompliantForm(data2)) {
+      const userBoundary = headers.getContentType(/boundary=([-_\w\d]{10,70})/i);
+      data2 = formDataToStream_default(data2, (formHeaders) => {
+        headers.set(formHeaders);
+      }, {
+        tag: `axios-${VERSION}-boundary`,
+        boundary: userBoundary && userBoundary[1] || void 0
+      });
+    } else if (utils_default.isFormData(data2) && utils_default.isFunction(data2.getHeaders)) {
+      headers.set(data2.getHeaders());
+      if (!headers.hasContentLength()) {
+        try {
+          const knownLength = await util2.promisify(data2.getLength).call(data2);
+          Number.isFinite(knownLength) && knownLength >= 0 && headers.setContentLength(knownLength);
+        } catch (e) {
+        }
+      }
+    } else if (utils_default.isBlob(data2) || utils_default.isFile(data2)) {
+      data2.size && headers.setContentType(data2.type || "application/octet-stream");
+      headers.setContentLength(data2.size || 0);
+      data2 = stream3.Readable.from(readBlob_default(data2));
+    } else if (data2 && !utils_default.isStream(data2)) {
+      if (Buffer.isBuffer(data2)) {
+      } else if (utils_default.isArrayBuffer(data2)) {
+        data2 = Buffer.from(new Uint8Array(data2));
+      } else if (utils_default.isString(data2)) {
+        data2 = Buffer.from(data2, "utf-8");
+      } else {
+        return reject(new AxiosError_default(
+          "Data after transformation must be a string, an ArrayBuffer, a Buffer, or a Stream",
+          AxiosError_default.ERR_BAD_REQUEST,
+          config
+        ));
+      }
+      headers.setContentLength(data2.length, false);
+      if (config.maxBodyLength > -1 && data2.length > config.maxBodyLength) {
+        return reject(new AxiosError_default(
+          "Request body larger than maxBodyLength limit",
+          AxiosError_default.ERR_BAD_REQUEST,
+          config
+        ));
+      }
+    }
+    const contentLength = utils_default.toFiniteNumber(headers.getContentLength());
+    if (utils_default.isArray(maxRate)) {
+      maxUploadRate = maxRate[0];
+      maxDownloadRate = maxRate[1];
+    } else {
+      maxUploadRate = maxDownloadRate = maxRate;
+    }
+    if (data2 && (onUploadProgress || maxUploadRate)) {
+      if (!utils_default.isStream(data2)) {
+        data2 = stream3.Readable.from(data2, { objectMode: false });
+      }
+      data2 = stream3.pipeline([data2, new AxiosTransformStream_default({
+        maxRate: utils_default.toFiniteNumber(maxUploadRate)
+      })], utils_default.noop);
+      onUploadProgress && data2.on("progress", flushOnFinish(
+        data2,
+        progressEventDecorator(
+          contentLength,
+          progressEventReducer(asyncDecorator(onUploadProgress), false, 3)
+        )
+      ));
+    }
+    let auth2 = void 0;
+    if (config.auth) {
+      const username = config.auth.username || "";
+      const password = config.auth.password || "";
+      auth2 = username + ":" + password;
+    }
+    if (!auth2 && parsed.username) {
+      const urlUsername = parsed.username;
+      const urlPassword = parsed.password;
+      auth2 = urlUsername + ":" + urlPassword;
+    }
+    auth2 && headers.delete("authorization");
+    let path;
+    try {
+      path = buildURL(
+        parsed.pathname + parsed.search,
+        config.params,
+        config.paramsSerializer
+      ).replace(/^\?/, "");
+    } catch (err) {
+      const customErr = new Error(err.message);
+      customErr.config = config;
+      customErr.url = config.url;
+      customErr.exists = true;
+      return reject(customErr);
+    }
+    headers.set(
+      "Accept-Encoding",
+      "gzip, compress, deflate" + (isBrotliSupported ? ", br" : ""),
+      false
+    );
+    const options = {
+      path,
+      method,
+      headers: headers.toJSON(),
+      agents: { http: config.httpAgent, https: config.httpsAgent },
+      auth: auth2,
+      protocol,
+      family,
+      beforeRedirect: dispatchBeforeRedirect,
+      beforeRedirects: {}
+    };
+    !utils_default.isUndefined(lookup) && (options.lookup = lookup);
+    if (config.socketPath) {
+      options.socketPath = config.socketPath;
+    } else {
+      options.hostname = parsed.hostname.startsWith("[") ? parsed.hostname.slice(1, -1) : parsed.hostname;
+      options.port = parsed.port;
+      setProxy(options, config.proxy, protocol + "//" + parsed.hostname + (parsed.port ? ":" + parsed.port : "") + options.path);
+    }
+    let transport;
+    const isHttpsRequest = isHttps.test(options.protocol);
+    options.agent = isHttpsRequest ? config.httpsAgent : config.httpAgent;
+    if (config.transport) {
+      transport = config.transport;
+    } else if (config.maxRedirects === 0) {
+      transport = isHttpsRequest ? https : http;
+    } else {
+      if (config.maxRedirects) {
+        options.maxRedirects = config.maxRedirects;
+      }
+      if (config.beforeRedirect) {
+        options.beforeRedirects.config = config.beforeRedirect;
+      }
+      transport = isHttpsRequest ? httpsFollow : httpFollow;
+    }
+    if (config.maxBodyLength > -1) {
+      options.maxBodyLength = config.maxBodyLength;
+    } else {
+      options.maxBodyLength = Infinity;
+    }
+    if (config.insecureHTTPParser) {
+      options.insecureHTTPParser = config.insecureHTTPParser;
+    }
+    req = transport.request(options, function handleResponse(res) {
+      if (req.destroyed)
+        return;
+      const streams = [res];
+      const responseLength = +res.headers["content-length"];
+      if (onDownloadProgress || maxDownloadRate) {
+        const transformStream = new AxiosTransformStream_default({
+          maxRate: utils_default.toFiniteNumber(maxDownloadRate)
+        });
+        onDownloadProgress && transformStream.on("progress", flushOnFinish(
+          transformStream,
+          progressEventDecorator(
+            responseLength,
+            progressEventReducer(asyncDecorator(onDownloadProgress), true, 3)
+          )
+        ));
+        streams.push(transformStream);
+      }
+      let responseStream = res;
+      const lastRequest = res.req || req;
+      if (config.decompress !== false && res.headers["content-encoding"]) {
+        if (method === "HEAD" || res.statusCode === 204) {
+          delete res.headers["content-encoding"];
+        }
+        switch ((res.headers["content-encoding"] || "").toLowerCase()) {
+          case "gzip":
+          case "x-gzip":
+          case "compress":
+          case "x-compress":
+            streams.push(zlib.createUnzip(zlibOptions));
+            delete res.headers["content-encoding"];
+            break;
+          case "deflate":
+            streams.push(new ZlibHeaderTransformStream_default());
+            streams.push(zlib.createUnzip(zlibOptions));
+            delete res.headers["content-encoding"];
+            break;
+          case "br":
+            if (isBrotliSupported) {
+              streams.push(zlib.createBrotliDecompress(brotliOptions));
+              delete res.headers["content-encoding"];
+            }
+        }
+      }
+      responseStream = streams.length > 1 ? stream3.pipeline(streams, utils_default.noop) : streams[0];
+      const offListeners = stream3.finished(responseStream, () => {
+        offListeners();
+        onFinished();
+      });
+      const response = {
+        status: res.statusCode,
+        statusText: res.statusMessage,
+        headers: new AxiosHeaders_default(res.headers),
+        config,
+        request: lastRequest
+      };
+      if (responseType === "stream") {
+        response.data = responseStream;
+        settle(resolve, reject, response);
+      } else {
+        const responseBuffer = [];
+        let totalResponseBytes = 0;
+        responseStream.on("data", function handleStreamData(chunk) {
+          responseBuffer.push(chunk);
+          totalResponseBytes += chunk.length;
+          if (config.maxContentLength > -1 && totalResponseBytes > config.maxContentLength) {
+            rejected = true;
+            responseStream.destroy();
+            reject(new AxiosError_default(
+              "maxContentLength size of " + config.maxContentLength + " exceeded",
+              AxiosError_default.ERR_BAD_RESPONSE,
+              config,
+              lastRequest
+            ));
+          }
+        });
+        responseStream.on("aborted", function handlerStreamAborted() {
+          if (rejected) {
+            return;
+          }
+          const err = new AxiosError_default(
+            "stream has been aborted",
+            AxiosError_default.ERR_BAD_RESPONSE,
+            config,
+            lastRequest
+          );
+          responseStream.destroy(err);
+          reject(err);
+        });
+        responseStream.on("error", function handleStreamError(err) {
+          if (req.destroyed)
+            return;
+          reject(AxiosError_default.from(err, null, config, lastRequest));
+        });
+        responseStream.on("end", function handleStreamEnd() {
+          try {
+            let responseData = responseBuffer.length === 1 ? responseBuffer[0] : Buffer.concat(responseBuffer);
+            if (responseType !== "arraybuffer") {
+              responseData = responseData.toString(responseEncoding);
+              if (!responseEncoding || responseEncoding === "utf8") {
+                responseData = utils_default.stripBOM(responseData);
+              }
+            }
+            response.data = responseData;
+          } catch (err) {
+            return reject(AxiosError_default.from(err, null, config, response.request, response));
+          }
+          settle(resolve, reject, response);
+        });
+      }
+      emitter.once("abort", (err) => {
+        if (!responseStream.destroyed) {
+          responseStream.emit("error", err);
+          responseStream.destroy();
+        }
+      });
+    });
+    emitter.once("abort", (err) => {
+      reject(err);
+      req.destroy(err);
+    });
+    req.on("error", function handleRequestError(err) {
+      reject(AxiosError_default.from(err, null, config, req));
+    });
+    req.on("socket", function handleRequestSocket(socket) {
+      socket.setKeepAlive(true, 1e3 * 60);
+    });
+    if (config.timeout) {
+      const timeout = parseInt(config.timeout, 10);
+      if (Number.isNaN(timeout)) {
+        reject(new AxiosError_default(
+          "error trying to parse `config.timeout` to int",
+          AxiosError_default.ERR_BAD_OPTION_VALUE,
+          config,
+          req
+        ));
+        return;
+      }
+      req.setTimeout(timeout, function handleRequestTimeout() {
+        if (isDone)
+          return;
+        let timeoutErrorMessage = config.timeout ? "timeout of " + config.timeout + "ms exceeded" : "timeout exceeded";
+        const transitional2 = config.transitional || transitional_default;
+        if (config.timeoutErrorMessage) {
+          timeoutErrorMessage = config.timeoutErrorMessage;
+        }
+        reject(new AxiosError_default(
+          timeoutErrorMessage,
+          transitional2.clarifyTimeoutError ? AxiosError_default.ETIMEDOUT : AxiosError_default.ECONNABORTED,
+          config,
+          req
+        ));
+        abort();
+      });
+    }
+    if (utils_default.isStream(data2)) {
+      let ended = false;
+      let errored = false;
+      data2.on("end", () => {
+        ended = true;
+      });
+      data2.once("error", (err) => {
+        errored = true;
+        req.destroy(err);
+      });
+      data2.on("close", () => {
+        if (!ended && !errored) {
+          abort(new CanceledError_default("Request stream has been aborted", config, req));
+        }
+      });
+      data2.pipe(req);
+    } else {
+      req.end(data2);
+    }
+  });
+};
+
+// node_modules/axios/lib/helpers/isURLSameOrigin.js
+var isURLSameOrigin_default = platform_default.hasStandardBrowserEnv ? /* @__PURE__ */ ((origin2, isMSIE) => (url2) => {
+  url2 = new URL(url2, platform_default.origin);
+  return origin2.protocol === url2.protocol && origin2.host === url2.host && (isMSIE || origin2.port === url2.port);
+})(
+  new URL(platform_default.origin),
+  platform_default.navigator && /(msie|trident)/i.test(platform_default.navigator.userAgent)
+) : () => true;
+
+// node_modules/axios/lib/helpers/cookies.js
+var cookies_default = platform_default.hasStandardBrowserEnv ? (
+  // Standard browser envs support document.cookie
+  {
+    write(name, value, expires, path, domain, secure) {
+      const cookie = [name + "=" + encodeURIComponent(value)];
+      utils_default.isNumber(expires) && cookie.push("expires=" + new Date(expires).toGMTString());
+      utils_default.isString(path) && cookie.push("path=" + path);
+      utils_default.isString(domain) && cookie.push("domain=" + domain);
+      secure === true && cookie.push("secure");
+      document.cookie = cookie.join("; ");
+    },
+    read(name) {
+      const match = document.cookie.match(new RegExp("(^|;\\s*)(" + name + ")=([^;]*)"));
+      return match ? decodeURIComponent(match[3]) : null;
+    },
+    remove(name) {
+      this.write(name, "", Date.now() - 864e5);
+    }
+  }
+) : (
+  // Non-standard browser env (web workers, react-native) lack needed support.
+  {
+    write() {
+    },
+    read() {
+      return null;
+    },
+    remove() {
+    }
+  }
+);
+
+// node_modules/axios/lib/core/mergeConfig.js
+var headersToObject = (thing) => thing instanceof AxiosHeaders_default ? { ...thing } : thing;
+function mergeConfig(config1, config2) {
+  config2 = config2 || {};
+  const config = {};
+  function getMergedValue(target, source, prop2, caseless) {
+    if (utils_default.isPlainObject(target) && utils_default.isPlainObject(source)) {
+      return utils_default.merge.call({ caseless }, target, source);
+    } else if (utils_default.isPlainObject(source)) {
+      return utils_default.merge({}, source);
+    } else if (utils_default.isArray(source)) {
+      return source.slice();
+    }
+    return source;
+  }
+  function mergeDeepProperties(a, b, prop2, caseless) {
+    if (!utils_default.isUndefined(b)) {
+      return getMergedValue(a, b, prop2, caseless);
+    } else if (!utils_default.isUndefined(a)) {
+      return getMergedValue(void 0, a, prop2, caseless);
+    }
+  }
+  function valueFromConfig2(a, b) {
+    if (!utils_default.isUndefined(b)) {
+      return getMergedValue(void 0, b);
+    }
+  }
+  function defaultToConfig2(a, b) {
+    if (!utils_default.isUndefined(b)) {
+      return getMergedValue(void 0, b);
+    } else if (!utils_default.isUndefined(a)) {
+      return getMergedValue(void 0, a);
+    }
+  }
+  function mergeDirectKeys(a, b, prop2) {
+    if (prop2 in config2) {
+      return getMergedValue(a, b);
+    } else if (prop2 in config1) {
+      return getMergedValue(void 0, a);
+    }
+  }
+  const mergeMap = {
+    url: valueFromConfig2,
+    method: valueFromConfig2,
+    data: valueFromConfig2,
+    baseURL: defaultToConfig2,
+    transformRequest: defaultToConfig2,
+    transformResponse: defaultToConfig2,
+    paramsSerializer: defaultToConfig2,
+    timeout: defaultToConfig2,
+    timeoutMessage: defaultToConfig2,
+    withCredentials: defaultToConfig2,
+    withXSRFToken: defaultToConfig2,
+    adapter: defaultToConfig2,
+    responseType: defaultToConfig2,
+    xsrfCookieName: defaultToConfig2,
+    xsrfHeaderName: defaultToConfig2,
+    onUploadProgress: defaultToConfig2,
+    onDownloadProgress: defaultToConfig2,
+    decompress: defaultToConfig2,
+    maxContentLength: defaultToConfig2,
+    maxBodyLength: defaultToConfig2,
+    beforeRedirect: defaultToConfig2,
+    transport: defaultToConfig2,
+    httpAgent: defaultToConfig2,
+    httpsAgent: defaultToConfig2,
+    cancelToken: defaultToConfig2,
+    socketPath: defaultToConfig2,
+    responseEncoding: defaultToConfig2,
+    validateStatus: mergeDirectKeys,
+    headers: (a, b, prop2) => mergeDeepProperties(headersToObject(a), headersToObject(b), prop2, true)
+  };
+  utils_default.forEach(Object.keys(Object.assign({}, config1, config2)), function computeConfigValue(prop2) {
+    const merge4 = mergeMap[prop2] || mergeDeepProperties;
+    const configValue = merge4(config1[prop2], config2[prop2], prop2);
+    utils_default.isUndefined(configValue) && merge4 !== mergeDirectKeys || (config[prop2] = configValue);
+  });
+  return config;
+}
+
+// node_modules/axios/lib/helpers/resolveConfig.js
+var resolveConfig_default = (config) => {
+  const newConfig = mergeConfig({}, config);
+  let { data: data2, withXSRFToken, xsrfHeaderName, xsrfCookieName, headers, auth: auth2 } = newConfig;
+  newConfig.headers = headers = AxiosHeaders_default.from(headers);
+  newConfig.url = buildURL(buildFullPath(newConfig.baseURL, newConfig.url), config.params, config.paramsSerializer);
+  if (auth2) {
+    headers.set(
+      "Authorization",
+      "Basic " + btoa((auth2.username || "") + ":" + (auth2.password ? unescape(encodeURIComponent(auth2.password)) : ""))
+    );
+  }
+  let contentType;
+  if (utils_default.isFormData(data2)) {
+    if (platform_default.hasStandardBrowserEnv || platform_default.hasStandardBrowserWebWorkerEnv) {
+      headers.setContentType(void 0);
+    } else if ((contentType = headers.getContentType()) !== false) {
+      const [type, ...tokens] = contentType ? contentType.split(";").map((token) => token.trim()).filter(Boolean) : [];
+      headers.setContentType([type || "multipart/form-data", ...tokens].join("; "));
+    }
+  }
+  if (platform_default.hasStandardBrowserEnv) {
+    withXSRFToken && utils_default.isFunction(withXSRFToken) && (withXSRFToken = withXSRFToken(newConfig));
+    if (withXSRFToken || withXSRFToken !== false && isURLSameOrigin_default(newConfig.url)) {
+      const xsrfValue = xsrfHeaderName && xsrfCookieName && cookies_default.read(xsrfCookieName);
+      if (xsrfValue) {
+        headers.set(xsrfHeaderName, xsrfValue);
+      }
+    }
+  }
+  return newConfig;
+};
+
+// node_modules/axios/lib/adapters/xhr.js
+var isXHRAdapterSupported = typeof XMLHttpRequest !== "undefined";
+var xhr_default = isXHRAdapterSupported && function(config) {
+  return new Promise(function dispatchXhrRequest(resolve, reject) {
+    const _config = resolveConfig_default(config);
+    let requestData = _config.data;
+    const requestHeaders = AxiosHeaders_default.from(_config.headers).normalize();
+    let { responseType, onUploadProgress, onDownloadProgress } = _config;
+    let onCanceled;
+    let uploadThrottled, downloadThrottled;
+    let flushUpload, flushDownload;
+    function done() {
+      flushUpload && flushUpload();
+      flushDownload && flushDownload();
+      _config.cancelToken && _config.cancelToken.unsubscribe(onCanceled);
+      _config.signal && _config.signal.removeEventListener("abort", onCanceled);
+    }
+    let request2 = new XMLHttpRequest();
+    request2.open(_config.method.toUpperCase(), _config.url, true);
+    request2.timeout = _config.timeout;
+    function onloadend() {
+      if (!request2) {
+        return;
+      }
+      const responseHeaders = AxiosHeaders_default.from(
+        "getAllResponseHeaders" in request2 && request2.getAllResponseHeaders()
+      );
+      const responseData = !responseType || responseType === "text" || responseType === "json" ? request2.responseText : request2.response;
+      const response = {
+        data: responseData,
+        status: request2.status,
+        statusText: request2.statusText,
+        headers: responseHeaders,
+        config,
+        request: request2
+      };
+      settle(function _resolve(value) {
+        resolve(value);
+        done();
+      }, function _reject(err) {
+        reject(err);
+        done();
+      }, response);
+      request2 = null;
+    }
+    if ("onloadend" in request2) {
+      request2.onloadend = onloadend;
+    } else {
+      request2.onreadystatechange = function handleLoad() {
+        if (!request2 || request2.readyState !== 4) {
+          return;
+        }
+        if (request2.status === 0 && !(request2.responseURL && request2.responseURL.indexOf("file:") === 0)) {
+          return;
+        }
+        setTimeout(onloadend);
+      };
+    }
+    request2.onabort = function handleAbort() {
+      if (!request2) {
+        return;
+      }
+      reject(new AxiosError_default("Request aborted", AxiosError_default.ECONNABORTED, config, request2));
+      request2 = null;
+    };
+    request2.onerror = function handleError() {
+      reject(new AxiosError_default("Network Error", AxiosError_default.ERR_NETWORK, config, request2));
+      request2 = null;
+    };
+    request2.ontimeout = function handleTimeout() {
+      let timeoutErrorMessage = _config.timeout ? "timeout of " + _config.timeout + "ms exceeded" : "timeout exceeded";
+      const transitional2 = _config.transitional || transitional_default;
+      if (_config.timeoutErrorMessage) {
+        timeoutErrorMessage = _config.timeoutErrorMessage;
+      }
+      reject(new AxiosError_default(
+        timeoutErrorMessage,
+        transitional2.clarifyTimeoutError ? AxiosError_default.ETIMEDOUT : AxiosError_default.ECONNABORTED,
+        config,
+        request2
+      ));
+      request2 = null;
+    };
+    requestData === void 0 && requestHeaders.setContentType(null);
+    if ("setRequestHeader" in request2) {
+      utils_default.forEach(requestHeaders.toJSON(), function setRequestHeader(val2, key) {
+        request2.setRequestHeader(key, val2);
+      });
+    }
+    if (!utils_default.isUndefined(_config.withCredentials)) {
+      request2.withCredentials = !!_config.withCredentials;
+    }
+    if (responseType && responseType !== "json") {
+      request2.responseType = _config.responseType;
+    }
+    if (onDownloadProgress) {
+      [downloadThrottled, flushDownload] = progressEventReducer(onDownloadProgress, true);
+      request2.addEventListener("progress", downloadThrottled);
+    }
+    if (onUploadProgress && request2.upload) {
+      [uploadThrottled, flushUpload] = progressEventReducer(onUploadProgress);
+      request2.upload.addEventListener("progress", uploadThrottled);
+      request2.upload.addEventListener("loadend", flushUpload);
+    }
+    if (_config.cancelToken || _config.signal) {
+      onCanceled = (cancel) => {
+        if (!request2) {
+          return;
+        }
+        reject(!cancel || cancel.type ? new CanceledError_default(null, config, request2) : cancel);
+        request2.abort();
+        request2 = null;
+      };
+      _config.cancelToken && _config.cancelToken.subscribe(onCanceled);
+      if (_config.signal) {
+        _config.signal.aborted ? onCanceled() : _config.signal.addEventListener("abort", onCanceled);
+      }
+    }
+    const protocol = parseProtocol(_config.url);
+    if (protocol && platform_default.protocols.indexOf(protocol) === -1) {
+      reject(new AxiosError_default("Unsupported protocol " + protocol + ":", AxiosError_default.ERR_BAD_REQUEST, config));
+      return;
+    }
+    request2.send(requestData || null);
+  });
+};
+
+// node_modules/axios/lib/helpers/composeSignals.js
+var composeSignals = (signals, timeout) => {
+  const { length } = signals = signals ? signals.filter(Boolean) : [];
+  if (timeout || length) {
+    let controller = new AbortController();
+    let aborted;
+    const onabort = function(reason) {
+      if (!aborted) {
+        aborted = true;
+        unsubscribe();
+        const err = reason instanceof Error ? reason : this.reason;
+        controller.abort(err instanceof AxiosError_default ? err : new CanceledError_default(err instanceof Error ? err.message : err));
+      }
+    };
+    let timer = timeout && setTimeout(() => {
+      timer = null;
+      onabort(new AxiosError_default(`timeout ${timeout} of ms exceeded`, AxiosError_default.ETIMEDOUT));
+    }, timeout);
+    const unsubscribe = () => {
+      if (signals) {
+        timer && clearTimeout(timer);
+        timer = null;
+        signals.forEach((signal2) => {
+          signal2.unsubscribe ? signal2.unsubscribe(onabort) : signal2.removeEventListener("abort", onabort);
+        });
+        signals = null;
+      }
+    };
+    signals.forEach((signal2) => signal2.addEventListener("abort", onabort));
+    const { signal } = controller;
+    signal.unsubscribe = () => utils_default.asap(unsubscribe);
+    return signal;
+  }
+};
+var composeSignals_default = composeSignals;
+
+// node_modules/axios/lib/helpers/trackStream.js
+var streamChunk = function* (chunk, chunkSize) {
+  let len = chunk.byteLength;
+  if (!chunkSize || len < chunkSize) {
+    yield chunk;
+    return;
+  }
+  let pos = 0;
+  let end2;
+  while (pos < len) {
+    end2 = pos + chunkSize;
+    yield chunk.slice(pos, end2);
+    pos = end2;
+  }
+};
+var readBytes = async function* (iterable, chunkSize) {
+  for await (const chunk of readStream(iterable)) {
+    yield* streamChunk(chunk, chunkSize);
+  }
+};
+var readStream = async function* (stream5) {
+  if (stream5[Symbol.asyncIterator]) {
+    yield* stream5;
+    return;
+  }
+  const reader = stream5.getReader();
+  try {
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      yield value;
+    }
+  } finally {
+    await reader.cancel();
+  }
+};
+var trackStream = (stream5, chunkSize, onProgress, onFinish) => {
+  const iterator = readBytes(stream5, chunkSize);
+  let bytes = 0;
+  let done;
+  let _onFinish = (e) => {
+    if (!done) {
+      done = true;
+      onFinish && onFinish(e);
+    }
+  };
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        const { done: done2, value } = await iterator.next();
+        if (done2) {
+          _onFinish();
+          controller.close();
+          return;
+        }
+        let len = value.byteLength;
+        if (onProgress) {
+          let loadedBytes = bytes += len;
+          onProgress(loadedBytes);
+        }
+        controller.enqueue(new Uint8Array(value));
+      } catch (err) {
+        _onFinish(err);
+        throw err;
+      }
+    },
+    cancel(reason) {
+      _onFinish(reason);
+      return iterator.return();
+    }
+  }, {
+    highWaterMark: 2
+  });
+};
+
+// node_modules/axios/lib/adapters/fetch.js
+var isFetchSupported = typeof fetch === "function" && typeof Request === "function" && typeof Response === "function";
+var isReadableStreamSupported = isFetchSupported && typeof ReadableStream === "function";
+var encodeText = isFetchSupported && (typeof TextEncoder === "function" ? /* @__PURE__ */ ((encoder) => (str) => encoder.encode(str))(new TextEncoder()) : async (str) => new Uint8Array(await new Response(str).arrayBuffer()));
+var test = (fn, ...args) => {
+  try {
+    return !!fn(...args);
+  } catch (e) {
+    return false;
+  }
+};
+var supportsRequestStream = isReadableStreamSupported && test(() => {
+  let duplexAccessed = false;
+  const hasContentType = new Request(platform_default.origin, {
+    body: new ReadableStream(),
+    method: "POST",
+    get duplex() {
+      duplexAccessed = true;
+      return "half";
+    }
+  }).headers.has("Content-Type");
+  return duplexAccessed && !hasContentType;
+});
+var DEFAULT_CHUNK_SIZE = 64 * 1024;
+var supportsResponseStream = isReadableStreamSupported && test(() => utils_default.isReadableStream(new Response("").body));
+var resolvers = {
+  stream: supportsResponseStream && ((res) => res.body)
+};
+isFetchSupported && ((res) => {
+  ["text", "arrayBuffer", "blob", "formData", "stream"].forEach((type) => {
+    !resolvers[type] && (resolvers[type] = utils_default.isFunction(res[type]) ? (res2) => res2[type]() : (_, config) => {
+      throw new AxiosError_default(`Response type '${type}' is not supported`, AxiosError_default.ERR_NOT_SUPPORT, config);
+    });
+  });
+})(new Response());
+var getBodyLength = async (body) => {
+  if (body == null) {
+    return 0;
+  }
+  if (utils_default.isBlob(body)) {
+    return body.size;
+  }
+  if (utils_default.isSpecCompliantForm(body)) {
+    const _request = new Request(platform_default.origin, {
+      method: "POST",
+      body
+    });
+    return (await _request.arrayBuffer()).byteLength;
+  }
+  if (utils_default.isArrayBufferView(body) || utils_default.isArrayBuffer(body)) {
+    return body.byteLength;
+  }
+  if (utils_default.isURLSearchParams(body)) {
+    body = body + "";
+  }
+  if (utils_default.isString(body)) {
+    return (await encodeText(body)).byteLength;
+  }
+};
+var resolveBodyLength = async (headers, body) => {
+  const length = utils_default.toFiniteNumber(headers.getContentLength());
+  return length == null ? getBodyLength(body) : length;
+};
+var fetch_default = isFetchSupported && (async (config) => {
+  let {
+    url: url2,
+    method,
+    data: data2,
+    signal,
+    cancelToken,
+    timeout,
+    onDownloadProgress,
+    onUploadProgress,
+    responseType,
+    headers,
+    withCredentials = "same-origin",
+    fetchOptions
+  } = resolveConfig_default(config);
+  responseType = responseType ? (responseType + "").toLowerCase() : "text";
+  let composedSignal = composeSignals_default([signal, cancelToken && cancelToken.toAbortSignal()], timeout);
+  let request2;
+  const unsubscribe = composedSignal && composedSignal.unsubscribe && (() => {
+    composedSignal.unsubscribe();
+  });
+  let requestContentLength;
+  try {
+    if (onUploadProgress && supportsRequestStream && method !== "get" && method !== "head" && (requestContentLength = await resolveBodyLength(headers, data2)) !== 0) {
+      let _request = new Request(url2, {
+        method: "POST",
+        body: data2,
+        duplex: "half"
+      });
+      let contentTypeHeader;
+      if (utils_default.isFormData(data2) && (contentTypeHeader = _request.headers.get("content-type"))) {
+        headers.setContentType(contentTypeHeader);
+      }
+      if (_request.body) {
+        const [onProgress, flush] = progressEventDecorator(
+          requestContentLength,
+          progressEventReducer(asyncDecorator(onUploadProgress))
+        );
+        data2 = trackStream(_request.body, DEFAULT_CHUNK_SIZE, onProgress, flush);
+      }
+    }
+    if (!utils_default.isString(withCredentials)) {
+      withCredentials = withCredentials ? "include" : "omit";
+    }
+    const isCredentialsSupported = "credentials" in Request.prototype;
+    request2 = new Request(url2, {
+      ...fetchOptions,
+      signal: composedSignal,
+      method: method.toUpperCase(),
+      headers: headers.normalize().toJSON(),
+      body: data2,
+      duplex: "half",
+      credentials: isCredentialsSupported ? withCredentials : void 0
+    });
+    let response = await fetch(request2);
+    const isStreamResponse = supportsResponseStream && (responseType === "stream" || responseType === "response");
+    if (supportsResponseStream && (onDownloadProgress || isStreamResponse && unsubscribe)) {
+      const options = {};
+      ["status", "statusText", "headers"].forEach((prop2) => {
+        options[prop2] = response[prop2];
+      });
+      const responseContentLength = utils_default.toFiniteNumber(response.headers.get("content-length"));
+      const [onProgress, flush] = onDownloadProgress && progressEventDecorator(
+        responseContentLength,
+        progressEventReducer(asyncDecorator(onDownloadProgress), true)
+      ) || [];
+      response = new Response(
+        trackStream(response.body, DEFAULT_CHUNK_SIZE, onProgress, () => {
+          flush && flush();
+          unsubscribe && unsubscribe();
+        }),
+        options
+      );
+    }
+    responseType = responseType || "text";
+    let responseData = await resolvers[utils_default.findKey(resolvers, responseType) || "text"](response, config);
+    !isStreamResponse && unsubscribe && unsubscribe();
+    return await new Promise((resolve, reject) => {
+      settle(resolve, reject, {
+        data: responseData,
+        headers: AxiosHeaders_default.from(response.headers),
+        status: response.status,
+        statusText: response.statusText,
+        config,
+        request: request2
+      });
+    });
+  } catch (err) {
+    unsubscribe && unsubscribe();
+    if (err && err.name === "TypeError" && /fetch/i.test(err.message)) {
+      throw Object.assign(
+        new AxiosError_default("Network Error", AxiosError_default.ERR_NETWORK, config, request2),
+        {
+          cause: err.cause || err
+        }
+      );
+    }
+    throw AxiosError_default.from(err, err && err.code, config, request2);
+  }
+});
+
+// node_modules/axios/lib/adapters/adapters.js
+var knownAdapters = {
+  http: http_default,
+  xhr: xhr_default,
+  fetch: fetch_default
+};
+utils_default.forEach(knownAdapters, (fn, value) => {
+  if (fn) {
+    try {
+      Object.defineProperty(fn, "name", { value });
+    } catch (e) {
+    }
+    Object.defineProperty(fn, "adapterName", { value });
+  }
+});
+var renderReason = (reason) => `- ${reason}`;
+var isResolvedHandle = (adapter2) => utils_default.isFunction(adapter2) || adapter2 === null || adapter2 === false;
+var adapters_default = {
+  getAdapter: (adapters) => {
+    adapters = utils_default.isArray(adapters) ? adapters : [adapters];
+    const { length } = adapters;
+    let nameOrAdapter;
+    let adapter2;
+    const rejectedReasons = {};
+    for (let i = 0; i < length; i++) {
+      nameOrAdapter = adapters[i];
+      let id;
+      adapter2 = nameOrAdapter;
+      if (!isResolvedHandle(nameOrAdapter)) {
+        adapter2 = knownAdapters[(id = String(nameOrAdapter)).toLowerCase()];
+        if (adapter2 === void 0) {
+          throw new AxiosError_default(`Unknown adapter '${id}'`);
+        }
+      }
+      if (adapter2) {
+        break;
+      }
+      rejectedReasons[id || "#" + i] = adapter2;
+    }
+    if (!adapter2) {
+      const reasons = Object.entries(rejectedReasons).map(
+        ([id, state]) => `adapter ${id} ` + (state === false ? "is not supported by the environment" : "is not available in the build")
+      );
+      let s = length ? reasons.length > 1 ? "since :\n" + reasons.map(renderReason).join("\n") : " " + renderReason(reasons[0]) : "as no adapter specified";
+      throw new AxiosError_default(
+        `There is no suitable adapter to dispatch the request ` + s,
+        "ERR_NOT_SUPPORT"
+      );
+    }
+    return adapter2;
+  },
+  adapters: knownAdapters
+};
+
+// node_modules/axios/lib/core/dispatchRequest.js
+function throwIfCancellationRequested(config) {
+  if (config.cancelToken) {
+    config.cancelToken.throwIfRequested();
+  }
+  if (config.signal && config.signal.aborted) {
+    throw new CanceledError_default(null, config);
+  }
+}
+function dispatchRequest(config) {
+  throwIfCancellationRequested(config);
+  config.headers = AxiosHeaders_default.from(config.headers);
+  config.data = transformData.call(
+    config,
+    config.transformRequest
+  );
+  if (["post", "put", "patch"].indexOf(config.method) !== -1) {
+    config.headers.setContentType("application/x-www-form-urlencoded", false);
+  }
+  const adapter2 = adapters_default.getAdapter(config.adapter || defaults_default.adapter);
+  return adapter2(config).then(function onAdapterResolution(response) {
+    throwIfCancellationRequested(config);
+    response.data = transformData.call(
+      config,
+      config.transformResponse,
+      response
+    );
+    response.headers = AxiosHeaders_default.from(response.headers);
+    return response;
+  }, function onAdapterRejection(reason) {
+    if (!isCancel(reason)) {
+      throwIfCancellationRequested(config);
+      if (reason && reason.response) {
+        reason.response.data = transformData.call(
+          config,
+          config.transformResponse,
+          reason.response
+        );
+        reason.response.headers = AxiosHeaders_default.from(reason.response.headers);
+      }
+    }
+    return Promise.reject(reason);
+  });
+}
+
+// node_modules/axios/lib/helpers/validator.js
+var validators = {};
+["object", "boolean", "number", "function", "string", "symbol"].forEach((type, i) => {
+  validators[type] = function validator(thing) {
+    return typeof thing === type || "a" + (i < 1 ? "n " : " ") + type;
+  };
+});
+var deprecatedWarnings = {};
+validators.transitional = function transitional(validator, version, message) {
+  function formatMessage(opt, desc) {
+    return "[Axios v" + VERSION + "] Transitional option '" + opt + "'" + desc + (message ? ". " + message : "");
+  }
+  return (value, opt, opts) => {
+    if (validator === false) {
+      throw new AxiosError_default(
+        formatMessage(opt, " has been removed" + (version ? " in " + version : "")),
+        AxiosError_default.ERR_DEPRECATED
+      );
+    }
+    if (version && !deprecatedWarnings[opt]) {
+      deprecatedWarnings[opt] = true;
+      console.warn(
+        formatMessage(
+          opt,
+          " has been deprecated since v" + version + " and will be removed in the near future"
+        )
+      );
+    }
+    return validator ? validator(value, opt, opts) : true;
+  };
+};
+validators.spelling = function spelling(correctSpelling) {
+  return (value, opt) => {
+    console.warn(`${opt} is likely a misspelling of ${correctSpelling}`);
+    return true;
+  };
+};
+function assertOptions(options, schema, allowUnknown) {
+  if (typeof options !== "object") {
+    throw new AxiosError_default("options must be an object", AxiosError_default.ERR_BAD_OPTION_VALUE);
+  }
+  const keys = Object.keys(options);
+  let i = keys.length;
+  while (i-- > 0) {
+    const opt = keys[i];
+    const validator = schema[opt];
+    if (validator) {
+      const value = options[opt];
+      const result = value === void 0 || validator(value, opt, options);
+      if (result !== true) {
+        throw new AxiosError_default("option " + opt + " must be " + result, AxiosError_default.ERR_BAD_OPTION_VALUE);
+      }
+      continue;
+    }
+    if (allowUnknown !== true) {
+      throw new AxiosError_default("Unknown option " + opt, AxiosError_default.ERR_BAD_OPTION);
+    }
+  }
+}
+var validator_default = {
+  assertOptions,
+  validators
+};
+
+// node_modules/axios/lib/core/Axios.js
+var validators2 = validator_default.validators;
+var Axios = class {
+  constructor(instanceConfig) {
+    this.defaults = instanceConfig;
+    this.interceptors = {
+      request: new InterceptorManager_default(),
+      response: new InterceptorManager_default()
+    };
+  }
+  /**
+   * Dispatch a request
+   *
+   * @param {String|Object} configOrUrl The config specific for this request (merged with this.defaults)
+   * @param {?Object} config
+   *
+   * @returns {Promise} The Promise to be fulfilled
+   */
+  async request(configOrUrl, config) {
+    try {
+      return await this._request(configOrUrl, config);
+    } catch (err) {
+      if (err instanceof Error) {
+        let dummy = {};
+        Error.captureStackTrace ? Error.captureStackTrace(dummy) : dummy = new Error();
+        const stack = dummy.stack ? dummy.stack.replace(/^.+\n/, "") : "";
+        try {
+          if (!err.stack) {
+            err.stack = stack;
+          } else if (stack && !String(err.stack).endsWith(stack.replace(/^.+\n.+\n/, ""))) {
+            err.stack += "\n" + stack;
+          }
+        } catch (e) {
+        }
+      }
+      throw err;
+    }
+  }
+  _request(configOrUrl, config) {
+    if (typeof configOrUrl === "string") {
+      config = config || {};
+      config.url = configOrUrl;
+    } else {
+      config = configOrUrl || {};
+    }
+    config = mergeConfig(this.defaults, config);
+    const { transitional: transitional2, paramsSerializer, headers } = config;
+    if (transitional2 !== void 0) {
+      validator_default.assertOptions(transitional2, {
+        silentJSONParsing: validators2.transitional(validators2.boolean),
+        forcedJSONParsing: validators2.transitional(validators2.boolean),
+        clarifyTimeoutError: validators2.transitional(validators2.boolean)
+      }, false);
+    }
+    if (paramsSerializer != null) {
+      if (utils_default.isFunction(paramsSerializer)) {
+        config.paramsSerializer = {
+          serialize: paramsSerializer
+        };
+      } else {
+        validator_default.assertOptions(paramsSerializer, {
+          encode: validators2.function,
+          serialize: validators2.function
+        }, true);
+      }
+    }
+    validator_default.assertOptions(config, {
+      baseUrl: validators2.spelling("baseURL"),
+      withXsrfToken: validators2.spelling("withXSRFToken")
+    }, true);
+    config.method = (config.method || this.defaults.method || "get").toLowerCase();
+    let contextHeaders = headers && utils_default.merge(
+      headers.common,
+      headers[config.method]
+    );
+    headers && utils_default.forEach(
+      ["delete", "get", "head", "post", "put", "patch", "common"],
+      (method) => {
+        delete headers[method];
+      }
+    );
+    config.headers = AxiosHeaders_default.concat(contextHeaders, headers);
+    const requestInterceptorChain = [];
+    let synchronousRequestInterceptors = true;
+    this.interceptors.request.forEach(function unshiftRequestInterceptors(interceptor) {
+      if (typeof interceptor.runWhen === "function" && interceptor.runWhen(config) === false) {
+        return;
+      }
+      synchronousRequestInterceptors = synchronousRequestInterceptors && interceptor.synchronous;
+      requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
+    });
+    const responseInterceptorChain = [];
+    this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
+      responseInterceptorChain.push(interceptor.fulfilled, interceptor.rejected);
+    });
+    let promise;
+    let i = 0;
+    let len;
+    if (!synchronousRequestInterceptors) {
+      const chain = [dispatchRequest.bind(this), void 0];
+      chain.unshift.apply(chain, requestInterceptorChain);
+      chain.push.apply(chain, responseInterceptorChain);
+      len = chain.length;
+      promise = Promise.resolve(config);
+      while (i < len) {
+        promise = promise.then(chain[i++], chain[i++]);
+      }
+      return promise;
+    }
+    len = requestInterceptorChain.length;
+    let newConfig = config;
+    i = 0;
+    while (i < len) {
+      const onFulfilled = requestInterceptorChain[i++];
+      const onRejected = requestInterceptorChain[i++];
+      try {
+        newConfig = onFulfilled(newConfig);
+      } catch (error) {
+        onRejected.call(this, error);
+        break;
+      }
+    }
+    try {
+      promise = dispatchRequest.call(this, newConfig);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    i = 0;
+    len = responseInterceptorChain.length;
+    while (i < len) {
+      promise = promise.then(responseInterceptorChain[i++], responseInterceptorChain[i++]);
+    }
+    return promise;
+  }
+  getUri(config) {
+    config = mergeConfig(this.defaults, config);
+    const fullPath = buildFullPath(config.baseURL, config.url);
+    return buildURL(fullPath, config.params, config.paramsSerializer);
+  }
+};
+utils_default.forEach(["delete", "get", "head", "options"], function forEachMethodNoData(method) {
+  Axios.prototype[method] = function(url2, config) {
+    return this.request(mergeConfig(config || {}, {
+      method,
+      url: url2,
+      data: (config || {}).data
+    }));
+  };
+});
+utils_default.forEach(["post", "put", "patch"], function forEachMethodWithData(method) {
+  function generateHTTPMethod(isForm) {
+    return function httpMethod(url2, data2, config) {
+      return this.request(mergeConfig(config || {}, {
+        method,
+        headers: isForm ? {
+          "Content-Type": "multipart/form-data"
+        } : {},
+        url: url2,
+        data: data2
+      }));
+    };
+  }
+  Axios.prototype[method] = generateHTTPMethod();
+  Axios.prototype[method + "Form"] = generateHTTPMethod(true);
+});
+var Axios_default = Axios;
+
+// node_modules/axios/lib/cancel/CancelToken.js
+var CancelToken = class _CancelToken {
+  constructor(executor) {
+    if (typeof executor !== "function") {
+      throw new TypeError("executor must be a function.");
+    }
+    let resolvePromise;
+    this.promise = new Promise(function promiseExecutor(resolve) {
+      resolvePromise = resolve;
+    });
+    const token = this;
+    this.promise.then((cancel) => {
+      if (!token._listeners)
+        return;
+      let i = token._listeners.length;
+      while (i-- > 0) {
+        token._listeners[i](cancel);
+      }
+      token._listeners = null;
+    });
+    this.promise.then = (onfulfilled) => {
+      let _resolve;
+      const promise = new Promise((resolve) => {
+        token.subscribe(resolve);
+        _resolve = resolve;
+      }).then(onfulfilled);
+      promise.cancel = function reject() {
+        token.unsubscribe(_resolve);
+      };
+      return promise;
+    };
+    executor(function cancel(message, config, request2) {
+      if (token.reason) {
+        return;
+      }
+      token.reason = new CanceledError_default(message, config, request2);
+      resolvePromise(token.reason);
+    });
+  }
+  /**
+   * Throws a `CanceledError` if cancellation has been requested.
+   */
+  throwIfRequested() {
+    if (this.reason) {
+      throw this.reason;
+    }
+  }
+  /**
+   * Subscribe to the cancel signal
+   */
+  subscribe(listener) {
+    if (this.reason) {
+      listener(this.reason);
+      return;
+    }
+    if (this._listeners) {
+      this._listeners.push(listener);
+    } else {
+      this._listeners = [listener];
+    }
+  }
+  /**
+   * Unsubscribe from the cancel signal
+   */
+  unsubscribe(listener) {
+    if (!this._listeners) {
+      return;
+    }
+    const index2 = this._listeners.indexOf(listener);
+    if (index2 !== -1) {
+      this._listeners.splice(index2, 1);
+    }
+  }
+  toAbortSignal() {
+    const controller = new AbortController();
+    const abort = (err) => {
+      controller.abort(err);
+    };
+    this.subscribe(abort);
+    controller.signal.unsubscribe = () => this.unsubscribe(abort);
+    return controller.signal;
+  }
+  /**
+   * Returns an object that contains a new `CancelToken` and a function that, when called,
+   * cancels the `CancelToken`.
+   */
+  static source() {
+    let cancel;
+    const token = new _CancelToken(function executor(c) {
+      cancel = c;
+    });
+    return {
+      token,
+      cancel
+    };
+  }
+};
+var CancelToken_default = CancelToken;
+
+// node_modules/axios/lib/helpers/spread.js
+function spread(callback) {
+  return function wrap2(arr) {
+    return callback.apply(null, arr);
+  };
+}
+
+// node_modules/axios/lib/helpers/isAxiosError.js
+function isAxiosError(payload) {
+  return utils_default.isObject(payload) && payload.isAxiosError === true;
+}
+
+// node_modules/axios/lib/helpers/HttpStatusCode.js
+var HttpStatusCode = {
+  Continue: 100,
+  SwitchingProtocols: 101,
+  Processing: 102,
+  EarlyHints: 103,
+  Ok: 200,
+  Created: 201,
+  Accepted: 202,
+  NonAuthoritativeInformation: 203,
+  NoContent: 204,
+  ResetContent: 205,
+  PartialContent: 206,
+  MultiStatus: 207,
+  AlreadyReported: 208,
+  ImUsed: 226,
+  MultipleChoices: 300,
+  MovedPermanently: 301,
+  Found: 302,
+  SeeOther: 303,
+  NotModified: 304,
+  UseProxy: 305,
+  Unused: 306,
+  TemporaryRedirect: 307,
+  PermanentRedirect: 308,
+  BadRequest: 400,
+  Unauthorized: 401,
+  PaymentRequired: 402,
+  Forbidden: 403,
+  NotFound: 404,
+  MethodNotAllowed: 405,
+  NotAcceptable: 406,
+  ProxyAuthenticationRequired: 407,
+  RequestTimeout: 408,
+  Conflict: 409,
+  Gone: 410,
+  LengthRequired: 411,
+  PreconditionFailed: 412,
+  PayloadTooLarge: 413,
+  UriTooLong: 414,
+  UnsupportedMediaType: 415,
+  RangeNotSatisfiable: 416,
+  ExpectationFailed: 417,
+  ImATeapot: 418,
+  MisdirectedRequest: 421,
+  UnprocessableEntity: 422,
+  Locked: 423,
+  FailedDependency: 424,
+  TooEarly: 425,
+  UpgradeRequired: 426,
+  PreconditionRequired: 428,
+  TooManyRequests: 429,
+  RequestHeaderFieldsTooLarge: 431,
+  UnavailableForLegalReasons: 451,
+  InternalServerError: 500,
+  NotImplemented: 501,
+  BadGateway: 502,
+  ServiceUnavailable: 503,
+  GatewayTimeout: 504,
+  HttpVersionNotSupported: 505,
+  VariantAlsoNegotiates: 506,
+  InsufficientStorage: 507,
+  LoopDetected: 508,
+  NotExtended: 510,
+  NetworkAuthenticationRequired: 511
+};
+Object.entries(HttpStatusCode).forEach(([key, value]) => {
+  HttpStatusCode[value] = key;
+});
+var HttpStatusCode_default = HttpStatusCode;
+
+// node_modules/axios/lib/axios.js
+function createInstance(defaultConfig) {
+  const context = new Axios_default(defaultConfig);
+  const instance = bind(Axios_default.prototype.request, context);
+  utils_default.extend(instance, Axios_default.prototype, context, { allOwnKeys: true });
+  utils_default.extend(instance, context, null, { allOwnKeys: true });
+  instance.create = function create(instanceConfig) {
+    return createInstance(mergeConfig(defaultConfig, instanceConfig));
+  };
+  return instance;
+}
+var axios = createInstance(defaults_default);
+axios.Axios = Axios_default;
+axios.CanceledError = CanceledError_default;
+axios.CancelToken = CancelToken_default;
+axios.isCancel = isCancel;
+axios.VERSION = VERSION;
+axios.toFormData = toFormData_default;
+axios.AxiosError = AxiosError_default;
+axios.Cancel = axios.CanceledError;
+axios.all = function all(promises) {
+  return Promise.all(promises);
+};
+axios.spread = spread;
+axios.isAxiosError = isAxiosError;
+axios.mergeConfig = mergeConfig;
+axios.AxiosHeaders = AxiosHeaders_default;
+axios.formToJSON = (thing) => formDataToJSON_default(utils_default.isHTMLForm(thing) ? new FormData(thing) : thing);
+axios.getAdapter = adapters_default.getAdapter;
+axios.HttpStatusCode = HttpStatusCode_default;
+axios.default = axios;
+var axios_default = axios;
+
+// node_modules/axios/index.js
+var {
+  Axios: Axios2,
+  AxiosError: AxiosError2,
+  CanceledError: CanceledError2,
+  isCancel: isCancel2,
+  CancelToken: CancelToken2,
+  VERSION: VERSION2,
+  all: all2,
+  Cancel,
+  isAxiosError: isAxiosError2,
+  spread: spread2,
+  toFormData: toFormData2,
+  AxiosHeaders: AxiosHeaders2,
+  HttpStatusCode: HttpStatusCode2,
+  formToJSON,
+  getAdapter,
+  mergeConfig: mergeConfig2
+} = axios_default;
 
 // node_modules/cheerio/dist/esm/options.js
 var defaultOpts = {
@@ -22048,7 +36858,7 @@ __export(static_exports, {
   contains: () => contains,
   extract: () => extract,
   html: () => html,
-  merge: () => merge,
+  merge: () => merge2,
   parseHTML: () => parseHTML,
   root: () => root,
   text: () => text,
@@ -22059,11 +36869,11 @@ __export(static_exports, {
 var esm_exports2 = {};
 __export(esm_exports2, {
   DocumentPosition: () => DocumentPosition,
-  append: () => append,
+  append: () => append2,
   appendChild: () => appendChild,
   compareDocumentPosition: () => compareDocumentPosition,
   existsOne: () => existsOne,
-  filter: () => filter,
+  filter: () => filter2,
   find: () => find,
   findAll: () => findAll,
   findOne: () => findOne,
@@ -22137,33 +36947,59 @@ var Node = class {
     this.startIndex = null;
     this.endIndex = null;
   }
+  // Read-write aliases for properties
+  /**
+   * Same as {@link parent}.
+   * [DOM spec](https://dom.spec.whatwg.org)-compatible alias.
+   */
   get parentNode() {
     return this.parent;
   }
   set parentNode(parent2) {
     this.parent = parent2;
   }
+  /**
+   * Same as {@link prev}.
+   * [DOM spec](https://dom.spec.whatwg.org)-compatible alias.
+   */
   get previousSibling() {
     return this.prev;
   }
   set previousSibling(prev2) {
     this.prev = prev2;
   }
+  /**
+   * Same as {@link next}.
+   * [DOM spec](https://dom.spec.whatwg.org)-compatible alias.
+   */
   get nextSibling() {
     return this.next;
   }
   set nextSibling(next2) {
     this.next = next2;
   }
+  /**
+   * Clone this node, and optionally its children.
+   *
+   * @param recursive Clone child nodes as well.
+   * @returns A clone of the node.
+   */
   cloneNode(recursive = false) {
     return cloneNode(this, recursive);
   }
 };
 var DataNode = class extends Node {
+  /**
+   * @param data The content of the data node
+   */
   constructor(data2) {
     super();
     this.data = data2;
   }
+  /**
+   * Same as {@link data}.
+   * [DOM spec](https://dom.spec.whatwg.org)-compatible alias.
+   */
   get nodeValue() {
     return this.data;
   }
@@ -22200,17 +37036,27 @@ var ProcessingInstruction = class extends DataNode {
   }
 };
 var NodeWithChildren = class extends Node {
+  /**
+   * @param children Children of the node. Only certain node types can have children.
+   */
   constructor(children2) {
     super();
     this.children = children2;
   }
+  // Aliases
+  /** First child of the node. */
   get firstChild() {
     var _a2;
     return (_a2 = this.children[0]) !== null && _a2 !== void 0 ? _a2 : null;
   }
+  /** Last child of the node. */
   get lastChild() {
     return this.children.length > 0 ? this.children[this.children.length - 1] : null;
   }
+  /**
+   * Same as {@link children}.
+   * [DOM spec](https://dom.spec.whatwg.org)-compatible alias.
+   */
   get childNodes() {
     return this.children;
   }
@@ -22237,6 +37083,11 @@ var Document = class extends NodeWithChildren {
   }
 };
 var Element = class extends NodeWithChildren {
+  /**
+   * @param name Name of the tag, eg. `div`, `span`.
+   * @param attribs Object mapping attribute names to attribute values.
+   * @param children Children of the node.
+   */
   constructor(name, attribs, children2 = [], type = name === "script" ? ElementType.Script : name === "style" ? ElementType.Style : ElementType.Tag) {
     super(children2);
     this.name = name;
@@ -22246,6 +37097,11 @@ var Element = class extends NodeWithChildren {
   get nodeType() {
     return 1;
   }
+  // DOM Level 1 aliases
+  /**
+   * Same as {@link name}.
+   * [DOM spec](https://dom.spec.whatwg.org)-compatible alias.
+   */
   get tagName() {
     return this.name;
   }
@@ -22352,6 +37208,11 @@ var defaultOpts2 = {
   xmlMode: false
 };
 var DomHandler = class {
+  /**
+   * @param callback Called once parsing has completed.
+   * @param options Settings for the handler.
+   * @param elementCB Callback whenever a tag is closed.
+   */
   constructor(callback, options, elementCB) {
     this.dom = [];
     this.root = new Document(this.dom);
@@ -22374,6 +37235,7 @@ var DomHandler = class {
   onparserinit(parser) {
     this.parser = parser;
   }
+  // Resets the handler back to starting state
   onreset() {
     this.dom = [];
     this.root = new Document(this.dom);
@@ -22382,6 +37244,7 @@ var DomHandler = class {
     this.lastNode = null;
     this.parser = null;
   }
+  // Signals the handler that parsing is done
   onend() {
     if (this.done)
       return;
@@ -22474,11 +37337,13 @@ var DomHandler = class {
 
 // node_modules/entities/lib/esm/generated/decode-data-html.js
 var decode_data_html_default = new Uint16Array(
+  // prettier-ignore
   '\u1D41<\xD5\u0131\u028A\u049D\u057B\u05D0\u0675\u06DE\u07A2\u07D6\u080F\u0A4A\u0A91\u0DA1\u0E6D\u0F09\u0F26\u10CA\u1228\u12E1\u1415\u149D\u14C3\u14DF\u1525\0\0\0\0\0\0\u156B\u16CD\u198D\u1C12\u1DDD\u1F7E\u2060\u21B0\u228D\u23C0\u23FB\u2442\u2824\u2912\u2D08\u2E48\u2FCE\u3016\u32BA\u3639\u37AC\u38FE\u3A28\u3A71\u3AE0\u3B2E\u0800EMabcfglmnoprstu\\bfms\x7F\x84\x8B\x90\x95\x98\xA6\xB3\xB9\xC8\xCFlig\u803B\xC6\u40C6P\u803B&\u4026cute\u803B\xC1\u40C1reve;\u4102\u0100iyx}rc\u803B\xC2\u40C2;\u4410r;\uC000\u{1D504}rave\u803B\xC0\u40C0pha;\u4391acr;\u4100d;\u6A53\u0100gp\x9D\xA1on;\u4104f;\uC000\u{1D538}plyFunction;\u6061ing\u803B\xC5\u40C5\u0100cs\xBE\xC3r;\uC000\u{1D49C}ign;\u6254ilde\u803B\xC3\u40C3ml\u803B\xC4\u40C4\u0400aceforsu\xE5\xFB\xFE\u0117\u011C\u0122\u0127\u012A\u0100cr\xEA\xF2kslash;\u6216\u0176\xF6\xF8;\u6AE7ed;\u6306y;\u4411\u0180crt\u0105\u010B\u0114ause;\u6235noullis;\u612Ca;\u4392r;\uC000\u{1D505}pf;\uC000\u{1D539}eve;\u42D8c\xF2\u0113mpeq;\u624E\u0700HOacdefhilorsu\u014D\u0151\u0156\u0180\u019E\u01A2\u01B5\u01B7\u01BA\u01DC\u0215\u0273\u0278\u027Ecy;\u4427PY\u803B\xA9\u40A9\u0180cpy\u015D\u0162\u017Aute;\u4106\u0100;i\u0167\u0168\u62D2talDifferentialD;\u6145leys;\u612D\u0200aeio\u0189\u018E\u0194\u0198ron;\u410Cdil\u803B\xC7\u40C7rc;\u4108nint;\u6230ot;\u410A\u0100dn\u01A7\u01ADilla;\u40B8terDot;\u40B7\xF2\u017Fi;\u43A7rcle\u0200DMPT\u01C7\u01CB\u01D1\u01D6ot;\u6299inus;\u6296lus;\u6295imes;\u6297o\u0100cs\u01E2\u01F8kwiseContourIntegral;\u6232eCurly\u0100DQ\u0203\u020FoubleQuote;\u601Duote;\u6019\u0200lnpu\u021E\u0228\u0247\u0255on\u0100;e\u0225\u0226\u6237;\u6A74\u0180git\u022F\u0236\u023Aruent;\u6261nt;\u622FourIntegral;\u622E\u0100fr\u024C\u024E;\u6102oduct;\u6210nterClockwiseContourIntegral;\u6233oss;\u6A2Fcr;\uC000\u{1D49E}p\u0100;C\u0284\u0285\u62D3ap;\u624D\u0580DJSZacefios\u02A0\u02AC\u02B0\u02B4\u02B8\u02CB\u02D7\u02E1\u02E6\u0333\u048D\u0100;o\u0179\u02A5trahd;\u6911cy;\u4402cy;\u4405cy;\u440F\u0180grs\u02BF\u02C4\u02C7ger;\u6021r;\u61A1hv;\u6AE4\u0100ay\u02D0\u02D5ron;\u410E;\u4414l\u0100;t\u02DD\u02DE\u6207a;\u4394r;\uC000\u{1D507}\u0100af\u02EB\u0327\u0100cm\u02F0\u0322ritical\u0200ADGT\u0300\u0306\u0316\u031Ccute;\u40B4o\u0174\u030B\u030D;\u42D9bleAcute;\u42DDrave;\u4060ilde;\u42DCond;\u62C4ferentialD;\u6146\u0470\u033D\0\0\0\u0342\u0354\0\u0405f;\uC000\u{1D53B}\u0180;DE\u0348\u0349\u034D\u40A8ot;\u60DCqual;\u6250ble\u0300CDLRUV\u0363\u0372\u0382\u03CF\u03E2\u03F8ontourIntegra\xEC\u0239o\u0274\u0379\0\0\u037B\xBB\u0349nArrow;\u61D3\u0100eo\u0387\u03A4ft\u0180ART\u0390\u0396\u03A1rrow;\u61D0ightArrow;\u61D4e\xE5\u02CAng\u0100LR\u03AB\u03C4eft\u0100AR\u03B3\u03B9rrow;\u67F8ightArrow;\u67FAightArrow;\u67F9ight\u0100AT\u03D8\u03DErrow;\u61D2ee;\u62A8p\u0241\u03E9\0\0\u03EFrrow;\u61D1ownArrow;\u61D5erticalBar;\u6225n\u0300ABLRTa\u0412\u042A\u0430\u045E\u047F\u037Crrow\u0180;BU\u041D\u041E\u0422\u6193ar;\u6913pArrow;\u61F5reve;\u4311eft\u02D2\u043A\0\u0446\0\u0450ightVector;\u6950eeVector;\u695Eector\u0100;B\u0459\u045A\u61BDar;\u6956ight\u01D4\u0467\0\u0471eeVector;\u695Fector\u0100;B\u047A\u047B\u61C1ar;\u6957ee\u0100;A\u0486\u0487\u62A4rrow;\u61A7\u0100ct\u0492\u0497r;\uC000\u{1D49F}rok;\u4110\u0800NTacdfglmopqstux\u04BD\u04C0\u04C4\u04CB\u04DE\u04E2\u04E7\u04EE\u04F5\u0521\u052F\u0536\u0552\u055D\u0560\u0565G;\u414AH\u803B\xD0\u40D0cute\u803B\xC9\u40C9\u0180aiy\u04D2\u04D7\u04DCron;\u411Arc\u803B\xCA\u40CA;\u442Dot;\u4116r;\uC000\u{1D508}rave\u803B\xC8\u40C8ement;\u6208\u0100ap\u04FA\u04FEcr;\u4112ty\u0253\u0506\0\0\u0512mallSquare;\u65FBerySmallSquare;\u65AB\u0100gp\u0526\u052Aon;\u4118f;\uC000\u{1D53C}silon;\u4395u\u0100ai\u053C\u0549l\u0100;T\u0542\u0543\u6A75ilde;\u6242librium;\u61CC\u0100ci\u0557\u055Ar;\u6130m;\u6A73a;\u4397ml\u803B\xCB\u40CB\u0100ip\u056A\u056Fsts;\u6203onentialE;\u6147\u0280cfios\u0585\u0588\u058D\u05B2\u05CCy;\u4424r;\uC000\u{1D509}lled\u0253\u0597\0\0\u05A3mallSquare;\u65FCerySmallSquare;\u65AA\u0370\u05BA\0\u05BF\0\0\u05C4f;\uC000\u{1D53D}All;\u6200riertrf;\u6131c\xF2\u05CB\u0600JTabcdfgorst\u05E8\u05EC\u05EF\u05FA\u0600\u0612\u0616\u061B\u061D\u0623\u066C\u0672cy;\u4403\u803B>\u403Emma\u0100;d\u05F7\u05F8\u4393;\u43DCreve;\u411E\u0180eiy\u0607\u060C\u0610dil;\u4122rc;\u411C;\u4413ot;\u4120r;\uC000\u{1D50A};\u62D9pf;\uC000\u{1D53E}eater\u0300EFGLST\u0635\u0644\u064E\u0656\u065B\u0666qual\u0100;L\u063E\u063F\u6265ess;\u62DBullEqual;\u6267reater;\u6AA2ess;\u6277lantEqual;\u6A7Eilde;\u6273cr;\uC000\u{1D4A2};\u626B\u0400Aacfiosu\u0685\u068B\u0696\u069B\u069E\u06AA\u06BE\u06CARDcy;\u442A\u0100ct\u0690\u0694ek;\u42C7;\u405Eirc;\u4124r;\u610ClbertSpace;\u610B\u01F0\u06AF\0\u06B2f;\u610DizontalLine;\u6500\u0100ct\u06C3\u06C5\xF2\u06A9rok;\u4126mp\u0144\u06D0\u06D8ownHum\xF0\u012Fqual;\u624F\u0700EJOacdfgmnostu\u06FA\u06FE\u0703\u0707\u070E\u071A\u071E\u0721\u0728\u0744\u0778\u078B\u078F\u0795cy;\u4415lig;\u4132cy;\u4401cute\u803B\xCD\u40CD\u0100iy\u0713\u0718rc\u803B\xCE\u40CE;\u4418ot;\u4130r;\u6111rave\u803B\xCC\u40CC\u0180;ap\u0720\u072F\u073F\u0100cg\u0734\u0737r;\u412AinaryI;\u6148lie\xF3\u03DD\u01F4\u0749\0\u0762\u0100;e\u074D\u074E\u622C\u0100gr\u0753\u0758ral;\u622Bsection;\u62C2isible\u0100CT\u076C\u0772omma;\u6063imes;\u6062\u0180gpt\u077F\u0783\u0788on;\u412Ef;\uC000\u{1D540}a;\u4399cr;\u6110ilde;\u4128\u01EB\u079A\0\u079Ecy;\u4406l\u803B\xCF\u40CF\u0280cfosu\u07AC\u07B7\u07BC\u07C2\u07D0\u0100iy\u07B1\u07B5rc;\u4134;\u4419r;\uC000\u{1D50D}pf;\uC000\u{1D541}\u01E3\u07C7\0\u07CCr;\uC000\u{1D4A5}rcy;\u4408kcy;\u4404\u0380HJacfos\u07E4\u07E8\u07EC\u07F1\u07FD\u0802\u0808cy;\u4425cy;\u440Cppa;\u439A\u0100ey\u07F6\u07FBdil;\u4136;\u441Ar;\uC000\u{1D50E}pf;\uC000\u{1D542}cr;\uC000\u{1D4A6}\u0580JTaceflmost\u0825\u0829\u082C\u0850\u0863\u09B3\u09B8\u09C7\u09CD\u0A37\u0A47cy;\u4409\u803B<\u403C\u0280cmnpr\u0837\u083C\u0841\u0844\u084Dute;\u4139bda;\u439Bg;\u67EAlacetrf;\u6112r;\u619E\u0180aey\u0857\u085C\u0861ron;\u413Ddil;\u413B;\u441B\u0100fs\u0868\u0970t\u0500ACDFRTUVar\u087E\u08A9\u08B1\u08E0\u08E6\u08FC\u092F\u095B\u0390\u096A\u0100nr\u0883\u088FgleBracket;\u67E8row\u0180;BR\u0899\u089A\u089E\u6190ar;\u61E4ightArrow;\u61C6eiling;\u6308o\u01F5\u08B7\0\u08C3bleBracket;\u67E6n\u01D4\u08C8\0\u08D2eeVector;\u6961ector\u0100;B\u08DB\u08DC\u61C3ar;\u6959loor;\u630Aight\u0100AV\u08EF\u08F5rrow;\u6194ector;\u694E\u0100er\u0901\u0917e\u0180;AV\u0909\u090A\u0910\u62A3rrow;\u61A4ector;\u695Aiangle\u0180;BE\u0924\u0925\u0929\u62B2ar;\u69CFqual;\u62B4p\u0180DTV\u0937\u0942\u094CownVector;\u6951eeVector;\u6960ector\u0100;B\u0956\u0957\u61BFar;\u6958ector\u0100;B\u0965\u0966\u61BCar;\u6952ight\xE1\u039Cs\u0300EFGLST\u097E\u098B\u0995\u099D\u09A2\u09ADqualGreater;\u62DAullEqual;\u6266reater;\u6276ess;\u6AA1lantEqual;\u6A7Dilde;\u6272r;\uC000\u{1D50F}\u0100;e\u09BD\u09BE\u62D8ftarrow;\u61DAidot;\u413F\u0180npw\u09D4\u0A16\u0A1Bg\u0200LRlr\u09DE\u09F7\u0A02\u0A10eft\u0100AR\u09E6\u09ECrrow;\u67F5ightArrow;\u67F7ightArrow;\u67F6eft\u0100ar\u03B3\u0A0Aight\xE1\u03BFight\xE1\u03CAf;\uC000\u{1D543}er\u0100LR\u0A22\u0A2CeftArrow;\u6199ightArrow;\u6198\u0180cht\u0A3E\u0A40\u0A42\xF2\u084C;\u61B0rok;\u4141;\u626A\u0400acefiosu\u0A5A\u0A5D\u0A60\u0A77\u0A7C\u0A85\u0A8B\u0A8Ep;\u6905y;\u441C\u0100dl\u0A65\u0A6FiumSpace;\u605Flintrf;\u6133r;\uC000\u{1D510}nusPlus;\u6213pf;\uC000\u{1D544}c\xF2\u0A76;\u439C\u0480Jacefostu\u0AA3\u0AA7\u0AAD\u0AC0\u0B14\u0B19\u0D91\u0D97\u0D9Ecy;\u440Acute;\u4143\u0180aey\u0AB4\u0AB9\u0ABEron;\u4147dil;\u4145;\u441D\u0180gsw\u0AC7\u0AF0\u0B0Eative\u0180MTV\u0AD3\u0ADF\u0AE8ediumSpace;\u600Bhi\u0100cn\u0AE6\u0AD8\xEB\u0AD9eryThi\xEE\u0AD9ted\u0100GL\u0AF8\u0B06reaterGreate\xF2\u0673essLes\xF3\u0A48Line;\u400Ar;\uC000\u{1D511}\u0200Bnpt\u0B22\u0B28\u0B37\u0B3Areak;\u6060BreakingSpace;\u40A0f;\u6115\u0680;CDEGHLNPRSTV\u0B55\u0B56\u0B6A\u0B7C\u0BA1\u0BEB\u0C04\u0C5E\u0C84\u0CA6\u0CD8\u0D61\u0D85\u6AEC\u0100ou\u0B5B\u0B64ngruent;\u6262pCap;\u626DoubleVerticalBar;\u6226\u0180lqx\u0B83\u0B8A\u0B9Bement;\u6209ual\u0100;T\u0B92\u0B93\u6260ilde;\uC000\u2242\u0338ists;\u6204reater\u0380;EFGLST\u0BB6\u0BB7\u0BBD\u0BC9\u0BD3\u0BD8\u0BE5\u626Fqual;\u6271ullEqual;\uC000\u2267\u0338reater;\uC000\u226B\u0338ess;\u6279lantEqual;\uC000\u2A7E\u0338ilde;\u6275ump\u0144\u0BF2\u0BFDownHump;\uC000\u224E\u0338qual;\uC000\u224F\u0338e\u0100fs\u0C0A\u0C27tTriangle\u0180;BE\u0C1A\u0C1B\u0C21\u62EAar;\uC000\u29CF\u0338qual;\u62ECs\u0300;EGLST\u0C35\u0C36\u0C3C\u0C44\u0C4B\u0C58\u626Equal;\u6270reater;\u6278ess;\uC000\u226A\u0338lantEqual;\uC000\u2A7D\u0338ilde;\u6274ested\u0100GL\u0C68\u0C79reaterGreater;\uC000\u2AA2\u0338essLess;\uC000\u2AA1\u0338recedes\u0180;ES\u0C92\u0C93\u0C9B\u6280qual;\uC000\u2AAF\u0338lantEqual;\u62E0\u0100ei\u0CAB\u0CB9verseElement;\u620CghtTriangle\u0180;BE\u0CCB\u0CCC\u0CD2\u62EBar;\uC000\u29D0\u0338qual;\u62ED\u0100qu\u0CDD\u0D0CuareSu\u0100bp\u0CE8\u0CF9set\u0100;E\u0CF0\u0CF3\uC000\u228F\u0338qual;\u62E2erset\u0100;E\u0D03\u0D06\uC000\u2290\u0338qual;\u62E3\u0180bcp\u0D13\u0D24\u0D4Eset\u0100;E\u0D1B\u0D1E\uC000\u2282\u20D2qual;\u6288ceeds\u0200;EST\u0D32\u0D33\u0D3B\u0D46\u6281qual;\uC000\u2AB0\u0338lantEqual;\u62E1ilde;\uC000\u227F\u0338erset\u0100;E\u0D58\u0D5B\uC000\u2283\u20D2qual;\u6289ilde\u0200;EFT\u0D6E\u0D6F\u0D75\u0D7F\u6241qual;\u6244ullEqual;\u6247ilde;\u6249erticalBar;\u6224cr;\uC000\u{1D4A9}ilde\u803B\xD1\u40D1;\u439D\u0700Eacdfgmoprstuv\u0DBD\u0DC2\u0DC9\u0DD5\u0DDB\u0DE0\u0DE7\u0DFC\u0E02\u0E20\u0E22\u0E32\u0E3F\u0E44lig;\u4152cute\u803B\xD3\u40D3\u0100iy\u0DCE\u0DD3rc\u803B\xD4\u40D4;\u441Eblac;\u4150r;\uC000\u{1D512}rave\u803B\xD2\u40D2\u0180aei\u0DEE\u0DF2\u0DF6cr;\u414Cga;\u43A9cron;\u439Fpf;\uC000\u{1D546}enCurly\u0100DQ\u0E0E\u0E1AoubleQuote;\u601Cuote;\u6018;\u6A54\u0100cl\u0E27\u0E2Cr;\uC000\u{1D4AA}ash\u803B\xD8\u40D8i\u016C\u0E37\u0E3Cde\u803B\xD5\u40D5es;\u6A37ml\u803B\xD6\u40D6er\u0100BP\u0E4B\u0E60\u0100ar\u0E50\u0E53r;\u603Eac\u0100ek\u0E5A\u0E5C;\u63DEet;\u63B4arenthesis;\u63DC\u0480acfhilors\u0E7F\u0E87\u0E8A\u0E8F\u0E92\u0E94\u0E9D\u0EB0\u0EFCrtialD;\u6202y;\u441Fr;\uC000\u{1D513}i;\u43A6;\u43A0usMinus;\u40B1\u0100ip\u0EA2\u0EADncareplan\xE5\u069Df;\u6119\u0200;eio\u0EB9\u0EBA\u0EE0\u0EE4\u6ABBcedes\u0200;EST\u0EC8\u0EC9\u0ECF\u0EDA\u627Aqual;\u6AAFlantEqual;\u627Cilde;\u627Eme;\u6033\u0100dp\u0EE9\u0EEEuct;\u620Fortion\u0100;a\u0225\u0EF9l;\u621D\u0100ci\u0F01\u0F06r;\uC000\u{1D4AB};\u43A8\u0200Ufos\u0F11\u0F16\u0F1B\u0F1FOT\u803B"\u4022r;\uC000\u{1D514}pf;\u611Acr;\uC000\u{1D4AC}\u0600BEacefhiorsu\u0F3E\u0F43\u0F47\u0F60\u0F73\u0FA7\u0FAA\u0FAD\u1096\u10A9\u10B4\u10BEarr;\u6910G\u803B\xAE\u40AE\u0180cnr\u0F4E\u0F53\u0F56ute;\u4154g;\u67EBr\u0100;t\u0F5C\u0F5D\u61A0l;\u6916\u0180aey\u0F67\u0F6C\u0F71ron;\u4158dil;\u4156;\u4420\u0100;v\u0F78\u0F79\u611Cerse\u0100EU\u0F82\u0F99\u0100lq\u0F87\u0F8Eement;\u620Builibrium;\u61CBpEquilibrium;\u696Fr\xBB\u0F79o;\u43A1ght\u0400ACDFTUVa\u0FC1\u0FEB\u0FF3\u1022\u1028\u105B\u1087\u03D8\u0100nr\u0FC6\u0FD2gleBracket;\u67E9row\u0180;BL\u0FDC\u0FDD\u0FE1\u6192ar;\u61E5eftArrow;\u61C4eiling;\u6309o\u01F5\u0FF9\0\u1005bleBracket;\u67E7n\u01D4\u100A\0\u1014eeVector;\u695Dector\u0100;B\u101D\u101E\u61C2ar;\u6955loor;\u630B\u0100er\u102D\u1043e\u0180;AV\u1035\u1036\u103C\u62A2rrow;\u61A6ector;\u695Biangle\u0180;BE\u1050\u1051\u1055\u62B3ar;\u69D0qual;\u62B5p\u0180DTV\u1063\u106E\u1078ownVector;\u694FeeVector;\u695Cector\u0100;B\u1082\u1083\u61BEar;\u6954ector\u0100;B\u1091\u1092\u61C0ar;\u6953\u0100pu\u109B\u109Ef;\u611DndImplies;\u6970ightarrow;\u61DB\u0100ch\u10B9\u10BCr;\u611B;\u61B1leDelayed;\u69F4\u0680HOacfhimoqstu\u10E4\u10F1\u10F7\u10FD\u1119\u111E\u1151\u1156\u1161\u1167\u11B5\u11BB\u11BF\u0100Cc\u10E9\u10EEHcy;\u4429y;\u4428FTcy;\u442Ccute;\u415A\u0280;aeiy\u1108\u1109\u110E\u1113\u1117\u6ABCron;\u4160dil;\u415Erc;\u415C;\u4421r;\uC000\u{1D516}ort\u0200DLRU\u112A\u1134\u113E\u1149ownArrow\xBB\u041EeftArrow\xBB\u089AightArrow\xBB\u0FDDpArrow;\u6191gma;\u43A3allCircle;\u6218pf;\uC000\u{1D54A}\u0272\u116D\0\0\u1170t;\u621Aare\u0200;ISU\u117B\u117C\u1189\u11AF\u65A1ntersection;\u6293u\u0100bp\u118F\u119Eset\u0100;E\u1197\u1198\u628Fqual;\u6291erset\u0100;E\u11A8\u11A9\u6290qual;\u6292nion;\u6294cr;\uC000\u{1D4AE}ar;\u62C6\u0200bcmp\u11C8\u11DB\u1209\u120B\u0100;s\u11CD\u11CE\u62D0et\u0100;E\u11CD\u11D5qual;\u6286\u0100ch\u11E0\u1205eeds\u0200;EST\u11ED\u11EE\u11F4\u11FF\u627Bqual;\u6AB0lantEqual;\u627Dilde;\u627FTh\xE1\u0F8C;\u6211\u0180;es\u1212\u1213\u1223\u62D1rset\u0100;E\u121C\u121D\u6283qual;\u6287et\xBB\u1213\u0580HRSacfhiors\u123E\u1244\u1249\u1255\u125E\u1271\u1276\u129F\u12C2\u12C8\u12D1ORN\u803B\xDE\u40DEADE;\u6122\u0100Hc\u124E\u1252cy;\u440By;\u4426\u0100bu\u125A\u125C;\u4009;\u43A4\u0180aey\u1265\u126A\u126Fron;\u4164dil;\u4162;\u4422r;\uC000\u{1D517}\u0100ei\u127B\u1289\u01F2\u1280\0\u1287efore;\u6234a;\u4398\u0100cn\u128E\u1298kSpace;\uC000\u205F\u200ASpace;\u6009lde\u0200;EFT\u12AB\u12AC\u12B2\u12BC\u623Cqual;\u6243ullEqual;\u6245ilde;\u6248pf;\uC000\u{1D54B}ipleDot;\u60DB\u0100ct\u12D6\u12DBr;\uC000\u{1D4AF}rok;\u4166\u0AE1\u12F7\u130E\u131A\u1326\0\u132C\u1331\0\0\0\0\0\u1338\u133D\u1377\u1385\0\u13FF\u1404\u140A\u1410\u0100cr\u12FB\u1301ute\u803B\xDA\u40DAr\u0100;o\u1307\u1308\u619Fcir;\u6949r\u01E3\u1313\0\u1316y;\u440Eve;\u416C\u0100iy\u131E\u1323rc\u803B\xDB\u40DB;\u4423blac;\u4170r;\uC000\u{1D518}rave\u803B\xD9\u40D9acr;\u416A\u0100di\u1341\u1369er\u0100BP\u1348\u135D\u0100ar\u134D\u1350r;\u405Fac\u0100ek\u1357\u1359;\u63DFet;\u63B5arenthesis;\u63DDon\u0100;P\u1370\u1371\u62C3lus;\u628E\u0100gp\u137B\u137Fon;\u4172f;\uC000\u{1D54C}\u0400ADETadps\u1395\u13AE\u13B8\u13C4\u03E8\u13D2\u13D7\u13F3rrow\u0180;BD\u1150\u13A0\u13A4ar;\u6912ownArrow;\u61C5ownArrow;\u6195quilibrium;\u696Eee\u0100;A\u13CB\u13CC\u62A5rrow;\u61A5own\xE1\u03F3er\u0100LR\u13DE\u13E8eftArrow;\u6196ightArrow;\u6197i\u0100;l\u13F9\u13FA\u43D2on;\u43A5ing;\u416Ecr;\uC000\u{1D4B0}ilde;\u4168ml\u803B\xDC\u40DC\u0480Dbcdefosv\u1427\u142C\u1430\u1433\u143E\u1485\u148A\u1490\u1496ash;\u62ABar;\u6AEBy;\u4412ash\u0100;l\u143B\u143C\u62A9;\u6AE6\u0100er\u1443\u1445;\u62C1\u0180bty\u144C\u1450\u147Aar;\u6016\u0100;i\u144F\u1455cal\u0200BLST\u1461\u1465\u146A\u1474ar;\u6223ine;\u407Ceparator;\u6758ilde;\u6240ThinSpace;\u600Ar;\uC000\u{1D519}pf;\uC000\u{1D54D}cr;\uC000\u{1D4B1}dash;\u62AA\u0280cefos\u14A7\u14AC\u14B1\u14B6\u14BCirc;\u4174dge;\u62C0r;\uC000\u{1D51A}pf;\uC000\u{1D54E}cr;\uC000\u{1D4B2}\u0200fios\u14CB\u14D0\u14D2\u14D8r;\uC000\u{1D51B};\u439Epf;\uC000\u{1D54F}cr;\uC000\u{1D4B3}\u0480AIUacfosu\u14F1\u14F5\u14F9\u14FD\u1504\u150F\u1514\u151A\u1520cy;\u442Fcy;\u4407cy;\u442Ecute\u803B\xDD\u40DD\u0100iy\u1509\u150Drc;\u4176;\u442Br;\uC000\u{1D51C}pf;\uC000\u{1D550}cr;\uC000\u{1D4B4}ml;\u4178\u0400Hacdefos\u1535\u1539\u153F\u154B\u154F\u155D\u1560\u1564cy;\u4416cute;\u4179\u0100ay\u1544\u1549ron;\u417D;\u4417ot;\u417B\u01F2\u1554\0\u155BoWidt\xE8\u0AD9a;\u4396r;\u6128pf;\u6124cr;\uC000\u{1D4B5}\u0BE1\u1583\u158A\u1590\0\u15B0\u15B6\u15BF\0\0\0\0\u15C6\u15DB\u15EB\u165F\u166D\0\u1695\u169B\u16B2\u16B9\0\u16BEcute\u803B\xE1\u40E1reve;\u4103\u0300;Ediuy\u159C\u159D\u15A1\u15A3\u15A8\u15AD\u623E;\uC000\u223E\u0333;\u623Frc\u803B\xE2\u40E2te\u80BB\xB4\u0306;\u4430lig\u803B\xE6\u40E6\u0100;r\xB2\u15BA;\uC000\u{1D51E}rave\u803B\xE0\u40E0\u0100ep\u15CA\u15D6\u0100fp\u15CF\u15D4sym;\u6135\xE8\u15D3ha;\u43B1\u0100ap\u15DFc\u0100cl\u15E4\u15E7r;\u4101g;\u6A3F\u0264\u15F0\0\0\u160A\u0280;adsv\u15FA\u15FB\u15FF\u1601\u1607\u6227nd;\u6A55;\u6A5Clope;\u6A58;\u6A5A\u0380;elmrsz\u1618\u1619\u161B\u161E\u163F\u164F\u1659\u6220;\u69A4e\xBB\u1619sd\u0100;a\u1625\u1626\u6221\u0461\u1630\u1632\u1634\u1636\u1638\u163A\u163C\u163E;\u69A8;\u69A9;\u69AA;\u69AB;\u69AC;\u69AD;\u69AE;\u69AFt\u0100;v\u1645\u1646\u621Fb\u0100;d\u164C\u164D\u62BE;\u699D\u0100pt\u1654\u1657h;\u6222\xBB\xB9arr;\u637C\u0100gp\u1663\u1667on;\u4105f;\uC000\u{1D552}\u0380;Eaeiop\u12C1\u167B\u167D\u1682\u1684\u1687\u168A;\u6A70cir;\u6A6F;\u624Ad;\u624Bs;\u4027rox\u0100;e\u12C1\u1692\xF1\u1683ing\u803B\xE5\u40E5\u0180cty\u16A1\u16A6\u16A8r;\uC000\u{1D4B6};\u402Amp\u0100;e\u12C1\u16AF\xF1\u0288ilde\u803B\xE3\u40E3ml\u803B\xE4\u40E4\u0100ci\u16C2\u16C8onin\xF4\u0272nt;\u6A11\u0800Nabcdefiklnoprsu\u16ED\u16F1\u1730\u173C\u1743\u1748\u1778\u177D\u17E0\u17E6\u1839\u1850\u170D\u193D\u1948\u1970ot;\u6AED\u0100cr\u16F6\u171Ek\u0200ceps\u1700\u1705\u170D\u1713ong;\u624Cpsilon;\u43F6rime;\u6035im\u0100;e\u171A\u171B\u623Dq;\u62CD\u0176\u1722\u1726ee;\u62BDed\u0100;g\u172C\u172D\u6305e\xBB\u172Drk\u0100;t\u135C\u1737brk;\u63B6\u0100oy\u1701\u1741;\u4431quo;\u601E\u0280cmprt\u1753\u175B\u1761\u1764\u1768aus\u0100;e\u010A\u0109ptyv;\u69B0s\xE9\u170Cno\xF5\u0113\u0180ahw\u176F\u1771\u1773;\u43B2;\u6136een;\u626Cr;\uC000\u{1D51F}g\u0380costuvw\u178D\u179D\u17B3\u17C1\u17D5\u17DB\u17DE\u0180aiu\u1794\u1796\u179A\xF0\u0760rc;\u65EFp\xBB\u1371\u0180dpt\u17A4\u17A8\u17ADot;\u6A00lus;\u6A01imes;\u6A02\u0271\u17B9\0\0\u17BEcup;\u6A06ar;\u6605riangle\u0100du\u17CD\u17D2own;\u65BDp;\u65B3plus;\u6A04e\xE5\u1444\xE5\u14ADarow;\u690D\u0180ako\u17ED\u1826\u1835\u0100cn\u17F2\u1823k\u0180lst\u17FA\u05AB\u1802ozenge;\u69EBriangle\u0200;dlr\u1812\u1813\u1818\u181D\u65B4own;\u65BEeft;\u65C2ight;\u65B8k;\u6423\u01B1\u182B\0\u1833\u01B2\u182F\0\u1831;\u6592;\u65914;\u6593ck;\u6588\u0100eo\u183E\u184D\u0100;q\u1843\u1846\uC000=\u20E5uiv;\uC000\u2261\u20E5t;\u6310\u0200ptwx\u1859\u185E\u1867\u186Cf;\uC000\u{1D553}\u0100;t\u13CB\u1863om\xBB\u13CCtie;\u62C8\u0600DHUVbdhmptuv\u1885\u1896\u18AA\u18BB\u18D7\u18DB\u18EC\u18FF\u1905\u190A\u1910\u1921\u0200LRlr\u188E\u1890\u1892\u1894;\u6557;\u6554;\u6556;\u6553\u0280;DUdu\u18A1\u18A2\u18A4\u18A6\u18A8\u6550;\u6566;\u6569;\u6564;\u6567\u0200LRlr\u18B3\u18B5\u18B7\u18B9;\u655D;\u655A;\u655C;\u6559\u0380;HLRhlr\u18CA\u18CB\u18CD\u18CF\u18D1\u18D3\u18D5\u6551;\u656C;\u6563;\u6560;\u656B;\u6562;\u655Fox;\u69C9\u0200LRlr\u18E4\u18E6\u18E8\u18EA;\u6555;\u6552;\u6510;\u650C\u0280;DUdu\u06BD\u18F7\u18F9\u18FB\u18FD;\u6565;\u6568;\u652C;\u6534inus;\u629Flus;\u629Eimes;\u62A0\u0200LRlr\u1919\u191B\u191D\u191F;\u655B;\u6558;\u6518;\u6514\u0380;HLRhlr\u1930\u1931\u1933\u1935\u1937\u1939\u193B\u6502;\u656A;\u6561;\u655E;\u653C;\u6524;\u651C\u0100ev\u0123\u1942bar\u803B\xA6\u40A6\u0200ceio\u1951\u1956\u195A\u1960r;\uC000\u{1D4B7}mi;\u604Fm\u0100;e\u171A\u171Cl\u0180;bh\u1968\u1969\u196B\u405C;\u69C5sub;\u67C8\u016C\u1974\u197El\u0100;e\u1979\u197A\u6022t\xBB\u197Ap\u0180;Ee\u012F\u1985\u1987;\u6AAE\u0100;q\u06DC\u06DB\u0CE1\u19A7\0\u19E8\u1A11\u1A15\u1A32\0\u1A37\u1A50\0\0\u1AB4\0\0\u1AC1\0\0\u1B21\u1B2E\u1B4D\u1B52\0\u1BFD\0\u1C0C\u0180cpr\u19AD\u19B2\u19DDute;\u4107\u0300;abcds\u19BF\u19C0\u19C4\u19CA\u19D5\u19D9\u6229nd;\u6A44rcup;\u6A49\u0100au\u19CF\u19D2p;\u6A4Bp;\u6A47ot;\u6A40;\uC000\u2229\uFE00\u0100eo\u19E2\u19E5t;\u6041\xEE\u0693\u0200aeiu\u19F0\u19FB\u1A01\u1A05\u01F0\u19F5\0\u19F8s;\u6A4Don;\u410Ddil\u803B\xE7\u40E7rc;\u4109ps\u0100;s\u1A0C\u1A0D\u6A4Cm;\u6A50ot;\u410B\u0180dmn\u1A1B\u1A20\u1A26il\u80BB\xB8\u01ADptyv;\u69B2t\u8100\xA2;e\u1A2D\u1A2E\u40A2r\xE4\u01B2r;\uC000\u{1D520}\u0180cei\u1A3D\u1A40\u1A4Dy;\u4447ck\u0100;m\u1A47\u1A48\u6713ark\xBB\u1A48;\u43C7r\u0380;Ecefms\u1A5F\u1A60\u1A62\u1A6B\u1AA4\u1AAA\u1AAE\u65CB;\u69C3\u0180;el\u1A69\u1A6A\u1A6D\u42C6q;\u6257e\u0261\u1A74\0\0\u1A88rrow\u0100lr\u1A7C\u1A81eft;\u61BAight;\u61BB\u0280RSacd\u1A92\u1A94\u1A96\u1A9A\u1A9F\xBB\u0F47;\u64C8st;\u629Birc;\u629Aash;\u629Dnint;\u6A10id;\u6AEFcir;\u69C2ubs\u0100;u\u1ABB\u1ABC\u6663it\xBB\u1ABC\u02EC\u1AC7\u1AD4\u1AFA\0\u1B0Aon\u0100;e\u1ACD\u1ACE\u403A\u0100;q\xC7\xC6\u026D\u1AD9\0\0\u1AE2a\u0100;t\u1ADE\u1ADF\u402C;\u4040\u0180;fl\u1AE8\u1AE9\u1AEB\u6201\xEE\u1160e\u0100mx\u1AF1\u1AF6ent\xBB\u1AE9e\xF3\u024D\u01E7\u1AFE\0\u1B07\u0100;d\u12BB\u1B02ot;\u6A6Dn\xF4\u0246\u0180fry\u1B10\u1B14\u1B17;\uC000\u{1D554}o\xE4\u0254\u8100\xA9;s\u0155\u1B1Dr;\u6117\u0100ao\u1B25\u1B29rr;\u61B5ss;\u6717\u0100cu\u1B32\u1B37r;\uC000\u{1D4B8}\u0100bp\u1B3C\u1B44\u0100;e\u1B41\u1B42\u6ACF;\u6AD1\u0100;e\u1B49\u1B4A\u6AD0;\u6AD2dot;\u62EF\u0380delprvw\u1B60\u1B6C\u1B77\u1B82\u1BAC\u1BD4\u1BF9arr\u0100lr\u1B68\u1B6A;\u6938;\u6935\u0270\u1B72\0\0\u1B75r;\u62DEc;\u62DFarr\u0100;p\u1B7F\u1B80\u61B6;\u693D\u0300;bcdos\u1B8F\u1B90\u1B96\u1BA1\u1BA5\u1BA8\u622Arcap;\u6A48\u0100au\u1B9B\u1B9Ep;\u6A46p;\u6A4Aot;\u628Dr;\u6A45;\uC000\u222A\uFE00\u0200alrv\u1BB5\u1BBF\u1BDE\u1BE3rr\u0100;m\u1BBC\u1BBD\u61B7;\u693Cy\u0180evw\u1BC7\u1BD4\u1BD8q\u0270\u1BCE\0\0\u1BD2re\xE3\u1B73u\xE3\u1B75ee;\u62CEedge;\u62CFen\u803B\xA4\u40A4earrow\u0100lr\u1BEE\u1BF3eft\xBB\u1B80ight\xBB\u1BBDe\xE4\u1BDD\u0100ci\u1C01\u1C07onin\xF4\u01F7nt;\u6231lcty;\u632D\u0980AHabcdefhijlorstuwz\u1C38\u1C3B\u1C3F\u1C5D\u1C69\u1C75\u1C8A\u1C9E\u1CAC\u1CB7\u1CFB\u1CFF\u1D0D\u1D7B\u1D91\u1DAB\u1DBB\u1DC6\u1DCDr\xF2\u0381ar;\u6965\u0200glrs\u1C48\u1C4D\u1C52\u1C54ger;\u6020eth;\u6138\xF2\u1133h\u0100;v\u1C5A\u1C5B\u6010\xBB\u090A\u016B\u1C61\u1C67arow;\u690Fa\xE3\u0315\u0100ay\u1C6E\u1C73ron;\u410F;\u4434\u0180;ao\u0332\u1C7C\u1C84\u0100gr\u02BF\u1C81r;\u61CAtseq;\u6A77\u0180glm\u1C91\u1C94\u1C98\u803B\xB0\u40B0ta;\u43B4ptyv;\u69B1\u0100ir\u1CA3\u1CA8sht;\u697F;\uC000\u{1D521}ar\u0100lr\u1CB3\u1CB5\xBB\u08DC\xBB\u101E\u0280aegsv\u1CC2\u0378\u1CD6\u1CDC\u1CE0m\u0180;os\u0326\u1CCA\u1CD4nd\u0100;s\u0326\u1CD1uit;\u6666amma;\u43DDin;\u62F2\u0180;io\u1CE7\u1CE8\u1CF8\u40F7de\u8100\xF7;o\u1CE7\u1CF0ntimes;\u62C7n\xF8\u1CF7cy;\u4452c\u026F\u1D06\0\0\u1D0Arn;\u631Eop;\u630D\u0280lptuw\u1D18\u1D1D\u1D22\u1D49\u1D55lar;\u4024f;\uC000\u{1D555}\u0280;emps\u030B\u1D2D\u1D37\u1D3D\u1D42q\u0100;d\u0352\u1D33ot;\u6251inus;\u6238lus;\u6214quare;\u62A1blebarwedg\xE5\xFAn\u0180adh\u112E\u1D5D\u1D67ownarrow\xF3\u1C83arpoon\u0100lr\u1D72\u1D76ef\xF4\u1CB4igh\xF4\u1CB6\u0162\u1D7F\u1D85karo\xF7\u0F42\u026F\u1D8A\0\0\u1D8Ern;\u631Fop;\u630C\u0180cot\u1D98\u1DA3\u1DA6\u0100ry\u1D9D\u1DA1;\uC000\u{1D4B9};\u4455l;\u69F6rok;\u4111\u0100dr\u1DB0\u1DB4ot;\u62F1i\u0100;f\u1DBA\u1816\u65BF\u0100ah\u1DC0\u1DC3r\xF2\u0429a\xF2\u0FA6angle;\u69A6\u0100ci\u1DD2\u1DD5y;\u445Fgrarr;\u67FF\u0900Dacdefglmnopqrstux\u1E01\u1E09\u1E19\u1E38\u0578\u1E3C\u1E49\u1E61\u1E7E\u1EA5\u1EAF\u1EBD\u1EE1\u1F2A\u1F37\u1F44\u1F4E\u1F5A\u0100Do\u1E06\u1D34o\xF4\u1C89\u0100cs\u1E0E\u1E14ute\u803B\xE9\u40E9ter;\u6A6E\u0200aioy\u1E22\u1E27\u1E31\u1E36ron;\u411Br\u0100;c\u1E2D\u1E2E\u6256\u803B\xEA\u40EAlon;\u6255;\u444Dot;\u4117\u0100Dr\u1E41\u1E45ot;\u6252;\uC000\u{1D522}\u0180;rs\u1E50\u1E51\u1E57\u6A9Aave\u803B\xE8\u40E8\u0100;d\u1E5C\u1E5D\u6A96ot;\u6A98\u0200;ils\u1E6A\u1E6B\u1E72\u1E74\u6A99nters;\u63E7;\u6113\u0100;d\u1E79\u1E7A\u6A95ot;\u6A97\u0180aps\u1E85\u1E89\u1E97cr;\u4113ty\u0180;sv\u1E92\u1E93\u1E95\u6205et\xBB\u1E93p\u01001;\u1E9D\u1EA4\u0133\u1EA1\u1EA3;\u6004;\u6005\u6003\u0100gs\u1EAA\u1EAC;\u414Bp;\u6002\u0100gp\u1EB4\u1EB8on;\u4119f;\uC000\u{1D556}\u0180als\u1EC4\u1ECE\u1ED2r\u0100;s\u1ECA\u1ECB\u62D5l;\u69E3us;\u6A71i\u0180;lv\u1EDA\u1EDB\u1EDF\u43B5on\xBB\u1EDB;\u43F5\u0200csuv\u1EEA\u1EF3\u1F0B\u1F23\u0100io\u1EEF\u1E31rc\xBB\u1E2E\u0269\u1EF9\0\0\u1EFB\xED\u0548ant\u0100gl\u1F02\u1F06tr\xBB\u1E5Dess\xBB\u1E7A\u0180aei\u1F12\u1F16\u1F1Als;\u403Dst;\u625Fv\u0100;D\u0235\u1F20D;\u6A78parsl;\u69E5\u0100Da\u1F2F\u1F33ot;\u6253rr;\u6971\u0180cdi\u1F3E\u1F41\u1EF8r;\u612Fo\xF4\u0352\u0100ah\u1F49\u1F4B;\u43B7\u803B\xF0\u40F0\u0100mr\u1F53\u1F57l\u803B\xEB\u40EBo;\u60AC\u0180cip\u1F61\u1F64\u1F67l;\u4021s\xF4\u056E\u0100eo\u1F6C\u1F74ctatio\xEE\u0559nential\xE5\u0579\u09E1\u1F92\0\u1F9E\0\u1FA1\u1FA7\0\0\u1FC6\u1FCC\0\u1FD3\0\u1FE6\u1FEA\u2000\0\u2008\u205Allingdotse\xF1\u1E44y;\u4444male;\u6640\u0180ilr\u1FAD\u1FB3\u1FC1lig;\u8000\uFB03\u0269\u1FB9\0\0\u1FBDg;\u8000\uFB00ig;\u8000\uFB04;\uC000\u{1D523}lig;\u8000\uFB01lig;\uC000fj\u0180alt\u1FD9\u1FDC\u1FE1t;\u666Dig;\u8000\uFB02ns;\u65B1of;\u4192\u01F0\u1FEE\0\u1FF3f;\uC000\u{1D557}\u0100ak\u05BF\u1FF7\u0100;v\u1FFC\u1FFD\u62D4;\u6AD9artint;\u6A0D\u0100ao\u200C\u2055\u0100cs\u2011\u2052\u03B1\u201A\u2030\u2038\u2045\u2048\0\u2050\u03B2\u2022\u2025\u2027\u202A\u202C\0\u202E\u803B\xBD\u40BD;\u6153\u803B\xBC\u40BC;\u6155;\u6159;\u615B\u01B3\u2034\0\u2036;\u6154;\u6156\u02B4\u203E\u2041\0\0\u2043\u803B\xBE\u40BE;\u6157;\u615C5;\u6158\u01B6\u204C\0\u204E;\u615A;\u615D8;\u615El;\u6044wn;\u6322cr;\uC000\u{1D4BB}\u0880Eabcdefgijlnorstv\u2082\u2089\u209F\u20A5\u20B0\u20B4\u20F0\u20F5\u20FA\u20FF\u2103\u2112\u2138\u0317\u213E\u2152\u219E\u0100;l\u064D\u2087;\u6A8C\u0180cmp\u2090\u2095\u209Dute;\u41F5ma\u0100;d\u209C\u1CDA\u43B3;\u6A86reve;\u411F\u0100iy\u20AA\u20AErc;\u411D;\u4433ot;\u4121\u0200;lqs\u063E\u0642\u20BD\u20C9\u0180;qs\u063E\u064C\u20C4lan\xF4\u0665\u0200;cdl\u0665\u20D2\u20D5\u20E5c;\u6AA9ot\u0100;o\u20DC\u20DD\u6A80\u0100;l\u20E2\u20E3\u6A82;\u6A84\u0100;e\u20EA\u20ED\uC000\u22DB\uFE00s;\u6A94r;\uC000\u{1D524}\u0100;g\u0673\u061Bmel;\u6137cy;\u4453\u0200;Eaj\u065A\u210C\u210E\u2110;\u6A92;\u6AA5;\u6AA4\u0200Eaes\u211B\u211D\u2129\u2134;\u6269p\u0100;p\u2123\u2124\u6A8Arox\xBB\u2124\u0100;q\u212E\u212F\u6A88\u0100;q\u212E\u211Bim;\u62E7pf;\uC000\u{1D558}\u0100ci\u2143\u2146r;\u610Am\u0180;el\u066B\u214E\u2150;\u6A8E;\u6A90\u8300>;cdlqr\u05EE\u2160\u216A\u216E\u2173\u2179\u0100ci\u2165\u2167;\u6AA7r;\u6A7Aot;\u62D7Par;\u6995uest;\u6A7C\u0280adels\u2184\u216A\u2190\u0656\u219B\u01F0\u2189\0\u218Epro\xF8\u209Er;\u6978q\u0100lq\u063F\u2196les\xF3\u2088i\xED\u066B\u0100en\u21A3\u21ADrtneqq;\uC000\u2269\uFE00\xC5\u21AA\u0500Aabcefkosy\u21C4\u21C7\u21F1\u21F5\u21FA\u2218\u221D\u222F\u2268\u227Dr\xF2\u03A0\u0200ilmr\u21D0\u21D4\u21D7\u21DBrs\xF0\u1484f\xBB\u2024il\xF4\u06A9\u0100dr\u21E0\u21E4cy;\u444A\u0180;cw\u08F4\u21EB\u21EFir;\u6948;\u61ADar;\u610Firc;\u4125\u0180alr\u2201\u220E\u2213rts\u0100;u\u2209\u220A\u6665it\xBB\u220Alip;\u6026con;\u62B9r;\uC000\u{1D525}s\u0100ew\u2223\u2229arow;\u6925arow;\u6926\u0280amopr\u223A\u223E\u2243\u225E\u2263rr;\u61FFtht;\u623Bk\u0100lr\u2249\u2253eftarrow;\u61A9ightarrow;\u61AAf;\uC000\u{1D559}bar;\u6015\u0180clt\u226F\u2274\u2278r;\uC000\u{1D4BD}as\xE8\u21F4rok;\u4127\u0100bp\u2282\u2287ull;\u6043hen\xBB\u1C5B\u0AE1\u22A3\0\u22AA\0\u22B8\u22C5\u22CE\0\u22D5\u22F3\0\0\u22F8\u2322\u2367\u2362\u237F\0\u2386\u23AA\u23B4cute\u803B\xED\u40ED\u0180;iy\u0771\u22B0\u22B5rc\u803B\xEE\u40EE;\u4438\u0100cx\u22BC\u22BFy;\u4435cl\u803B\xA1\u40A1\u0100fr\u039F\u22C9;\uC000\u{1D526}rave\u803B\xEC\u40EC\u0200;ino\u073E\u22DD\u22E9\u22EE\u0100in\u22E2\u22E6nt;\u6A0Ct;\u622Dfin;\u69DCta;\u6129lig;\u4133\u0180aop\u22FE\u231A\u231D\u0180cgt\u2305\u2308\u2317r;\u412B\u0180elp\u071F\u230F\u2313in\xE5\u078Ear\xF4\u0720h;\u4131f;\u62B7ed;\u41B5\u0280;cfot\u04F4\u232C\u2331\u233D\u2341are;\u6105in\u0100;t\u2338\u2339\u621Eie;\u69DDdo\xF4\u2319\u0280;celp\u0757\u234C\u2350\u235B\u2361al;\u62BA\u0100gr\u2355\u2359er\xF3\u1563\xE3\u234Darhk;\u6A17rod;\u6A3C\u0200cgpt\u236F\u2372\u2376\u237By;\u4451on;\u412Ff;\uC000\u{1D55A}a;\u43B9uest\u803B\xBF\u40BF\u0100ci\u238A\u238Fr;\uC000\u{1D4BE}n\u0280;Edsv\u04F4\u239B\u239D\u23A1\u04F3;\u62F9ot;\u62F5\u0100;v\u23A6\u23A7\u62F4;\u62F3\u0100;i\u0777\u23AElde;\u4129\u01EB\u23B8\0\u23BCcy;\u4456l\u803B\xEF\u40EF\u0300cfmosu\u23CC\u23D7\u23DC\u23E1\u23E7\u23F5\u0100iy\u23D1\u23D5rc;\u4135;\u4439r;\uC000\u{1D527}ath;\u4237pf;\uC000\u{1D55B}\u01E3\u23EC\0\u23F1r;\uC000\u{1D4BF}rcy;\u4458kcy;\u4454\u0400acfghjos\u240B\u2416\u2422\u2427\u242D\u2431\u2435\u243Bppa\u0100;v\u2413\u2414\u43BA;\u43F0\u0100ey\u241B\u2420dil;\u4137;\u443Ar;\uC000\u{1D528}reen;\u4138cy;\u4445cy;\u445Cpf;\uC000\u{1D55C}cr;\uC000\u{1D4C0}\u0B80ABEHabcdefghjlmnoprstuv\u2470\u2481\u2486\u248D\u2491\u250E\u253D\u255A\u2580\u264E\u265E\u2665\u2679\u267D\u269A\u26B2\u26D8\u275D\u2768\u278B\u27C0\u2801\u2812\u0180art\u2477\u247A\u247Cr\xF2\u09C6\xF2\u0395ail;\u691Barr;\u690E\u0100;g\u0994\u248B;\u6A8Bar;\u6962\u0963\u24A5\0\u24AA\0\u24B1\0\0\0\0\0\u24B5\u24BA\0\u24C6\u24C8\u24CD\0\u24F9ute;\u413Amptyv;\u69B4ra\xEE\u084Cbda;\u43BBg\u0180;dl\u088E\u24C1\u24C3;\u6991\xE5\u088E;\u6A85uo\u803B\xAB\u40ABr\u0400;bfhlpst\u0899\u24DE\u24E6\u24E9\u24EB\u24EE\u24F1\u24F5\u0100;f\u089D\u24E3s;\u691Fs;\u691D\xEB\u2252p;\u61ABl;\u6939im;\u6973l;\u61A2\u0180;ae\u24FF\u2500\u2504\u6AABil;\u6919\u0100;s\u2509\u250A\u6AAD;\uC000\u2AAD\uFE00\u0180abr\u2515\u2519\u251Drr;\u690Crk;\u6772\u0100ak\u2522\u252Cc\u0100ek\u2528\u252A;\u407B;\u405B\u0100es\u2531\u2533;\u698Bl\u0100du\u2539\u253B;\u698F;\u698D\u0200aeuy\u2546\u254B\u2556\u2558ron;\u413E\u0100di\u2550\u2554il;\u413C\xEC\u08B0\xE2\u2529;\u443B\u0200cqrs\u2563\u2566\u256D\u257Da;\u6936uo\u0100;r\u0E19\u1746\u0100du\u2572\u2577har;\u6967shar;\u694Bh;\u61B2\u0280;fgqs\u258B\u258C\u0989\u25F3\u25FF\u6264t\u0280ahlrt\u2598\u25A4\u25B7\u25C2\u25E8rrow\u0100;t\u0899\u25A1a\xE9\u24F6arpoon\u0100du\u25AF\u25B4own\xBB\u045Ap\xBB\u0966eftarrows;\u61C7ight\u0180ahs\u25CD\u25D6\u25DErrow\u0100;s\u08F4\u08A7arpoon\xF3\u0F98quigarro\xF7\u21F0hreetimes;\u62CB\u0180;qs\u258B\u0993\u25FAlan\xF4\u09AC\u0280;cdgs\u09AC\u260A\u260D\u261D\u2628c;\u6AA8ot\u0100;o\u2614\u2615\u6A7F\u0100;r\u261A\u261B\u6A81;\u6A83\u0100;e\u2622\u2625\uC000\u22DA\uFE00s;\u6A93\u0280adegs\u2633\u2639\u263D\u2649\u264Bppro\xF8\u24C6ot;\u62D6q\u0100gq\u2643\u2645\xF4\u0989gt\xF2\u248C\xF4\u099Bi\xED\u09B2\u0180ilr\u2655\u08E1\u265Asht;\u697C;\uC000\u{1D529}\u0100;E\u099C\u2663;\u6A91\u0161\u2669\u2676r\u0100du\u25B2\u266E\u0100;l\u0965\u2673;\u696Alk;\u6584cy;\u4459\u0280;acht\u0A48\u2688\u268B\u2691\u2696r\xF2\u25C1orne\xF2\u1D08ard;\u696Bri;\u65FA\u0100io\u269F\u26A4dot;\u4140ust\u0100;a\u26AC\u26AD\u63B0che\xBB\u26AD\u0200Eaes\u26BB\u26BD\u26C9\u26D4;\u6268p\u0100;p\u26C3\u26C4\u6A89rox\xBB\u26C4\u0100;q\u26CE\u26CF\u6A87\u0100;q\u26CE\u26BBim;\u62E6\u0400abnoptwz\u26E9\u26F4\u26F7\u271A\u272F\u2741\u2747\u2750\u0100nr\u26EE\u26F1g;\u67ECr;\u61FDr\xEB\u08C1g\u0180lmr\u26FF\u270D\u2714eft\u0100ar\u09E6\u2707ight\xE1\u09F2apsto;\u67FCight\xE1\u09FDparrow\u0100lr\u2725\u2729ef\xF4\u24EDight;\u61AC\u0180afl\u2736\u2739\u273Dr;\u6985;\uC000\u{1D55D}us;\u6A2Dimes;\u6A34\u0161\u274B\u274Fst;\u6217\xE1\u134E\u0180;ef\u2757\u2758\u1800\u65CAnge\xBB\u2758ar\u0100;l\u2764\u2765\u4028t;\u6993\u0280achmt\u2773\u2776\u277C\u2785\u2787r\xF2\u08A8orne\xF2\u1D8Car\u0100;d\u0F98\u2783;\u696D;\u600Eri;\u62BF\u0300achiqt\u2798\u279D\u0A40\u27A2\u27AE\u27BBquo;\u6039r;\uC000\u{1D4C1}m\u0180;eg\u09B2\u27AA\u27AC;\u6A8D;\u6A8F\u0100bu\u252A\u27B3o\u0100;r\u0E1F\u27B9;\u601Arok;\u4142\u8400<;cdhilqr\u082B\u27D2\u2639\u27DC\u27E0\u27E5\u27EA\u27F0\u0100ci\u27D7\u27D9;\u6AA6r;\u6A79re\xE5\u25F2mes;\u62C9arr;\u6976uest;\u6A7B\u0100Pi\u27F5\u27F9ar;\u6996\u0180;ef\u2800\u092D\u181B\u65C3r\u0100du\u2807\u280Dshar;\u694Ahar;\u6966\u0100en\u2817\u2821rtneqq;\uC000\u2268\uFE00\xC5\u281E\u0700Dacdefhilnopsu\u2840\u2845\u2882\u288E\u2893\u28A0\u28A5\u28A8\u28DA\u28E2\u28E4\u0A83\u28F3\u2902Dot;\u623A\u0200clpr\u284E\u2852\u2863\u287Dr\u803B\xAF\u40AF\u0100et\u2857\u2859;\u6642\u0100;e\u285E\u285F\u6720se\xBB\u285F\u0100;s\u103B\u2868to\u0200;dlu\u103B\u2873\u2877\u287Bow\xEE\u048Cef\xF4\u090F\xF0\u13D1ker;\u65AE\u0100oy\u2887\u288Cmma;\u6A29;\u443Cash;\u6014asuredangle\xBB\u1626r;\uC000\u{1D52A}o;\u6127\u0180cdn\u28AF\u28B4\u28C9ro\u803B\xB5\u40B5\u0200;acd\u1464\u28BD\u28C0\u28C4s\xF4\u16A7ir;\u6AF0ot\u80BB\xB7\u01B5us\u0180;bd\u28D2\u1903\u28D3\u6212\u0100;u\u1D3C\u28D8;\u6A2A\u0163\u28DE\u28E1p;\u6ADB\xF2\u2212\xF0\u0A81\u0100dp\u28E9\u28EEels;\u62A7f;\uC000\u{1D55E}\u0100ct\u28F8\u28FDr;\uC000\u{1D4C2}pos\xBB\u159D\u0180;lm\u2909\u290A\u290D\u43BCtimap;\u62B8\u0C00GLRVabcdefghijlmoprstuvw\u2942\u2953\u297E\u2989\u2998\u29DA\u29E9\u2A15\u2A1A\u2A58\u2A5D\u2A83\u2A95\u2AA4\u2AA8\u2B04\u2B07\u2B44\u2B7F\u2BAE\u2C34\u2C67\u2C7C\u2CE9\u0100gt\u2947\u294B;\uC000\u22D9\u0338\u0100;v\u2950\u0BCF\uC000\u226B\u20D2\u0180elt\u295A\u2972\u2976ft\u0100ar\u2961\u2967rrow;\u61CDightarrow;\u61CE;\uC000\u22D8\u0338\u0100;v\u297B\u0C47\uC000\u226A\u20D2ightarrow;\u61CF\u0100Dd\u298E\u2993ash;\u62AFash;\u62AE\u0280bcnpt\u29A3\u29A7\u29AC\u29B1\u29CCla\xBB\u02DEute;\u4144g;\uC000\u2220\u20D2\u0280;Eiop\u0D84\u29BC\u29C0\u29C5\u29C8;\uC000\u2A70\u0338d;\uC000\u224B\u0338s;\u4149ro\xF8\u0D84ur\u0100;a\u29D3\u29D4\u666El\u0100;s\u29D3\u0B38\u01F3\u29DF\0\u29E3p\u80BB\xA0\u0B37mp\u0100;e\u0BF9\u0C00\u0280aeouy\u29F4\u29FE\u2A03\u2A10\u2A13\u01F0\u29F9\0\u29FB;\u6A43on;\u4148dil;\u4146ng\u0100;d\u0D7E\u2A0Aot;\uC000\u2A6D\u0338p;\u6A42;\u443Dash;\u6013\u0380;Aadqsx\u0B92\u2A29\u2A2D\u2A3B\u2A41\u2A45\u2A50rr;\u61D7r\u0100hr\u2A33\u2A36k;\u6924\u0100;o\u13F2\u13F0ot;\uC000\u2250\u0338ui\xF6\u0B63\u0100ei\u2A4A\u2A4Ear;\u6928\xED\u0B98ist\u0100;s\u0BA0\u0B9Fr;\uC000\u{1D52B}\u0200Eest\u0BC5\u2A66\u2A79\u2A7C\u0180;qs\u0BBC\u2A6D\u0BE1\u0180;qs\u0BBC\u0BC5\u2A74lan\xF4\u0BE2i\xED\u0BEA\u0100;r\u0BB6\u2A81\xBB\u0BB7\u0180Aap\u2A8A\u2A8D\u2A91r\xF2\u2971rr;\u61AEar;\u6AF2\u0180;sv\u0F8D\u2A9C\u0F8C\u0100;d\u2AA1\u2AA2\u62FC;\u62FAcy;\u445A\u0380AEadest\u2AB7\u2ABA\u2ABE\u2AC2\u2AC5\u2AF6\u2AF9r\xF2\u2966;\uC000\u2266\u0338rr;\u619Ar;\u6025\u0200;fqs\u0C3B\u2ACE\u2AE3\u2AEFt\u0100ar\u2AD4\u2AD9rro\xF7\u2AC1ightarro\xF7\u2A90\u0180;qs\u0C3B\u2ABA\u2AEAlan\xF4\u0C55\u0100;s\u0C55\u2AF4\xBB\u0C36i\xED\u0C5D\u0100;r\u0C35\u2AFEi\u0100;e\u0C1A\u0C25i\xE4\u0D90\u0100pt\u2B0C\u2B11f;\uC000\u{1D55F}\u8180\xAC;in\u2B19\u2B1A\u2B36\u40ACn\u0200;Edv\u0B89\u2B24\u2B28\u2B2E;\uC000\u22F9\u0338ot;\uC000\u22F5\u0338\u01E1\u0B89\u2B33\u2B35;\u62F7;\u62F6i\u0100;v\u0CB8\u2B3C\u01E1\u0CB8\u2B41\u2B43;\u62FE;\u62FD\u0180aor\u2B4B\u2B63\u2B69r\u0200;ast\u0B7B\u2B55\u2B5A\u2B5Flle\xEC\u0B7Bl;\uC000\u2AFD\u20E5;\uC000\u2202\u0338lint;\u6A14\u0180;ce\u0C92\u2B70\u2B73u\xE5\u0CA5\u0100;c\u0C98\u2B78\u0100;e\u0C92\u2B7D\xF1\u0C98\u0200Aait\u2B88\u2B8B\u2B9D\u2BA7r\xF2\u2988rr\u0180;cw\u2B94\u2B95\u2B99\u619B;\uC000\u2933\u0338;\uC000\u219D\u0338ghtarrow\xBB\u2B95ri\u0100;e\u0CCB\u0CD6\u0380chimpqu\u2BBD\u2BCD\u2BD9\u2B04\u0B78\u2BE4\u2BEF\u0200;cer\u0D32\u2BC6\u0D37\u2BC9u\xE5\u0D45;\uC000\u{1D4C3}ort\u026D\u2B05\0\0\u2BD6ar\xE1\u2B56m\u0100;e\u0D6E\u2BDF\u0100;q\u0D74\u0D73su\u0100bp\u2BEB\u2BED\xE5\u0CF8\xE5\u0D0B\u0180bcp\u2BF6\u2C11\u2C19\u0200;Ees\u2BFF\u2C00\u0D22\u2C04\u6284;\uC000\u2AC5\u0338et\u0100;e\u0D1B\u2C0Bq\u0100;q\u0D23\u2C00c\u0100;e\u0D32\u2C17\xF1\u0D38\u0200;Ees\u2C22\u2C23\u0D5F\u2C27\u6285;\uC000\u2AC6\u0338et\u0100;e\u0D58\u2C2Eq\u0100;q\u0D60\u2C23\u0200gilr\u2C3D\u2C3F\u2C45\u2C47\xEC\u0BD7lde\u803B\xF1\u40F1\xE7\u0C43iangle\u0100lr\u2C52\u2C5Ceft\u0100;e\u0C1A\u2C5A\xF1\u0C26ight\u0100;e\u0CCB\u2C65\xF1\u0CD7\u0100;m\u2C6C\u2C6D\u43BD\u0180;es\u2C74\u2C75\u2C79\u4023ro;\u6116p;\u6007\u0480DHadgilrs\u2C8F\u2C94\u2C99\u2C9E\u2CA3\u2CB0\u2CB6\u2CD3\u2CE3ash;\u62ADarr;\u6904p;\uC000\u224D\u20D2ash;\u62AC\u0100et\u2CA8\u2CAC;\uC000\u2265\u20D2;\uC000>\u20D2nfin;\u69DE\u0180Aet\u2CBD\u2CC1\u2CC5rr;\u6902;\uC000\u2264\u20D2\u0100;r\u2CCA\u2CCD\uC000<\u20D2ie;\uC000\u22B4\u20D2\u0100At\u2CD8\u2CDCrr;\u6903rie;\uC000\u22B5\u20D2im;\uC000\u223C\u20D2\u0180Aan\u2CF0\u2CF4\u2D02rr;\u61D6r\u0100hr\u2CFA\u2CFDk;\u6923\u0100;o\u13E7\u13E5ear;\u6927\u1253\u1A95\0\0\0\0\0\0\0\0\0\0\0\0\0\u2D2D\0\u2D38\u2D48\u2D60\u2D65\u2D72\u2D84\u1B07\0\0\u2D8D\u2DAB\0\u2DC8\u2DCE\0\u2DDC\u2E19\u2E2B\u2E3E\u2E43\u0100cs\u2D31\u1A97ute\u803B\xF3\u40F3\u0100iy\u2D3C\u2D45r\u0100;c\u1A9E\u2D42\u803B\xF4\u40F4;\u443E\u0280abios\u1AA0\u2D52\u2D57\u01C8\u2D5Alac;\u4151v;\u6A38old;\u69BClig;\u4153\u0100cr\u2D69\u2D6Dir;\u69BF;\uC000\u{1D52C}\u036F\u2D79\0\0\u2D7C\0\u2D82n;\u42DBave\u803B\xF2\u40F2;\u69C1\u0100bm\u2D88\u0DF4ar;\u69B5\u0200acit\u2D95\u2D98\u2DA5\u2DA8r\xF2\u1A80\u0100ir\u2D9D\u2DA0r;\u69BEoss;\u69BBn\xE5\u0E52;\u69C0\u0180aei\u2DB1\u2DB5\u2DB9cr;\u414Dga;\u43C9\u0180cdn\u2DC0\u2DC5\u01CDron;\u43BF;\u69B6pf;\uC000\u{1D560}\u0180ael\u2DD4\u2DD7\u01D2r;\u69B7rp;\u69B9\u0380;adiosv\u2DEA\u2DEB\u2DEE\u2E08\u2E0D\u2E10\u2E16\u6228r\xF2\u1A86\u0200;efm\u2DF7\u2DF8\u2E02\u2E05\u6A5Dr\u0100;o\u2DFE\u2DFF\u6134f\xBB\u2DFF\u803B\xAA\u40AA\u803B\xBA\u40BAgof;\u62B6r;\u6A56lope;\u6A57;\u6A5B\u0180clo\u2E1F\u2E21\u2E27\xF2\u2E01ash\u803B\xF8\u40F8l;\u6298i\u016C\u2E2F\u2E34de\u803B\xF5\u40F5es\u0100;a\u01DB\u2E3As;\u6A36ml\u803B\xF6\u40F6bar;\u633D\u0AE1\u2E5E\0\u2E7D\0\u2E80\u2E9D\0\u2EA2\u2EB9\0\0\u2ECB\u0E9C\0\u2F13\0\0\u2F2B\u2FBC\0\u2FC8r\u0200;ast\u0403\u2E67\u2E72\u0E85\u8100\xB6;l\u2E6D\u2E6E\u40B6le\xEC\u0403\u0269\u2E78\0\0\u2E7Bm;\u6AF3;\u6AFDy;\u443Fr\u0280cimpt\u2E8B\u2E8F\u2E93\u1865\u2E97nt;\u4025od;\u402Eil;\u6030enk;\u6031r;\uC000\u{1D52D}\u0180imo\u2EA8\u2EB0\u2EB4\u0100;v\u2EAD\u2EAE\u43C6;\u43D5ma\xF4\u0A76ne;\u660E\u0180;tv\u2EBF\u2EC0\u2EC8\u43C0chfork\xBB\u1FFD;\u43D6\u0100au\u2ECF\u2EDFn\u0100ck\u2ED5\u2EDDk\u0100;h\u21F4\u2EDB;\u610E\xF6\u21F4s\u0480;abcdemst\u2EF3\u2EF4\u1908\u2EF9\u2EFD\u2F04\u2F06\u2F0A\u2F0E\u402Bcir;\u6A23ir;\u6A22\u0100ou\u1D40\u2F02;\u6A25;\u6A72n\u80BB\xB1\u0E9Dim;\u6A26wo;\u6A27\u0180ipu\u2F19\u2F20\u2F25ntint;\u6A15f;\uC000\u{1D561}nd\u803B\xA3\u40A3\u0500;Eaceinosu\u0EC8\u2F3F\u2F41\u2F44\u2F47\u2F81\u2F89\u2F92\u2F7E\u2FB6;\u6AB3p;\u6AB7u\xE5\u0ED9\u0100;c\u0ECE\u2F4C\u0300;acens\u0EC8\u2F59\u2F5F\u2F66\u2F68\u2F7Eppro\xF8\u2F43urlye\xF1\u0ED9\xF1\u0ECE\u0180aes\u2F6F\u2F76\u2F7Approx;\u6AB9qq;\u6AB5im;\u62E8i\xED\u0EDFme\u0100;s\u2F88\u0EAE\u6032\u0180Eas\u2F78\u2F90\u2F7A\xF0\u2F75\u0180dfp\u0EEC\u2F99\u2FAF\u0180als\u2FA0\u2FA5\u2FAAlar;\u632Eine;\u6312urf;\u6313\u0100;t\u0EFB\u2FB4\xEF\u0EFBrel;\u62B0\u0100ci\u2FC0\u2FC5r;\uC000\u{1D4C5};\u43C8ncsp;\u6008\u0300fiopsu\u2FDA\u22E2\u2FDF\u2FE5\u2FEB\u2FF1r;\uC000\u{1D52E}pf;\uC000\u{1D562}rime;\u6057cr;\uC000\u{1D4C6}\u0180aeo\u2FF8\u3009\u3013t\u0100ei\u2FFE\u3005rnion\xF3\u06B0nt;\u6A16st\u0100;e\u3010\u3011\u403F\xF1\u1F19\xF4\u0F14\u0A80ABHabcdefhilmnoprstux\u3040\u3051\u3055\u3059\u30E0\u310E\u312B\u3147\u3162\u3172\u318E\u3206\u3215\u3224\u3229\u3258\u326E\u3272\u3290\u32B0\u32B7\u0180art\u3047\u304A\u304Cr\xF2\u10B3\xF2\u03DDail;\u691Car\xF2\u1C65ar;\u6964\u0380cdenqrt\u3068\u3075\u3078\u307F\u308F\u3094\u30CC\u0100eu\u306D\u3071;\uC000\u223D\u0331te;\u4155i\xE3\u116Emptyv;\u69B3g\u0200;del\u0FD1\u3089\u308B\u308D;\u6992;\u69A5\xE5\u0FD1uo\u803B\xBB\u40BBr\u0580;abcfhlpstw\u0FDC\u30AC\u30AF\u30B7\u30B9\u30BC\u30BE\u30C0\u30C3\u30C7\u30CAp;\u6975\u0100;f\u0FE0\u30B4s;\u6920;\u6933s;\u691E\xEB\u225D\xF0\u272El;\u6945im;\u6974l;\u61A3;\u619D\u0100ai\u30D1\u30D5il;\u691Ao\u0100;n\u30DB\u30DC\u6236al\xF3\u0F1E\u0180abr\u30E7\u30EA\u30EEr\xF2\u17E5rk;\u6773\u0100ak\u30F3\u30FDc\u0100ek\u30F9\u30FB;\u407D;\u405D\u0100es\u3102\u3104;\u698Cl\u0100du\u310A\u310C;\u698E;\u6990\u0200aeuy\u3117\u311C\u3127\u3129ron;\u4159\u0100di\u3121\u3125il;\u4157\xEC\u0FF2\xE2\u30FA;\u4440\u0200clqs\u3134\u3137\u313D\u3144a;\u6937dhar;\u6969uo\u0100;r\u020E\u020Dh;\u61B3\u0180acg\u314E\u315F\u0F44l\u0200;ips\u0F78\u3158\u315B\u109Cn\xE5\u10BBar\xF4\u0FA9t;\u65AD\u0180ilr\u3169\u1023\u316Esht;\u697D;\uC000\u{1D52F}\u0100ao\u3177\u3186r\u0100du\u317D\u317F\xBB\u047B\u0100;l\u1091\u3184;\u696C\u0100;v\u318B\u318C\u43C1;\u43F1\u0180gns\u3195\u31F9\u31FCht\u0300ahlrst\u31A4\u31B0\u31C2\u31D8\u31E4\u31EErrow\u0100;t\u0FDC\u31ADa\xE9\u30C8arpoon\u0100du\u31BB\u31BFow\xEE\u317Ep\xBB\u1092eft\u0100ah\u31CA\u31D0rrow\xF3\u0FEAarpoon\xF3\u0551ightarrows;\u61C9quigarro\xF7\u30CBhreetimes;\u62CCg;\u42DAingdotse\xF1\u1F32\u0180ahm\u320D\u3210\u3213r\xF2\u0FEAa\xF2\u0551;\u600Foust\u0100;a\u321E\u321F\u63B1che\xBB\u321Fmid;\u6AEE\u0200abpt\u3232\u323D\u3240\u3252\u0100nr\u3237\u323Ag;\u67EDr;\u61FEr\xEB\u1003\u0180afl\u3247\u324A\u324Er;\u6986;\uC000\u{1D563}us;\u6A2Eimes;\u6A35\u0100ap\u325D\u3267r\u0100;g\u3263\u3264\u4029t;\u6994olint;\u6A12ar\xF2\u31E3\u0200achq\u327B\u3280\u10BC\u3285quo;\u603Ar;\uC000\u{1D4C7}\u0100bu\u30FB\u328Ao\u0100;r\u0214\u0213\u0180hir\u3297\u329B\u32A0re\xE5\u31F8mes;\u62CAi\u0200;efl\u32AA\u1059\u1821\u32AB\u65B9tri;\u69CEluhar;\u6968;\u611E\u0D61\u32D5\u32DB\u32DF\u332C\u3338\u3371\0\u337A\u33A4\0\0\u33EC\u33F0\0\u3428\u3448\u345A\u34AD\u34B1\u34CA\u34F1\0\u3616\0\0\u3633cute;\u415Bqu\xEF\u27BA\u0500;Eaceinpsy\u11ED\u32F3\u32F5\u32FF\u3302\u330B\u330F\u331F\u3326\u3329;\u6AB4\u01F0\u32FA\0\u32FC;\u6AB8on;\u4161u\xE5\u11FE\u0100;d\u11F3\u3307il;\u415Frc;\u415D\u0180Eas\u3316\u3318\u331B;\u6AB6p;\u6ABAim;\u62E9olint;\u6A13i\xED\u1204;\u4441ot\u0180;be\u3334\u1D47\u3335\u62C5;\u6A66\u0380Aacmstx\u3346\u334A\u3357\u335B\u335E\u3363\u336Drr;\u61D8r\u0100hr\u3350\u3352\xEB\u2228\u0100;o\u0A36\u0A34t\u803B\xA7\u40A7i;\u403Bwar;\u6929m\u0100in\u3369\xF0nu\xF3\xF1t;\u6736r\u0100;o\u3376\u2055\uC000\u{1D530}\u0200acoy\u3382\u3386\u3391\u33A0rp;\u666F\u0100hy\u338B\u338Fcy;\u4449;\u4448rt\u026D\u3399\0\0\u339Ci\xE4\u1464ara\xEC\u2E6F\u803B\xAD\u40AD\u0100gm\u33A8\u33B4ma\u0180;fv\u33B1\u33B2\u33B2\u43C3;\u43C2\u0400;deglnpr\u12AB\u33C5\u33C9\u33CE\u33D6\u33DE\u33E1\u33E6ot;\u6A6A\u0100;q\u12B1\u12B0\u0100;E\u33D3\u33D4\u6A9E;\u6AA0\u0100;E\u33DB\u33DC\u6A9D;\u6A9Fe;\u6246lus;\u6A24arr;\u6972ar\xF2\u113D\u0200aeit\u33F8\u3408\u340F\u3417\u0100ls\u33FD\u3404lsetm\xE9\u336Ahp;\u6A33parsl;\u69E4\u0100dl\u1463\u3414e;\u6323\u0100;e\u341C\u341D\u6AAA\u0100;s\u3422\u3423\u6AAC;\uC000\u2AAC\uFE00\u0180flp\u342E\u3433\u3442tcy;\u444C\u0100;b\u3438\u3439\u402F\u0100;a\u343E\u343F\u69C4r;\u633Ff;\uC000\u{1D564}a\u0100dr\u344D\u0402es\u0100;u\u3454\u3455\u6660it\xBB\u3455\u0180csu\u3460\u3479\u349F\u0100au\u3465\u346Fp\u0100;s\u1188\u346B;\uC000\u2293\uFE00p\u0100;s\u11B4\u3475;\uC000\u2294\uFE00u\u0100bp\u347F\u348F\u0180;es\u1197\u119C\u3486et\u0100;e\u1197\u348D\xF1\u119D\u0180;es\u11A8\u11AD\u3496et\u0100;e\u11A8\u349D\xF1\u11AE\u0180;af\u117B\u34A6\u05B0r\u0165\u34AB\u05B1\xBB\u117Car\xF2\u1148\u0200cemt\u34B9\u34BE\u34C2\u34C5r;\uC000\u{1D4C8}tm\xEE\xF1i\xEC\u3415ar\xE6\u11BE\u0100ar\u34CE\u34D5r\u0100;f\u34D4\u17BF\u6606\u0100an\u34DA\u34EDight\u0100ep\u34E3\u34EApsilo\xEE\u1EE0h\xE9\u2EAFs\xBB\u2852\u0280bcmnp\u34FB\u355E\u1209\u358B\u358E\u0480;Edemnprs\u350E\u350F\u3511\u3515\u351E\u3523\u352C\u3531\u3536\u6282;\u6AC5ot;\u6ABD\u0100;d\u11DA\u351Aot;\u6AC3ult;\u6AC1\u0100Ee\u3528\u352A;\u6ACB;\u628Alus;\u6ABFarr;\u6979\u0180eiu\u353D\u3552\u3555t\u0180;en\u350E\u3545\u354Bq\u0100;q\u11DA\u350Feq\u0100;q\u352B\u3528m;\u6AC7\u0100bp\u355A\u355C;\u6AD5;\u6AD3c\u0300;acens\u11ED\u356C\u3572\u3579\u357B\u3326ppro\xF8\u32FAurlye\xF1\u11FE\xF1\u11F3\u0180aes\u3582\u3588\u331Bppro\xF8\u331Aq\xF1\u3317g;\u666A\u0680123;Edehlmnps\u35A9\u35AC\u35AF\u121C\u35B2\u35B4\u35C0\u35C9\u35D5\u35DA\u35DF\u35E8\u35ED\u803B\xB9\u40B9\u803B\xB2\u40B2\u803B\xB3\u40B3;\u6AC6\u0100os\u35B9\u35BCt;\u6ABEub;\u6AD8\u0100;d\u1222\u35C5ot;\u6AC4s\u0100ou\u35CF\u35D2l;\u67C9b;\u6AD7arr;\u697Bult;\u6AC2\u0100Ee\u35E4\u35E6;\u6ACC;\u628Blus;\u6AC0\u0180eiu\u35F4\u3609\u360Ct\u0180;en\u121C\u35FC\u3602q\u0100;q\u1222\u35B2eq\u0100;q\u35E7\u35E4m;\u6AC8\u0100bp\u3611\u3613;\u6AD4;\u6AD6\u0180Aan\u361C\u3620\u362Drr;\u61D9r\u0100hr\u3626\u3628\xEB\u222E\u0100;o\u0A2B\u0A29war;\u692Alig\u803B\xDF\u40DF\u0BE1\u3651\u365D\u3660\u12CE\u3673\u3679\0\u367E\u36C2\0\0\0\0\0\u36DB\u3703\0\u3709\u376C\0\0\0\u3787\u0272\u3656\0\0\u365Bget;\u6316;\u43C4r\xEB\u0E5F\u0180aey\u3666\u366B\u3670ron;\u4165dil;\u4163;\u4442lrec;\u6315r;\uC000\u{1D531}\u0200eiko\u3686\u369D\u36B5\u36BC\u01F2\u368B\0\u3691e\u01004f\u1284\u1281a\u0180;sv\u3698\u3699\u369B\u43B8ym;\u43D1\u0100cn\u36A2\u36B2k\u0100as\u36A8\u36AEppro\xF8\u12C1im\xBB\u12ACs\xF0\u129E\u0100as\u36BA\u36AE\xF0\u12C1rn\u803B\xFE\u40FE\u01EC\u031F\u36C6\u22E7es\u8180\xD7;bd\u36CF\u36D0\u36D8\u40D7\u0100;a\u190F\u36D5r;\u6A31;\u6A30\u0180eps\u36E1\u36E3\u3700\xE1\u2A4D\u0200;bcf\u0486\u36EC\u36F0\u36F4ot;\u6336ir;\u6AF1\u0100;o\u36F9\u36FC\uC000\u{1D565}rk;\u6ADA\xE1\u3362rime;\u6034\u0180aip\u370F\u3712\u3764d\xE5\u1248\u0380adempst\u3721\u374D\u3740\u3751\u3757\u375C\u375Fngle\u0280;dlqr\u3730\u3731\u3736\u3740\u3742\u65B5own\xBB\u1DBBeft\u0100;e\u2800\u373E\xF1\u092E;\u625Cight\u0100;e\u32AA\u374B\xF1\u105Aot;\u65ECinus;\u6A3Alus;\u6A39b;\u69CDime;\u6A3Bezium;\u63E2\u0180cht\u3772\u377D\u3781\u0100ry\u3777\u377B;\uC000\u{1D4C9};\u4446cy;\u445Brok;\u4167\u0100io\u378B\u378Ex\xF4\u1777head\u0100lr\u3797\u37A0eftarro\xF7\u084Fightarrow\xBB\u0F5D\u0900AHabcdfghlmoprstuw\u37D0\u37D3\u37D7\u37E4\u37F0\u37FC\u380E\u381C\u3823\u3834\u3851\u385D\u386B\u38A9\u38CC\u38D2\u38EA\u38F6r\xF2\u03EDar;\u6963\u0100cr\u37DC\u37E2ute\u803B\xFA\u40FA\xF2\u1150r\u01E3\u37EA\0\u37EDy;\u445Eve;\u416D\u0100iy\u37F5\u37FArc\u803B\xFB\u40FB;\u4443\u0180abh\u3803\u3806\u380Br\xF2\u13ADlac;\u4171a\xF2\u13C3\u0100ir\u3813\u3818sht;\u697E;\uC000\u{1D532}rave\u803B\xF9\u40F9\u0161\u3827\u3831r\u0100lr\u382C\u382E\xBB\u0957\xBB\u1083lk;\u6580\u0100ct\u3839\u384D\u026F\u383F\0\0\u384Arn\u0100;e\u3845\u3846\u631Cr\xBB\u3846op;\u630Fri;\u65F8\u0100al\u3856\u385Acr;\u416B\u80BB\xA8\u0349\u0100gp\u3862\u3866on;\u4173f;\uC000\u{1D566}\u0300adhlsu\u114B\u3878\u387D\u1372\u3891\u38A0own\xE1\u13B3arpoon\u0100lr\u3888\u388Cef\xF4\u382Digh\xF4\u382Fi\u0180;hl\u3899\u389A\u389C\u43C5\xBB\u13FAon\xBB\u389Aparrows;\u61C8\u0180cit\u38B0\u38C4\u38C8\u026F\u38B6\0\0\u38C1rn\u0100;e\u38BC\u38BD\u631Dr\xBB\u38BDop;\u630Eng;\u416Fri;\u65F9cr;\uC000\u{1D4CA}\u0180dir\u38D9\u38DD\u38E2ot;\u62F0lde;\u4169i\u0100;f\u3730\u38E8\xBB\u1813\u0100am\u38EF\u38F2r\xF2\u38A8l\u803B\xFC\u40FCangle;\u69A7\u0780ABDacdeflnoprsz\u391C\u391F\u3929\u392D\u39B5\u39B8\u39BD\u39DF\u39E4\u39E8\u39F3\u39F9\u39FD\u3A01\u3A20r\xF2\u03F7ar\u0100;v\u3926\u3927\u6AE8;\u6AE9as\xE8\u03E1\u0100nr\u3932\u3937grt;\u699C\u0380eknprst\u34E3\u3946\u394B\u3952\u395D\u3964\u3996app\xE1\u2415othin\xE7\u1E96\u0180hir\u34EB\u2EC8\u3959op\xF4\u2FB5\u0100;h\u13B7\u3962\xEF\u318D\u0100iu\u3969\u396Dgm\xE1\u33B3\u0100bp\u3972\u3984setneq\u0100;q\u397D\u3980\uC000\u228A\uFE00;\uC000\u2ACB\uFE00setneq\u0100;q\u398F\u3992\uC000\u228B\uFE00;\uC000\u2ACC\uFE00\u0100hr\u399B\u399Fet\xE1\u369Ciangle\u0100lr\u39AA\u39AFeft\xBB\u0925ight\xBB\u1051y;\u4432ash\xBB\u1036\u0180elr\u39C4\u39D2\u39D7\u0180;be\u2DEA\u39CB\u39CFar;\u62BBq;\u625Alip;\u62EE\u0100bt\u39DC\u1468a\xF2\u1469r;\uC000\u{1D533}tr\xE9\u39AEsu\u0100bp\u39EF\u39F1\xBB\u0D1C\xBB\u0D59pf;\uC000\u{1D567}ro\xF0\u0EFBtr\xE9\u39B4\u0100cu\u3A06\u3A0Br;\uC000\u{1D4CB}\u0100bp\u3A10\u3A18n\u0100Ee\u3980\u3A16\xBB\u397En\u0100Ee\u3992\u3A1E\xBB\u3990igzag;\u699A\u0380cefoprs\u3A36\u3A3B\u3A56\u3A5B\u3A54\u3A61\u3A6Airc;\u4175\u0100di\u3A40\u3A51\u0100bg\u3A45\u3A49ar;\u6A5Fe\u0100;q\u15FA\u3A4F;\u6259erp;\u6118r;\uC000\u{1D534}pf;\uC000\u{1D568}\u0100;e\u1479\u3A66at\xE8\u1479cr;\uC000\u{1D4CC}\u0AE3\u178E\u3A87\0\u3A8B\0\u3A90\u3A9B\0\0\u3A9D\u3AA8\u3AAB\u3AAF\0\0\u3AC3\u3ACE\0\u3AD8\u17DC\u17DFtr\xE9\u17D1r;\uC000\u{1D535}\u0100Aa\u3A94\u3A97r\xF2\u03C3r\xF2\u09F6;\u43BE\u0100Aa\u3AA1\u3AA4r\xF2\u03B8r\xF2\u09EBa\xF0\u2713is;\u62FB\u0180dpt\u17A4\u3AB5\u3ABE\u0100fl\u3ABA\u17A9;\uC000\u{1D569}im\xE5\u17B2\u0100Aa\u3AC7\u3ACAr\xF2\u03CEr\xF2\u0A01\u0100cq\u3AD2\u17B8r;\uC000\u{1D4CD}\u0100pt\u17D6\u3ADCr\xE9\u17D4\u0400acefiosu\u3AF0\u3AFD\u3B08\u3B0C\u3B11\u3B15\u3B1B\u3B21c\u0100uy\u3AF6\u3AFBte\u803B\xFD\u40FD;\u444F\u0100iy\u3B02\u3B06rc;\u4177;\u444Bn\u803B\xA5\u40A5r;\uC000\u{1D536}cy;\u4457pf;\uC000\u{1D56A}cr;\uC000\u{1D4CE}\u0100cm\u3B26\u3B29y;\u444El\u803B\xFF\u40FF\u0500acdefhiosw\u3B42\u3B48\u3B54\u3B58\u3B64\u3B69\u3B6D\u3B74\u3B7A\u3B80cute;\u417A\u0100ay\u3B4D\u3B52ron;\u417E;\u4437ot;\u417C\u0100et\u3B5D\u3B61tr\xE6\u155Fa;\u43B6r;\uC000\u{1D537}cy;\u4436grarr;\u61DDpf;\uC000\u{1D56B}cr;\uC000\u{1D4CF}\u0100jn\u3B85\u3B87;\u600Dj;\u600C'.split("").map((c) => c.charCodeAt(0))
 );
 
 // node_modules/entities/lib/esm/generated/decode-data-xml.js
 var decode_data_xml_default = new Uint16Array(
+  // prettier-ignore
   "\u0200aglq	\x1B\u026D\0\0p;\u4026os;\u4027t;\u403Et;\u403Cuot;\u4022".split("").map((c) => c.charCodeAt(0))
 );
 
@@ -22486,6 +37351,7 @@ var decode_data_xml_default = new Uint16Array(
 var _a;
 var decodeMap = /* @__PURE__ */ new Map([
   [0, 65533],
+  // C1 Unicode control character reference replacements
   [128, 8364],
   [130, 8218],
   [131, 402],
@@ -22514,16 +37380,19 @@ var decodeMap = /* @__PURE__ */ new Map([
   [158, 382],
   [159, 376]
 ]);
-var fromCodePoint = (_a = String.fromCodePoint) !== null && _a !== void 0 ? _a : function(codePoint) {
-  let output = "";
-  if (codePoint > 65535) {
-    codePoint -= 65536;
-    output += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
-    codePoint = 56320 | codePoint & 1023;
+var fromCodePoint = (
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, node/no-unsupported-features/es-builtins
+  (_a = String.fromCodePoint) !== null && _a !== void 0 ? _a : function(codePoint) {
+    let output = "";
+    if (codePoint > 65535) {
+      codePoint -= 65536;
+      output += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
+      codePoint = 56320 | codePoint & 1023;
+    }
+    output += String.fromCharCode(codePoint);
+    return output;
   }
-  output += String.fromCharCode(codePoint);
-  return output;
-};
+);
 function replaceCodePoint(codePoint) {
   var _a2;
   if (codePoint >= 55296 && codePoint <= 57343 || codePoint > 1114111) {
@@ -22555,14 +37424,14 @@ var BinTrieFlags;
   BinTrieFlags2[BinTrieFlags2["BRANCH_LENGTH"] = 16256] = "BRANCH_LENGTH";
   BinTrieFlags2[BinTrieFlags2["JUMP_TABLE"] = 127] = "JUMP_TABLE";
 })(BinTrieFlags || (BinTrieFlags = {}));
-function isNumber(code) {
+function isNumber2(code) {
   return code >= CharCodes.ZERO && code <= CharCodes.NINE;
 }
 function isHexadecimalCharacter(code) {
   return code >= CharCodes.UPPER_A && code <= CharCodes.UPPER_F || code >= CharCodes.LOWER_A && code <= CharCodes.LOWER_F;
 }
 function isAsciiAlphaNumeric(code) {
-  return code >= CharCodes.UPPER_A && code <= CharCodes.UPPER_Z || code >= CharCodes.LOWER_A && code <= CharCodes.LOWER_Z || isNumber(code);
+  return code >= CharCodes.UPPER_A && code <= CharCodes.UPPER_Z || code >= CharCodes.LOWER_A && code <= CharCodes.LOWER_Z || isNumber2(code);
 }
 function isEntityInAttributeInvalidEnd(code) {
   return code === CharCodes.EQUALS || isAsciiAlphaNumeric(code);
@@ -22593,6 +37462,7 @@ var EntityDecoder = class {
     this.excess = 1;
     this.decodeMode = DecodingMode.Strict;
   }
+  /** Resets the instance to make it reusable. */
   startEntity(decodeMode) {
     this.decodeMode = decodeMode;
     this.state = EntityDecoderState.EntityStart;
@@ -22601,6 +37471,17 @@ var EntityDecoder = class {
     this.excess = 1;
     this.consumed = 1;
   }
+  /**
+   * Write an entity to the decoder. This can be called multiple times with partial entities.
+   * If the entity is incomplete, the decoder will return -1.
+   *
+   * Mirrors the implementation of `getDecoder`, but with the ability to stop decoding if the
+   * entity is incomplete, and resume when the next string is written.
+   *
+   * @param string The string containing the entity (or a continuation of the entity).
+   * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
   write(str, offset) {
     switch (this.state) {
       case EntityDecoderState.EntityStart: {
@@ -22626,6 +37507,15 @@ var EntityDecoder = class {
       }
     }
   }
+  /**
+   * Switches between the numeric decimal and hexadecimal states.
+   *
+   * Equivalent to the `Numeric character reference state` in the HTML spec.
+   *
+   * @param str The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
   stateNumericStart(str, offset) {
     if (offset >= str.length) {
       return -1;
@@ -22645,11 +37535,20 @@ var EntityDecoder = class {
       this.consumed += digitCount;
     }
   }
+  /**
+   * Parses a hexadecimal numeric entity.
+   *
+   * Equivalent to the `Hexademical character reference state` in the HTML spec.
+   *
+   * @param str The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
   stateNumericHex(str, offset) {
     const startIdx = offset;
     while (offset < str.length) {
       const char = str.charCodeAt(offset);
-      if (isNumber(char) || isHexadecimalCharacter(char)) {
+      if (isNumber2(char) || isHexadecimalCharacter(char)) {
         offset += 1;
       } else {
         this.addToNumericResult(str, startIdx, offset, 16);
@@ -22659,11 +37558,20 @@ var EntityDecoder = class {
     this.addToNumericResult(str, startIdx, offset, 16);
     return -1;
   }
+  /**
+   * Parses a decimal numeric entity.
+   *
+   * Equivalent to the `Decimal character reference state` in the HTML spec.
+   *
+   * @param str The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
   stateNumericDecimal(str, offset) {
     const startIdx = offset;
     while (offset < str.length) {
       const char = str.charCodeAt(offset);
-      if (isNumber(char)) {
+      if (isNumber2(char)) {
         offset += 1;
       } else {
         this.addToNumericResult(str, startIdx, offset, 10);
@@ -22673,6 +37581,19 @@ var EntityDecoder = class {
     this.addToNumericResult(str, startIdx, offset, 10);
     return -1;
   }
+  /**
+   * Validate and emit a numeric entity.
+   *
+   * Implements the logic from the `Hexademical character reference start
+   * state` and `Numeric character reference end state` in the HTML spec.
+   *
+   * @param lastCp The last code point of the entity. Used to see if the
+   *               entity was terminated with a semicolon.
+   * @param expectedLength The minimum number of characters that should be
+   *                       consumed. Used to validate that at least one digit
+   *                       was consumed.
+   * @returns The number of characters that were consumed.
+   */
   emitNumericEntity(lastCp, expectedLength) {
     var _a2;
     if (this.consumed <= expectedLength) {
@@ -22693,6 +37614,15 @@ var EntityDecoder = class {
     }
     return this.consumed;
   }
+  /**
+   * Parses a named entity.
+   *
+   * Equivalent to the `Named character reference state` in the HTML spec.
+   *
+   * @param str The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
   stateNamedEntity(str, offset) {
     const { decodeTree } = this;
     let current = decodeTree[this.treeIndex];
@@ -22701,7 +37631,10 @@ var EntityDecoder = class {
       const char = str.charCodeAt(offset);
       this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
       if (this.treeIndex < 0) {
-        return this.result === 0 || this.decodeMode === DecodingMode.Attribute && (valueLength === 0 || isEntityInAttributeInvalidEnd(char)) ? 0 : this.emitNotTerminatedNamedEntity();
+        return this.result === 0 || // If we are parsing an attribute
+        this.decodeMode === DecodingMode.Attribute && // We shouldn't have consumed any characters after the entity,
+        (valueLength === 0 || // And there should be no invalid characters.
+        isEntityInAttributeInvalidEnd(char)) ? 0 : this.emitNotTerminatedNamedEntity();
       }
       current = decodeTree[this.treeIndex];
       valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
@@ -22718,6 +37651,11 @@ var EntityDecoder = class {
     }
     return -1;
   }
+  /**
+   * Emit a named entity that was not terminated with a semicolon.
+   *
+   * @returns The number of characters consumed.
+   */
   emitNotTerminatedNamedEntity() {
     var _a2;
     const { result, decodeTree } = this;
@@ -22726,6 +37664,15 @@ var EntityDecoder = class {
     (_a2 = this.errors) === null || _a2 === void 0 ? void 0 : _a2.missingSemicolonAfterCharacterReference();
     return this.consumed;
   }
+  /**
+   * Emit a named entity.
+   *
+   * @param result The index of the entity in the decode tree.
+   * @param valueLength The number of bytes in the entity.
+   * @param consumed The number of characters consumed.
+   *
+   * @returns The number of characters consumed.
+   */
   emitNamedEntityData(result, valueLength, consumed) {
     const { decodeTree } = this;
     this.emitCodePoint(valueLength === 1 ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH : decodeTree[result + 1], consumed);
@@ -22734,6 +37681,13 @@ var EntityDecoder = class {
     }
     return consumed;
   }
+  /**
+   * Signal to the parser that the end of the input was reached.
+   *
+   * Remaining data will be emitted and relevant errors will be produced.
+   *
+   * @returns The number of characters consumed.
+   */
   end() {
     var _a2;
     switch (this.state) {
@@ -22767,6 +37721,7 @@ function getDecoder(decodeTree) {
       decoder.startEntity(decodeMode);
       const len = decoder.write(
         str,
+        // Skip the "&"
         offset + 1
       );
       if (len < 0) {
@@ -22827,7 +37782,13 @@ var xmlCodeMap = /* @__PURE__ */ new Map([
   [60, "&lt;"],
   [62, "&gt;"]
 ]);
-var getCodePoint = String.prototype.codePointAt != null ? (str, index2) => str.codePointAt(index2) : (c, index2) => (c.charCodeAt(index2) & 64512) === 55296 ? (c.charCodeAt(index2) - 55296) * 1024 + c.charCodeAt(index2 + 1) - 56320 + 65536 : c.charCodeAt(index2);
+var getCodePoint = (
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  String.prototype.codePointAt != null ? (str, index2) => str.codePointAt(index2) : (
+    // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
+    (c, index2) => (c.charCodeAt(index2) & 64512) === 55296 ? (c.charCodeAt(index2) - 55296) * 1024 + c.charCodeAt(index2 + 1) - 56320 + 65536 : c.charCodeAt(index2)
+  )
+);
 function encodeXML(str) {
   let ret = "";
   let lastIdx = 0;
@@ -23009,7 +37970,7 @@ function formatAttributes(attributes2, opts) {
   var _a2;
   if (!attributes2)
     return;
-  const encode = ((_a2 = opts.encodeEntities) !== null && _a2 !== void 0 ? _a2 : opts.decodeEntities) === false ? replaceQuotes : opts.xmlMode || opts.encodeEntities !== "utf8" ? encodeXML : escapeAttribute;
+  const encode3 = ((_a2 = opts.encodeEntities) !== null && _a2 !== void 0 ? _a2 : opts.decodeEntities) === false ? replaceQuotes : opts.xmlMode || opts.encodeEntities !== "utf8" ? encodeXML : escapeAttribute;
   return Object.keys(attributes2).map((key) => {
     var _a3, _b;
     const value = (_a3 = attributes2[key]) !== null && _a3 !== void 0 ? _a3 : "";
@@ -23019,7 +37980,7 @@ function formatAttributes(attributes2, opts) {
     if (!opts.emptyAttrs && !opts.xmlMode && value === "") {
       return key;
     }
-    return `${key}="${encode(value)}"`;
+    return `${key}="${encode3(value)}"`;
   }).join(" ");
 }
 var singleTag = /* @__PURE__ */ new Set([
@@ -23099,7 +38060,13 @@ function renderTag(elem, opts) {
   if (attribs) {
     tag += ` ${attribs}`;
   }
-  if (elem.children.length === 0 && (opts.xmlMode ? opts.selfClosingTags !== false : opts.selfClosingTags && singleTag.has(elem.name))) {
+  if (elem.children.length === 0 && (opts.xmlMode ? (
+    // In XML mode or foreign mode, and user hasn't explicitly turned off self-closing tags
+    opts.selfClosingTags !== false
+  ) : (
+    // User explicitly asked for self-closing tags, even in HTML mode
+    opts.selfClosingTags && singleTag.has(elem.name)
+  ))) {
     if (!opts.xmlMode)
       tag += " ";
     tag += "/>";
@@ -23262,7 +38229,7 @@ function appendChild(parent2, child) {
     child.prev = null;
   }
 }
-function append(elem, next2) {
+function append2(elem, next2) {
   removeElement(next2);
   const { parent: parent2 } = elem;
   const currNext = elem.next;
@@ -23309,10 +38276,10 @@ function prepend(elem, prev2) {
 }
 
 // node_modules/domutils/lib/esm/querying.js
-function filter(test, node, recurse = true, limit = Infinity) {
-  return find(test, Array.isArray(node) ? node : [node], recurse, limit);
+function filter2(test2, node, recurse = true, limit = Infinity) {
+  return find(test2, Array.isArray(node) ? node : [node], recurse, limit);
 }
-function find(test, nodes, recurse, limit) {
+function find(test2, nodes, recurse, limit) {
   const result = [];
   const nodeStack = [Array.isArray(nodes) ? nodes : [nodes]];
   const indexStack = [0];
@@ -23326,7 +38293,7 @@ function find(test, nodes, recurse, limit) {
       continue;
     }
     const elem = nodeStack[0][indexStack[0]++];
-    if (test(elem)) {
+    if (test2(elem)) {
       result.push(elem);
       if (--limit <= 0)
         return result;
@@ -23337,28 +38304,28 @@ function find(test, nodes, recurse, limit) {
     }
   }
 }
-function findOneChild(test, nodes) {
-  return nodes.find(test);
+function findOneChild(test2, nodes) {
+  return nodes.find(test2);
 }
-function findOne(test, nodes, recurse = true) {
+function findOne(test2, nodes, recurse = true) {
   const searchedNodes = Array.isArray(nodes) ? nodes : [nodes];
   for (let i = 0; i < searchedNodes.length; i++) {
     const node = searchedNodes[i];
-    if (isTag2(node) && test(node)) {
+    if (isTag2(node) && test2(node)) {
       return node;
     }
     if (recurse && hasChildren(node) && node.children.length > 0) {
-      const found = findOne(test, node.children, true);
+      const found = findOne(test2, node.children, true);
       if (found)
         return found;
     }
   }
   return null;
 }
-function existsOne(test, nodes) {
-  return (Array.isArray(nodes) ? nodes : [nodes]).some((node) => isTag2(node) && test(node) || hasChildren(node) && existsOne(test, node.children));
+function existsOne(test2, nodes) {
+  return (Array.isArray(nodes) ? nodes : [nodes]).some((node) => isTag2(node) && test2(node) || hasChildren(node) && existsOne(test2, node.children));
 }
-function findAll(test, nodes) {
+function findAll(test2, nodes) {
   const result = [];
   const nodeStack = [Array.isArray(nodes) ? nodes : [nodes]];
   const indexStack = [0];
@@ -23372,7 +38339,7 @@ function findAll(test, nodes) {
       continue;
     }
     const elem = nodeStack[0][indexStack[0]++];
-    if (isTag2(elem) && test(elem))
+    if (isTag2(elem) && test2(elem))
       result.push(elem);
     if (hasChildren(elem) && elem.children.length > 0) {
       indexStack.unshift(0);
@@ -23421,12 +38388,12 @@ function compileTest(options) {
   return funcs.length === 0 ? null : funcs.reduce(combineFuncs);
 }
 function testElement(options, node) {
-  const test = compileTest(options);
-  return test ? test(node) : true;
+  const test2 = compileTest(options);
+  return test2 ? test2(node) : true;
 }
 function getElements(options, nodes, recurse, limit = Infinity) {
-  const test = compileTest(options);
-  return test ? filter(test, nodes, recurse, limit) : [];
+  const test2 = compileTest(options);
+  return test2 ? filter2(test2, nodes, recurse, limit) : [];
 }
 function getElementById(id, nodes, recurse = true) {
   if (!Array.isArray(nodes))
@@ -23434,13 +38401,13 @@ function getElementById(id, nodes, recurse = true) {
   return findOne(getAttribCheck("id", id), nodes, recurse);
 }
 function getElementsByTagName(tagName, nodes, recurse = true, limit = Infinity) {
-  return filter(Checks["tag_name"](tagName), nodes, recurse, limit);
+  return filter2(Checks["tag_name"](tagName), nodes, recurse, limit);
 }
 function getElementsByClassName(className, nodes, recurse = true, limit = Infinity) {
-  return filter(getAttribCheck("class", className), nodes, recurse, limit);
+  return filter2(getAttribCheck("class", className), nodes, recurse, limit);
 }
 function getElementsByTagType(type, nodes, recurse = true, limit = Infinity) {
-  return filter(Checks["tag_type"](type), nodes, recurse, limit);
+  return filter2(Checks["tag_type"](type), nodes, recurse, limit);
 }
 
 // node_modules/domutils/lib/esm/helpers.js
@@ -23706,7 +38673,7 @@ function contains(container, contained) {
 function extract(map2) {
   return this.root().extract(map2);
 }
-function merge(arr1, arr2) {
+function merge2(arr1, arr2) {
   if (!isArrayLike(arr1) || !isArrayLike(arr2)) {
     return;
   }
@@ -23840,7 +38807,10 @@ function attr(name, value) {
   return arguments.length > 1 ? this : getAttr(this[0], name, this.options.xmlMode);
 }
 function getProp(el, name, xmlMode) {
-  return name in el ? el[name] : !xmlMode && rboolean.test(name) ? getAttr(el, name, false) !== void 0 : getAttr(el, name, xmlMode);
+  return name in el ? (
+    // @ts-expect-error TS doesn't like us accessing the value directly here.
+    el[name]
+  ) : !xmlMode && rboolean.test(name) ? getAttr(el, name, false) !== void 0 : getAttr(el, name, xmlMode);
 }
 function setProp(el, name, value, xmlMode) {
   if (name in el) {
@@ -24166,7 +39136,7 @@ __export(traversing_exports, {
   each: () => each,
   end: () => end,
   eq: () => eq,
-  filter: () => filter3,
+  filter: () => filter4,
   filterArray: () => filterArray,
   find: () => find3,
   first: () => first,
@@ -24188,7 +39158,7 @@ __export(traversing_exports, {
   prevUntil: () => prevUntil,
   siblings: () => siblings,
   slice: () => slice,
-  toArray: () => toArray
+  toArray: () => toArray2
 });
 
 // node_modules/cheerio-select/lib/esm/index.js
@@ -24544,6 +39514,7 @@ var filters = {
       return next2(elem) && adapter2.getText(elem).toLowerCase().includes(itext);
     };
   },
+  // Location specific methods
   "nth-child"(next2, rule, { adapter: adapter2, equals }) {
     const func = nthCheck(rule);
     if (func === import_boolbase3.default.falseFunc)
@@ -24622,6 +39593,7 @@ var filters = {
       return func(pos) && next2(elem);
     };
   },
+  // TODO determine the actual root element
   root(next2, _rule, { adapter: adapter2 }) {
     return (elem) => {
       const parent2 = adapter2.getParent(elem);
@@ -24657,7 +39629,10 @@ function dynamicStatePseudo(name) {
 // node_modules/css-select/lib/esm/pseudo-selectors/pseudos.js
 var pseudos = {
   empty(elem, { adapter: adapter2 }) {
-    return !adapter2.getChildren(elem).some((elem2) => adapter2.isTag(elem2) || adapter2.getText(elem2) !== "");
+    return !adapter2.getChildren(elem).some((elem2) => (
+      // FIXME: `getText` call is potentially expensive.
+      adapter2.isTag(elem2) || adapter2.getText(elem2) !== ""
+    ));
   },
   "first-child"(elem, { adapter: adapter2, equals }) {
     if (adapter2.prevElementSibling) {
@@ -24722,8 +39697,11 @@ function verifyPseudoArgs(func, name, subselect, argIndex) {
 
 // node_modules/css-select/lib/esm/pseudo-selectors/aliases.js
 var aliases = {
+  // Links
   "any-link": ":is(a, area, link)[href]",
   link: ":any-link:not(:visited)",
+  // Forms
+  // https://html.spec.whatwg.org/multipage/scripting.html#disabled-elements
   disabled: `:is(
         :is(button, input, select, textarea, optgroup, option)[disabled],
         optgroup[disabled] > option,
@@ -24733,6 +39711,8 @@ var aliases = {
   checked: ":is(:is(input[type=radio], input[type=checkbox])[checked], option:selected)",
   required: ":is(input, select, textarea)[required]",
   optional: ":is(input, select, textarea):not([required])",
+  // JQuery extensions
+  // https://html.spec.whatwg.org/multipage/form-elements.html#concept-option-selectedness
   selected: "option:is([selected], select:not([multiple]):not(:has(> option[selected])) > :first-of-type)",
   checkbox: "[type=checkbox]",
   file: "[type=file]",
@@ -24783,6 +39763,9 @@ var is = (next2, token, options, context, compileToken2) => {
 };
 var subselects = {
   is,
+  /**
+   * `:matches` and `:where` are aliases for `:is`.
+   */
   matches: is,
   where: is,
   not(next2, token, options, context, compileToken2) {
@@ -24793,7 +39776,10 @@ var subselects = {
     const { adapter: adapter2 } = options;
     const opts = copyOptions(options);
     opts.relativeSelector = true;
-    const context = subselect.some((s) => s.some(isTraversal)) ? [PLACEHOLDER_ELEMENT] : void 0;
+    const context = subselect.some((s) => s.some(isTraversal)) ? (
+      // Used as a placeholder. Will be replaced with the actual element.
+      [PLACEHOLDER_ELEMENT]
+    ) : void 0;
     const compiled = compileToken2(subselect, opts, context);
     if (compiled === import_boolbase4.default.falseFunc)
       return import_boolbase4.default.falseFunc;
@@ -25133,9 +40119,9 @@ function isFilter(s) {
   }
   return false;
 }
-function getLimit(filter4, data2, partLimit) {
+function getLimit(filter5, data2, partLimit) {
   const num = data2 != null ? parseInt(data2, 10) : NaN;
-  switch (filter4) {
+  switch (filter5) {
     case "first":
       return 1;
     case "nth":
@@ -25193,9 +40179,9 @@ function some(elements, selector, options = {}) {
   const [plain, filtered] = groupSelectors((0, import_css_what5.parse)(selector));
   return plain.length > 0 && elements.some(_compileToken(plain, options)) || filtered.some((sel) => filterBySelector(sel, elements, options).length > 0);
 }
-function filterByPosition(filter4, elems, data2, options) {
+function filterByPosition(filter5, elems, data2, options) {
   const num = typeof data2 === "string" ? parseInt(data2, 10) : NaN;
-  switch (filter4) {
+  switch (filter5) {
     case "first":
     case "lt":
       return elems;
@@ -25216,7 +40202,7 @@ function filterByPosition(filter4, elems, data2, options) {
     }
   }
 }
-function filter2(selector, elements, options = {}) {
+function filter3(selector, elements, options = {}) {
   return filterParsed((0, import_css_what5.parse)(selector), elements, options);
 }
 function filterParsed(selector, elements, options) {
@@ -25250,7 +40236,10 @@ function filterParsed(selector, elements, options) {
       }
     }
   }
-  return typeof found !== "undefined" ? found.size === elements.length ? elements : elements.filter((el) => found.has(el)) : [];
+  return typeof found !== "undefined" ? found.size === elements.length ? elements : (
+    // Filter elements to preserve order
+    elements.filter((el) => found.has(el))
+  ) : [];
 }
 function filterBySelector(selector, elements, options) {
   var _a2;
@@ -25282,14 +40271,14 @@ function select(selector, root2, options = {}, limit = Infinity) {
 function findFilterElements(root2, selector, options, queryForSelector, totalLimit) {
   const filterIndex = selector.findIndex(isFilter);
   const sub = selector.slice(0, filterIndex);
-  const filter4 = selector[filterIndex];
+  const filter5 = selector[filterIndex];
   const partLimit = selector.length - 1 === filterIndex ? totalLimit : Infinity;
-  const limit = getLimit(filter4.name, filter4.data, partLimit);
+  const limit = getLimit(filter5.name, filter5.data, partLimit);
   if (limit === 0)
     return [];
   const elemsNoLimit = sub.length === 0 && !Array.isArray(root2) ? getChildren(root2).filter(isTag2) : sub.length === 0 ? (Array.isArray(root2) ? root2 : [root2]).filter(isTag2) : queryForSelector || sub.some(import_css_what5.isTraversal) ? findElements(root2, [sub], options, limit) : filterElements(root2, [sub], options);
   const elems = elemsNoLimit.slice(0, limit);
-  let result = filterByPosition(filter4.name, elems, filter4.data, options);
+  let result = filterByPosition(filter5.name, elems, filter5.data, options);
   if (result.length === 0 || selector.length === filterIndex + 1) {
     return result;
   }
@@ -25305,13 +40294,24 @@ function findFilterElements(root2, selector, options, queryForSelector, totalLim
     }
     options = {
       ...options,
+      // Avoid absolutizing the selector
       relativeSelector: false,
+      /*
+       * Add a custom root func, to make sure traversals don't match elements
+       * that aren't a part of the considered tree.
+       */
       rootFunc: (el) => result.includes(el)
     };
   } else if (options.rootFunc && options.rootFunc !== boolbase7.trueFunc) {
     options = { ...options, rootFunc: boolbase7.trueFunc };
   }
-  return remainingSelector.some(isFilter) ? findFilterElements(result, remainingSelector, options, false, totalLimit) : remainingHasTraversal ? findElements(result, [remainingSelector], options, totalLimit) : filterElements(result, [remainingSelector], options);
+  return remainingSelector.some(isFilter) ? findFilterElements(result, remainingSelector, options, false, totalLimit) : remainingHasTraversal ? (
+    // Query existing elements to resolve traversal.
+    findElements(result, [remainingSelector], options, totalLimit)
+  ) : (
+    // If we don't have any more traversals, simply filter elements.
+    filterElements(result, [remainingSelector], options)
+  );
 }
 function findElements(root2, sel, options, limit) {
   const query = _compileToken(sel, options, root2);
@@ -25349,6 +40349,7 @@ function _findBySelector(selector, limit) {
   const options = {
     context,
     root: (_a2 = this._root) === null || _a2 === void 0 ? void 0 : _a2[0],
+    // Pass options that are recognized by `cheerio-select`
     xmlMode: this.options.xmlMode,
     lowerCaseTags: this.options.lowerCaseTags,
     lowerCaseAttributeNames: this.options.lowerCaseAttributeNames,
@@ -25366,6 +40367,7 @@ function _getMatcher(matchMap) {
         matched = filterArray(matched, selector, this.options.xmlMode, (_a2 = this._root) === null || _a2 === void 0 ? void 0 : _a2[0]);
       }
       return this._make(
+        // Post processing is only necessary if there is more than one element.
         this.length > 1 && matched.length > 1 ? postFns.reduce((elems, fn2) => fn2(elems), matched) : matched
       );
     };
@@ -25507,12 +40509,12 @@ function getFilterFn(match) {
     return match === el;
   };
 }
-function filter3(match) {
+function filter4(match) {
   var _a2;
   return this._make(filterArray(this.toArray(), match, this.options.xmlMode, (_a2 = this._root) === null || _a2 === void 0 ? void 0 : _a2[0]));
 }
 function filterArray(nodes, match, xmlMode, root2) {
-  return typeof match === "string" ? filter2(match, nodes, { xmlMode, root: root2 }) : nodes.filter(getFilterFn(match));
+  return typeof match === "string" ? filter3(match, nodes, { xmlMode, root: root2 }) : nodes.filter(getFilterFn(match));
 }
 function is3(selector) {
   const nodes = this.toArray();
@@ -25521,7 +40523,7 @@ function is3(selector) {
 function not(match) {
   let nodes = this.toArray();
   if (typeof match === "string") {
-    const matches = new Set(filter2(match, nodes, this.options));
+    const matches = new Set(filter3(match, nodes, this.options));
     nodes = nodes.filter((el) => !matches.has(el));
   } else {
     const filterFn = getFilterFn(match);
@@ -25530,7 +40532,10 @@ function not(match) {
   return this._make(nodes);
 }
 function has(selectorOrHaystack) {
-  return this.filter(typeof selectorOrHaystack === "string" ? `:has(${selectorOrHaystack})` : (_, el) => this._make(el).find(selectorOrHaystack).length > 0);
+  return this.filter(typeof selectorOrHaystack === "string" ? (
+    // Using the `:has` selector here short-circuits searches.
+    `:has(${selectorOrHaystack})`
+  ) : (_, el) => this._make(el).find(selectorOrHaystack).length > 0);
 }
 function first() {
   return this.length > 1 ? this._make(this[0]) : this;
@@ -25553,7 +40558,7 @@ function get(i) {
   }
   return this[i < 0 ? this.length + i : i];
 }
-function toArray() {
+function toArray2() {
   return Array.prototype.slice.call(this);
 }
 function index(selectorOrNeedle) {
@@ -25592,7 +40597,7 @@ var manipulation_exports = {};
 __export(manipulation_exports, {
   _makeDomArray: () => _makeDomArray,
   after: () => after,
-  append: () => append2,
+  append: () => append3,
   appendTo: () => appendTo,
   before: () => before,
   clone: () => clone,
@@ -25605,7 +40610,7 @@ __export(manipulation_exports, {
   remove: () => remove,
   replaceWith: () => replaceWith,
   text: () => text2,
-  toString: () => toString,
+  toString: () => toString3,
   unwrap: () => unwrap,
   wrap: () => wrap,
   wrapAll: () => wrapAll,
@@ -25745,7 +40750,7 @@ function prependTo(target) {
   prependTarget.prepend(this);
   return this;
 }
-var append2 = _insert((dom, children2, parent2) => {
+var append3 = _insert((dom, children2, parent2) => {
   uniqueSplice(children2, children2.length, 0, dom, parent2);
 });
 var prepend2 = _insert((dom, children2, parent2) => {
@@ -25944,7 +40949,7 @@ function html2(str) {
     update(content, el);
   });
 }
-function toString() {
+function toString3() {
   return this._render(this);
 }
 function text2(str) {
@@ -25979,7 +40984,8 @@ __export(css_exports, {
   css: () => css
 });
 function css(prop2, val2) {
-  if (prop2 != null && val2 != null || typeof prop2 === "object" && !Array.isArray(prop2)) {
+  if (prop2 != null && val2 != null || // When `prop` is a "plain" object
+  typeof prop2 === "object" && !Array.isArray(prop2)) {
     return domEach(this, (el, i) => {
       if (isTag2(el)) {
         setCss(el, prop2, val2, i);
@@ -26073,6 +41079,7 @@ function serializeArray() {
     }
     return $elem.filter(submittableSelector).toArray();
   }).filter(
+    // Verify elements have a name (`attr.name`) and are not disabled (`:enabled`)
     '[name!=""]:enabled:not(:submit, :button, :image, :reset, :file):matches([checked], :not(:checkbox, :radio))'
   ).map((_, elem) => {
     var _a2;
@@ -26080,7 +41087,13 @@ function serializeArray() {
     const name = $elem.attr("name");
     const value = (_a2 = $elem.val()) !== null && _a2 !== void 0 ? _a2 : "";
     if (Array.isArray(value)) {
-      return value.map((val2) => ({ name, value: val2.replace(rCRLF, "\r\n") }));
+      return value.map((val2) => (
+        /*
+         * We trim replace any line endings (e.g. `\r` or `\r\n` with `\r\n`) to guarantee consistency across platforms
+         * These can occur inside of `<textarea>'s`
+         */
+        { name, value: val2.replace(rCRLF, "\r\n") }
+      ));
     }
     return { name, value: value.replace(rCRLF, "\r\n") };
   }).toArray();
@@ -26105,10 +41118,10 @@ function extract2(map2) {
   const ret = {};
   for (const key in map2) {
     const descr = map2[key];
-    const isArray = Array.isArray(descr);
-    const { selector, value } = getExtractDescr(isArray ? descr[0] : descr);
+    const isArray2 = Array.isArray(descr);
+    const { selector, value } = getExtractDescr(isArray2 ? descr[0] : descr);
     const fn = typeof value === "function" ? value : typeof value === "string" ? (el) => this._make(el).prop(value) : (el) => this._make(el).extract(value);
-    if (isArray) {
+    if (isArray2) {
       ret[key] = this._findBySelector(selector, Number.POSITIVE_INFINITY).map((_, el) => fn(el, key, ret)).get();
     } else {
       const $2 = this._findBySelector(selector, 1);
@@ -26120,6 +41133,15 @@ function extract2(map2) {
 
 // node_modules/cheerio/dist/esm/cheerio.js
 var Cheerio = class {
+  /**
+   * Instance of cheerio. Methods are specified in the modules. Usage of this
+   * constructor is not recommended. Please use `$.load` instead.
+   *
+   * @private
+   * @param elements - The new selection.
+   * @param root - Sets the root node.
+   * @param options - Options for the instance.
+   */
   constructor(elements, root2, options) {
     this.length = 0;
     this.options = options;
@@ -26168,7 +41190,16 @@ function getLoad(parse9, render3) {
       if (!selector) {
         return new LoadedCheerio(void 0, rootInstance, options2);
       }
-      const elements = typeof selector === "string" && isHtml(selector) ? parse9(selector, options2, false, null).children : isNode(selector) ? [selector] : Array.isArray(selector) ? selector : void 0;
+      const elements = typeof selector === "string" && isHtml(selector) ? (
+        // $(<html>)
+        parse9(selector, options2, false, null).children
+      ) : isNode(selector) ? (
+        // $(dom)
+        [selector]
+      ) : Array.isArray(selector) ? (
+        // $([dom])
+        selector
+      ) : void 0;
       const instance = new LoadedCheerio(elements, rootInstance, options2);
       if (elements) {
         return instance;
@@ -26177,16 +41208,34 @@ function getLoad(parse9, render3) {
         throw new TypeError("Unexpected type of selector");
       }
       let search = selector;
-      const searchContext = context ? typeof context === "string" ? isHtml(context) ? new LoadedCheerio([parse9(context, options2, false, null)], rootInstance, options2) : (search = `${context} ${search}`, rootInstance) : isCheerio(context) ? context : new LoadedCheerio(Array.isArray(context) ? context : [context], rootInstance, options2) : rootInstance;
+      const searchContext = context ? (
+        // If we don't have a context, maybe we have a root, from loading
+        typeof context === "string" ? isHtml(context) ? (
+          // $('li', '<ul>...</ul>')
+          new LoadedCheerio([parse9(context, options2, false, null)], rootInstance, options2)
+        ) : (
+          // $('li', 'ul')
+          (search = `${context} ${search}`, rootInstance)
+        ) : isCheerio(context) ? (
+          // $('li', $)
+          context
+        ) : (
+          // $('li', node), $('li', [nodes])
+          new LoadedCheerio(Array.isArray(context) ? context : [context], rootInstance, options2)
+        )
+      ) : rootInstance;
       if (!searchContext)
         return instance;
       return searchContext.find(search);
     }
     Object.assign(initialize, static_exports, {
       load: load2,
+      // `_root` and `_options` are used in static methods.
       _root: initialRoot,
       _options: internalOpts,
+      // Add `fn` for plugins
       fn: LoadedCheerio.prototype,
+      // Add the prototype here to maintain `instanceof` behavior.
       prototype: LoadedCheerio.prototype
     });
     return initialize;
@@ -26371,6 +41420,7 @@ var Preprocessor = class {
     this.line = 1;
     this.lastErrOffset = -1;
   }
+  /** The column on the current line. If we just saw a gap (eg. a surrogate pair), return the index before. */
   get col() {
     return this.pos - this.lineStartPos + Number(this.lastGapPos !== this.pos);
   }
@@ -27226,10 +42276,12 @@ var Tokenizer = class {
       }
     } : void 0);
   }
+  //Errors
   _err(code, cpOffset = 0) {
     var _a2, _b;
     (_b = (_a2 = this.handler).onParseError) === null || _b === void 0 ? void 0 : _b.call(_a2, this.preprocessor.getError(code, cpOffset));
   }
+  // NOTE: `offset` may never run across line boundaries.
   getCurrentLocation(offset) {
     if (!this.options.sourceCodeLocationInfo) {
       return null;
@@ -27256,6 +42308,7 @@ var Tokenizer = class {
     }
     this.inLoop = false;
   }
+  //API
   pause() {
     this.paused = true;
   }
@@ -27284,6 +42337,7 @@ var Tokenizer = class {
     this.preprocessor.insertHtmlAtCurrentPos(chunk);
     this._runParsingLoop();
   }
+  //Hibernation
   _ensureHibernation() {
     if (this.preprocessor.endOfChunkHit) {
       this.preprocessor.retreat(this.consumedAfterSnapshot);
@@ -27293,6 +42347,7 @@ var Tokenizer = class {
     }
     return false;
   }
+  //Consumption
   _consume() {
     this.consumedAfterSnapshot++;
     return this.preprocessor.advance();
@@ -27310,6 +42365,7 @@ var Tokenizer = class {
     }
     return false;
   }
+  //Token creation
   _createStartTagToken() {
     this.currentToken = {
       type: TokenType.START_TAG,
@@ -27356,6 +42412,7 @@ var Tokenizer = class {
       location: this.currentLocation
     };
   }
+  //Tag attributes
   _createAttr(attrNameFirstCh) {
     this.currentAttr = {
       name: attrNameFirstCh,
@@ -27385,6 +42442,7 @@ var Tokenizer = class {
       this.currentLocation.endOffset = this.preprocessor.offset;
     }
   }
+  //Token emission
   prepareToken(ct) {
     this._emitCurrentCharacterToken(ct.location);
     this.currentToken = null;
@@ -27458,6 +42516,15 @@ var Tokenizer = class {
     this.handler.onEof({ type: TokenType.EOF, location });
     this.active = false;
   }
+  //Characters emission
+  //OPTIMIZATION: The specification uses only one type of character token (one token per character).
+  //This causes a huge memory overhead and a lot of unnecessary parser loops. parse5 uses 3 groups of characters.
+  //If we have a sequence of characters that belong to the same group, the parser can process it
+  //as a single solid character token.
+  //So, there are 3 types of character tokens in parse5:
+  //1)TokenType.NULL_CHARACTER - \u0000-character sequences (e.g. '\u0000\u0000\u0000')
+  //2)TokenType.WHITESPACE_CHARACTER - any whitespace/new-line character sequences (e.g. '\n  \r\t   \f')
+  //3)TokenType.CHARACTER - any character sequence which don't belong to groups 1 and 2 (e.g. 'abcdef1234@@#$%^')
   _appendCharToCurrentCharacterToken(type, ch) {
     if (this.currentCharacterToken) {
       if (this.currentCharacterToken.type === type) {
@@ -27475,9 +42542,12 @@ var Tokenizer = class {
     const type = isWhitespace(cp) ? TokenType.WHITESPACE_CHARACTER : cp === CODE_POINTS.NULL ? TokenType.NULL_CHARACTER : TokenType.CHARACTER;
     this._appendCharToCurrentCharacterToken(type, String.fromCodePoint(cp));
   }
+  //NOTE: used when we emit characters explicitly.
+  //This is always for non-whitespace and non-null characters, which allows us to avoid additional checks.
   _emitChars(ch) {
     this._appendCharToCurrentCharacterToken(TokenType.CHARACTER, ch);
   }
+  // Character reference helpers
   _startCharacterReference() {
     this.returnState = this.state;
     this.state = State.CHARACTER_REFERENCE;
@@ -27494,6 +42564,7 @@ var Tokenizer = class {
       this._emitCodePoint(cp);
     }
   }
+  // Calling states this way turns out to be much faster than any other approach.
   _callState(cp) {
     switch (this.state) {
       case State.DATA: {
@@ -27793,6 +42864,9 @@ var Tokenizer = class {
       }
     }
   }
+  // State machine
+  // Data state
+  //------------------------------------------------------------------
   _stateData(cp) {
     switch (cp) {
       case CODE_POINTS.LESS_THAN_SIGN: {
@@ -27817,6 +42891,8 @@ var Tokenizer = class {
       }
     }
   }
+  //  RCDATA state
+  //------------------------------------------------------------------
   _stateRcdata(cp) {
     switch (cp) {
       case CODE_POINTS.AMPERSAND: {
@@ -27841,6 +42917,8 @@ var Tokenizer = class {
       }
     }
   }
+  // RAWTEXT state
+  //------------------------------------------------------------------
   _stateRawtext(cp) {
     switch (cp) {
       case CODE_POINTS.LESS_THAN_SIGN: {
@@ -27861,6 +42939,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Script data state
+  //------------------------------------------------------------------
   _stateScriptData(cp) {
     switch (cp) {
       case CODE_POINTS.LESS_THAN_SIGN: {
@@ -27881,6 +42961,8 @@ var Tokenizer = class {
       }
     }
   }
+  // PLAINTEXT state
+  //------------------------------------------------------------------
   _statePlaintext(cp) {
     switch (cp) {
       case CODE_POINTS.NULL: {
@@ -27897,6 +42979,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Tag open state
+  //------------------------------------------------------------------
   _stateTagOpen(cp) {
     if (isAsciiLetter(cp)) {
       this._createStartTagToken();
@@ -27933,6 +43017,8 @@ var Tokenizer = class {
         }
       }
   }
+  // End tag open state
+  //------------------------------------------------------------------
   _stateEndTagOpen(cp) {
     if (isAsciiLetter(cp)) {
       this._createEndTagToken();
@@ -27959,6 +43045,8 @@ var Tokenizer = class {
         }
       }
   }
+  // Tag name state
+  //------------------------------------------------------------------
   _stateTagName(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -27993,6 +43081,8 @@ var Tokenizer = class {
       }
     }
   }
+  // RCDATA less-than sign state
+  //------------------------------------------------------------------
   _stateRcdataLessThanSign(cp) {
     if (cp === CODE_POINTS.SOLIDUS) {
       this.state = State.RCDATA_END_TAG_OPEN;
@@ -28002,6 +43092,8 @@ var Tokenizer = class {
       this._stateRcdata(cp);
     }
   }
+  // RCDATA end tag open state
+  //------------------------------------------------------------------
   _stateRcdataEndTagOpen(cp) {
     if (isAsciiLetter(cp)) {
       this.state = State.RCDATA_END_TAG_NAME;
@@ -28045,6 +43137,8 @@ var Tokenizer = class {
       }
     }
   }
+  // RCDATA end tag name state
+  //------------------------------------------------------------------
   _stateRcdataEndTagName(cp) {
     if (this.handleSpecialEndTag(cp)) {
       this._emitChars("</");
@@ -28052,6 +43146,8 @@ var Tokenizer = class {
       this._stateRcdata(cp);
     }
   }
+  // RAWTEXT less-than sign state
+  //------------------------------------------------------------------
   _stateRawtextLessThanSign(cp) {
     if (cp === CODE_POINTS.SOLIDUS) {
       this.state = State.RAWTEXT_END_TAG_OPEN;
@@ -28061,6 +43157,8 @@ var Tokenizer = class {
       this._stateRawtext(cp);
     }
   }
+  // RAWTEXT end tag open state
+  //------------------------------------------------------------------
   _stateRawtextEndTagOpen(cp) {
     if (isAsciiLetter(cp)) {
       this.state = State.RAWTEXT_END_TAG_NAME;
@@ -28071,6 +43169,8 @@ var Tokenizer = class {
       this._stateRawtext(cp);
     }
   }
+  // RAWTEXT end tag name state
+  //------------------------------------------------------------------
   _stateRawtextEndTagName(cp) {
     if (this.handleSpecialEndTag(cp)) {
       this._emitChars("</");
@@ -28078,6 +43178,8 @@ var Tokenizer = class {
       this._stateRawtext(cp);
     }
   }
+  // Script data less-than sign state
+  //------------------------------------------------------------------
   _stateScriptDataLessThanSign(cp) {
     switch (cp) {
       case CODE_POINTS.SOLIDUS: {
@@ -28096,6 +43198,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Script data end tag open state
+  //------------------------------------------------------------------
   _stateScriptDataEndTagOpen(cp) {
     if (isAsciiLetter(cp)) {
       this.state = State.SCRIPT_DATA_END_TAG_NAME;
@@ -28106,6 +43210,8 @@ var Tokenizer = class {
       this._stateScriptData(cp);
     }
   }
+  // Script data end tag name state
+  //------------------------------------------------------------------
   _stateScriptDataEndTagName(cp) {
     if (this.handleSpecialEndTag(cp)) {
       this._emitChars("</");
@@ -28113,6 +43219,8 @@ var Tokenizer = class {
       this._stateScriptData(cp);
     }
   }
+  // Script data escape start state
+  //------------------------------------------------------------------
   _stateScriptDataEscapeStart(cp) {
     if (cp === CODE_POINTS.HYPHEN_MINUS) {
       this.state = State.SCRIPT_DATA_ESCAPE_START_DASH;
@@ -28122,6 +43230,8 @@ var Tokenizer = class {
       this._stateScriptData(cp);
     }
   }
+  // Script data escape start dash state
+  //------------------------------------------------------------------
   _stateScriptDataEscapeStartDash(cp) {
     if (cp === CODE_POINTS.HYPHEN_MINUS) {
       this.state = State.SCRIPT_DATA_ESCAPED_DASH_DASH;
@@ -28131,6 +43241,8 @@ var Tokenizer = class {
       this._stateScriptData(cp);
     }
   }
+  // Script data escaped state
+  //------------------------------------------------------------------
   _stateScriptDataEscaped(cp) {
     switch (cp) {
       case CODE_POINTS.HYPHEN_MINUS: {
@@ -28157,6 +43269,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Script data escaped dash state
+  //------------------------------------------------------------------
   _stateScriptDataEscapedDash(cp) {
     switch (cp) {
       case CODE_POINTS.HYPHEN_MINUS: {
@@ -28185,6 +43299,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Script data escaped dash dash state
+  //------------------------------------------------------------------
   _stateScriptDataEscapedDashDash(cp) {
     switch (cp) {
       case CODE_POINTS.HYPHEN_MINUS: {
@@ -28217,6 +43333,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Script data escaped less-than sign state
+  //------------------------------------------------------------------
   _stateScriptDataEscapedLessThanSign(cp) {
     if (cp === CODE_POINTS.SOLIDUS) {
       this.state = State.SCRIPT_DATA_ESCAPED_END_TAG_OPEN;
@@ -28230,6 +43348,8 @@ var Tokenizer = class {
       this._stateScriptDataEscaped(cp);
     }
   }
+  // Script data escaped end tag open state
+  //------------------------------------------------------------------
   _stateScriptDataEscapedEndTagOpen(cp) {
     if (isAsciiLetter(cp)) {
       this.state = State.SCRIPT_DATA_ESCAPED_END_TAG_NAME;
@@ -28240,6 +43360,8 @@ var Tokenizer = class {
       this._stateScriptDataEscaped(cp);
     }
   }
+  // Script data escaped end tag name state
+  //------------------------------------------------------------------
   _stateScriptDataEscapedEndTagName(cp) {
     if (this.handleSpecialEndTag(cp)) {
       this._emitChars("</");
@@ -28247,6 +43369,8 @@ var Tokenizer = class {
       this._stateScriptDataEscaped(cp);
     }
   }
+  // Script data double escape start state
+  //------------------------------------------------------------------
   _stateScriptDataDoubleEscapeStart(cp) {
     if (this.preprocessor.startsWith(SEQUENCES.SCRIPT, false) && isScriptDataDoubleEscapeSequenceEnd(this.preprocessor.peek(SEQUENCES.SCRIPT.length))) {
       this._emitCodePoint(cp);
@@ -28259,6 +43383,8 @@ var Tokenizer = class {
       this._stateScriptDataEscaped(cp);
     }
   }
+  // Script data double escaped state
+  //------------------------------------------------------------------
   _stateScriptDataDoubleEscaped(cp) {
     switch (cp) {
       case CODE_POINTS.HYPHEN_MINUS: {
@@ -28286,6 +43412,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Script data double escaped dash state
+  //------------------------------------------------------------------
   _stateScriptDataDoubleEscapedDash(cp) {
     switch (cp) {
       case CODE_POINTS.HYPHEN_MINUS: {
@@ -28315,6 +43443,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Script data double escaped dash dash state
+  //------------------------------------------------------------------
   _stateScriptDataDoubleEscapedDashDash(cp) {
     switch (cp) {
       case CODE_POINTS.HYPHEN_MINUS: {
@@ -28348,6 +43478,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Script data double escaped less-than sign state
+  //------------------------------------------------------------------
   _stateScriptDataDoubleEscapedLessThanSign(cp) {
     if (cp === CODE_POINTS.SOLIDUS) {
       this.state = State.SCRIPT_DATA_DOUBLE_ESCAPE_END;
@@ -28357,6 +43489,8 @@ var Tokenizer = class {
       this._stateScriptDataDoubleEscaped(cp);
     }
   }
+  // Script data double escape end state
+  //------------------------------------------------------------------
   _stateScriptDataDoubleEscapeEnd(cp) {
     if (this.preprocessor.startsWith(SEQUENCES.SCRIPT, false) && isScriptDataDoubleEscapeSequenceEnd(this.preprocessor.peek(SEQUENCES.SCRIPT.length))) {
       this._emitCodePoint(cp);
@@ -28369,6 +43503,8 @@ var Tokenizer = class {
       this._stateScriptDataDoubleEscaped(cp);
     }
   }
+  // Before attribute name state
+  //------------------------------------------------------------------
   _stateBeforeAttributeName(cp) {
     switch (cp) {
       case CODE_POINTS.SPACE:
@@ -28397,6 +43533,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Attribute name state
+  //------------------------------------------------------------------
   _stateAttributeName(cp) {
     switch (cp) {
       case CODE_POINTS.SPACE:
@@ -28433,6 +43571,8 @@ var Tokenizer = class {
       }
     }
   }
+  // After attribute name state
+  //------------------------------------------------------------------
   _stateAfterAttributeName(cp) {
     switch (cp) {
       case CODE_POINTS.SPACE:
@@ -28466,6 +43606,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Before attribute value state
+  //------------------------------------------------------------------
   _stateBeforeAttributeValue(cp) {
     switch (cp) {
       case CODE_POINTS.SPACE:
@@ -28494,6 +43636,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Attribute value (double-quoted) state
+  //------------------------------------------------------------------
   _stateAttributeValueDoubleQuoted(cp) {
     switch (cp) {
       case CODE_POINTS.QUOTATION_MARK: {
@@ -28519,6 +43663,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Attribute value (single-quoted) state
+  //------------------------------------------------------------------
   _stateAttributeValueSingleQuoted(cp) {
     switch (cp) {
       case CODE_POINTS.APOSTROPHE: {
@@ -28544,6 +43690,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Attribute value (unquoted) state
+  //------------------------------------------------------------------
   _stateAttributeValueUnquoted(cp) {
     switch (cp) {
       case CODE_POINTS.SPACE:
@@ -28588,6 +43736,8 @@ var Tokenizer = class {
       }
     }
   }
+  // After attribute value (quoted) state
+  //------------------------------------------------------------------
   _stateAfterAttributeValueQuoted(cp) {
     switch (cp) {
       case CODE_POINTS.SPACE:
@@ -28621,6 +43771,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Self-closing start tag state
+  //------------------------------------------------------------------
   _stateSelfClosingStartTag(cp) {
     switch (cp) {
       case CODE_POINTS.GREATER_THAN_SIGN: {
@@ -28642,6 +43794,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Bogus comment state
+  //------------------------------------------------------------------
   _stateBogusComment(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -28665,6 +43819,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Markup declaration open state
+  //------------------------------------------------------------------
   _stateMarkupDeclarationOpen(cp) {
     if (this._consumeSequenceIfMatch(SEQUENCES.DASH_DASH, true)) {
       this._createCommentToken(SEQUENCES.DASH_DASH.length + 1);
@@ -28688,6 +43844,8 @@ var Tokenizer = class {
       this._stateBogusComment(cp);
     }
   }
+  // Comment start state
+  //------------------------------------------------------------------
   _stateCommentStart(cp) {
     switch (cp) {
       case CODE_POINTS.HYPHEN_MINUS: {
@@ -28707,6 +43865,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Comment start dash state
+  //------------------------------------------------------------------
   _stateCommentStartDash(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -28733,6 +43893,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Comment state
+  //------------------------------------------------------------------
   _stateComment(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -28761,6 +43923,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Comment less-than sign state
+  //------------------------------------------------------------------
   _stateCommentLessThanSign(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -28779,6 +43943,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Comment less-than sign bang state
+  //------------------------------------------------------------------
   _stateCommentLessThanSignBang(cp) {
     if (cp === CODE_POINTS.HYPHEN_MINUS) {
       this.state = State.COMMENT_LESS_THAN_SIGN_BANG_DASH;
@@ -28787,6 +43953,8 @@ var Tokenizer = class {
       this._stateComment(cp);
     }
   }
+  // Comment less-than sign bang dash state
+  //------------------------------------------------------------------
   _stateCommentLessThanSignBangDash(cp) {
     if (cp === CODE_POINTS.HYPHEN_MINUS) {
       this.state = State.COMMENT_LESS_THAN_SIGN_BANG_DASH_DASH;
@@ -28795,6 +43963,8 @@ var Tokenizer = class {
       this._stateCommentEndDash(cp);
     }
   }
+  // Comment less-than sign bang dash dash state
+  //------------------------------------------------------------------
   _stateCommentLessThanSignBangDashDash(cp) {
     if (cp !== CODE_POINTS.GREATER_THAN_SIGN && cp !== CODE_POINTS.EOF) {
       this._err(ERR.nestedComment);
@@ -28802,6 +43972,8 @@ var Tokenizer = class {
     this.state = State.COMMENT_END;
     this._stateCommentEnd(cp);
   }
+  // Comment end dash state
+  //------------------------------------------------------------------
   _stateCommentEndDash(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -28822,6 +43994,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Comment end state
+  //------------------------------------------------------------------
   _stateCommentEnd(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -28851,6 +44025,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Comment end bang state
+  //------------------------------------------------------------------
   _stateCommentEndBang(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -28878,6 +44054,8 @@ var Tokenizer = class {
       }
     }
   }
+  // DOCTYPE state
+  //------------------------------------------------------------------
   _stateDoctype(cp) {
     switch (cp) {
       case CODE_POINTS.SPACE:
@@ -28908,6 +44086,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Before DOCTYPE name state
+  //------------------------------------------------------------------
   _stateBeforeDoctypeName(cp) {
     if (isAsciiUpper(cp)) {
       this._createDoctypeToken(String.fromCharCode(toAsciiLower(cp)));
@@ -28950,6 +44130,8 @@ var Tokenizer = class {
         }
       }
   }
+  // DOCTYPE name state
+  //------------------------------------------------------------------
   _stateDoctypeName(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -28982,6 +44164,8 @@ var Tokenizer = class {
       }
     }
   }
+  // After DOCTYPE name state
+  //------------------------------------------------------------------
   _stateAfterDoctypeName(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29017,6 +44201,8 @@ var Tokenizer = class {
       }
     }
   }
+  // After DOCTYPE public keyword state
+  //------------------------------------------------------------------
   _stateAfterDoctypePublicKeyword(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29061,6 +44247,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Before DOCTYPE public identifier state
+  //------------------------------------------------------------------
   _stateBeforeDoctypePublicIdentifier(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29102,6 +44290,8 @@ var Tokenizer = class {
       }
     }
   }
+  // DOCTYPE public identifier (double-quoted) state
+  //------------------------------------------------------------------
   _stateDoctypePublicIdentifierDoubleQuoted(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29133,6 +44323,8 @@ var Tokenizer = class {
       }
     }
   }
+  // DOCTYPE public identifier (single-quoted) state
+  //------------------------------------------------------------------
   _stateDoctypePublicIdentifierSingleQuoted(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29164,6 +44356,8 @@ var Tokenizer = class {
       }
     }
   }
+  // After DOCTYPE public identifier state
+  //------------------------------------------------------------------
   _stateAfterDoctypePublicIdentifier(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29206,6 +44400,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Between DOCTYPE public and system identifiers state
+  //------------------------------------------------------------------
   _stateBetweenDoctypePublicAndSystemIdentifiers(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29245,6 +44441,8 @@ var Tokenizer = class {
       }
     }
   }
+  // After DOCTYPE system keyword state
+  //------------------------------------------------------------------
   _stateAfterDoctypeSystemKeyword(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29289,6 +44487,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Before DOCTYPE system identifier state
+  //------------------------------------------------------------------
   _stateBeforeDoctypeSystemIdentifier(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29330,6 +44530,8 @@ var Tokenizer = class {
       }
     }
   }
+  // DOCTYPE system identifier (double-quoted) state
+  //------------------------------------------------------------------
   _stateDoctypeSystemIdentifierDoubleQuoted(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29361,6 +44563,8 @@ var Tokenizer = class {
       }
     }
   }
+  // DOCTYPE system identifier (single-quoted) state
+  //------------------------------------------------------------------
   _stateDoctypeSystemIdentifierSingleQuoted(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29392,6 +44596,8 @@ var Tokenizer = class {
       }
     }
   }
+  // After DOCTYPE system identifier state
+  //------------------------------------------------------------------
   _stateAfterDoctypeSystemIdentifier(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29420,6 +44626,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Bogus DOCTYPE state
+  //------------------------------------------------------------------
   _stateBogusDoctype(cp) {
     const token = this.currentToken;
     switch (cp) {
@@ -29440,6 +44648,8 @@ var Tokenizer = class {
       default:
     }
   }
+  // CDATA section state
+  //------------------------------------------------------------------
   _stateCdataSection(cp) {
     switch (cp) {
       case CODE_POINTS.RIGHT_SQUARE_BRACKET: {
@@ -29456,6 +44666,8 @@ var Tokenizer = class {
       }
     }
   }
+  // CDATA section bracket state
+  //------------------------------------------------------------------
   _stateCdataSectionBracket(cp) {
     if (cp === CODE_POINTS.RIGHT_SQUARE_BRACKET) {
       this.state = State.CDATA_SECTION_END;
@@ -29465,6 +44677,8 @@ var Tokenizer = class {
       this._stateCdataSection(cp);
     }
   }
+  // CDATA section end state
+  //------------------------------------------------------------------
   _stateCdataSectionEnd(cp) {
     switch (cp) {
       case CODE_POINTS.GREATER_THAN_SIGN: {
@@ -29482,6 +44696,8 @@ var Tokenizer = class {
       }
     }
   }
+  // Character reference state
+  //------------------------------------------------------------------
   _stateCharacterReference() {
     let length = this.entityDecoder.write(this.preprocessor.html, this.preprocessor.pos);
     if (length < 0) {
@@ -29503,6 +44719,8 @@ var Tokenizer = class {
       this.state = this.returnState;
     }
   }
+  // Ambiguos ampersand state
+  //------------------------------------------------------------------
   _stateAmbiguousAmpersand(cp) {
     if (isAsciiAlphaNumeric2(cp)) {
       this._flushCodePointConsumedAsCharacterReference(cp);
@@ -29552,7 +44770,7 @@ var OpenElementStack = class {
   get currentTmplContentOrNode() {
     return this._isInTemplate() ? this.treeAdapter.getTemplateContent(this.current) : this.current;
   }
-  constructor(document, treeAdapter, handler3) {
+  constructor(document2, treeAdapter, handler3) {
     this.treeAdapter = treeAdapter;
     this.handler = handler3;
     this.items = [];
@@ -29560,11 +44778,13 @@ var OpenElementStack = class {
     this.stackTop = -1;
     this.tmplCount = 0;
     this.currentTagId = TAG_ID.UNKNOWN;
-    this.current = document;
+    this.current = document2;
   }
+  //Index of element
   _indexOf(element) {
     return this.items.lastIndexOf(element, this.stackTop);
   }
+  //Update current element
   _isInTemplate() {
     return this.currentTagId === TAG_ID.TEMPLATE && this.treeAdapter.getNamespaceURI(this.current) === NS.HTML;
   }
@@ -29572,6 +44792,7 @@ var OpenElementStack = class {
     this.current = this.items[this.stackTop];
     this.currentTagId = this.tagIDs[this.stackTop];
   }
+  //Mutations
   push(element, tagID) {
     this.stackTop++;
     this.items[this.stackTop] = element;
@@ -29680,6 +44901,7 @@ var OpenElementStack = class {
       }
     }
   }
+  //Search
   tryPeekProperlyNestedBodyElement() {
     return this.stackTop >= 1 && this.tagIDs[1] === TAG_ID.BODY ? this.items[1] : null;
   }
@@ -29693,6 +44915,7 @@ var OpenElementStack = class {
   isRootHtmlElementCurrent() {
     return this.stackTop === 0 && this.tagIDs[0] === TAG_ID.HTML;
   }
+  //Element in scope
   hasInDynamicScope(tagName, htmlScope) {
     for (let i = this.stackTop; i >= 0; i--) {
       const tn = this.tagIDs[i];
@@ -29808,6 +45031,7 @@ var OpenElementStack = class {
     }
     return true;
   }
+  //Implied end tags
   generateImpliedEndTags() {
     while (IMPLICIT_END_TAG_REQUIRED.has(this.currentTagId)) {
       this.pop();
@@ -29839,6 +45063,9 @@ var FormattingElementList = class {
     this.entries = [];
     this.bookmark = null;
   }
+  //Noah Ark's condition
+  //OPTIMIZATION: at first we try to find possible candidates for exclusion using
+  //lightweight heuristics without thorough attributes check.
   _getNoahArkConditionCandidates(newElement, neAttrs) {
     const candidates = [];
     const neAttrsLength = neAttrs.length;
@@ -29878,6 +45105,7 @@ var FormattingElementList = class {
       }
     }
   }
+  //Mutations
   insertMarker() {
     this.entries.unshift(MARKER);
   }
@@ -29903,6 +45131,11 @@ var FormattingElementList = class {
       this.entries.splice(entryIndex, 1);
     }
   }
+  /**
+   * Clears the list of formatting elements up to the last marker.
+   *
+   * @see https://html.spec.whatwg.org/multipage/parsing.html#clear-the-list-of-active-formatting-elements-up-to-the-last-marker
+   */
   clearToLastMarker() {
     const markerIdx = this.entries.indexOf(MARKER);
     if (markerIdx >= 0) {
@@ -29911,6 +45144,7 @@ var FormattingElementList = class {
       this.entries.length = 0;
     }
   }
+  //Search
   getElementEntryInScopeWithTagName(tagName) {
     const entry = this.entries.find((entry2) => entry2.type === EntryType.Marker || this.treeAdapter.getTagName(entry2.element) === tagName);
     return entry && entry.type === EntryType.Element ? entry : null;
@@ -29922,6 +45156,7 @@ var FormattingElementList = class {
 
 // node_modules/parse5/dist/tree-adapters/default.js
 var defaultTreeAdapter = {
+  //Node construction
   createDocument() {
     return {
       nodeName: "#document",
@@ -29959,6 +45194,7 @@ var defaultTreeAdapter = {
       parentNode: null
     };
   },
+  //Tree mutation
   appendChild(parentNode, newNode) {
     parentNode.childNodes.push(newNode);
     newNode.parentNode = parentNode;
@@ -29974,8 +45210,8 @@ var defaultTreeAdapter = {
   getTemplateContent(templateElement) {
     return templateElement.content;
   },
-  setDocumentType(document, name, publicId, systemId) {
-    const doctypeNode = document.childNodes.find((node) => node.nodeName === "#documentType");
+  setDocumentType(document2, name, publicId, systemId) {
+    const doctypeNode = document2.childNodes.find((node) => node.nodeName === "#documentType");
     if (doctypeNode) {
       doctypeNode.name = name;
       doctypeNode.publicId = publicId;
@@ -29988,14 +45224,14 @@ var defaultTreeAdapter = {
         systemId,
         parentNode: null
       };
-      defaultTreeAdapter.appendChild(document, node);
+      defaultTreeAdapter.appendChild(document2, node);
     }
   },
-  setDocumentMode(document, mode) {
-    document.mode = mode;
+  setDocumentMode(document2, mode) {
+    document2.mode = mode;
   },
-  getDocumentMode(document) {
-    return document.mode;
+  getDocumentMode(document2) {
+    return document2.mode;
   },
   detachNode(node) {
     if (node.parentNode) {
@@ -30030,6 +45266,7 @@ var defaultTreeAdapter = {
       }
     }
   },
+  //Tree traversing
   getFirstChild(node) {
     return node.childNodes[0];
   },
@@ -30042,6 +45279,7 @@ var defaultTreeAdapter = {
   getAttrList(element) {
     return element.attrs;
   },
+  //Node data
   getTagName(element) {
     return element.tagName;
   },
@@ -30063,6 +45301,7 @@ var defaultTreeAdapter = {
   getDocumentTypeNodeSystemId(doctypeNode) {
     return doctypeNode.systemId;
   },
+  //Node types
   isTextNode(node) {
     return node.nodeName === "#text";
   },
@@ -30075,6 +45314,7 @@ var defaultTreeAdapter = {
   isElementNode(node) {
     return Object.prototype.hasOwnProperty.call(node, "tagName");
   },
+  // Source code location
   setNodeSourceCodeLocation(node, location) {
     node.sourceCodeLocation = location;
   },
@@ -30461,7 +45701,7 @@ var defaultParserOptions = {
   onParseError: null
 };
 var Parser = class {
-  constructor(options, document, fragmentContext = null, scriptHandler = null) {
+  constructor(options, document2, fragmentContext = null, scriptHandler = null) {
     this.fragmentContext = fragmentContext;
     this.scriptHandler = scriptHandler;
     this.currentToken = null;
@@ -30486,13 +45726,14 @@ var Parser = class {
     if (this.onParseError) {
       this.options.sourceCodeLocationInfo = true;
     }
-    this.document = document !== null && document !== void 0 ? document : this.treeAdapter.createDocument();
+    this.document = document2 !== null && document2 !== void 0 ? document2 : this.treeAdapter.createDocument();
     this.tokenizer = new Tokenizer(this.options, this);
     this.activeFormattingElements = new FormattingElementList(this.treeAdapter);
     this.fragmentContextID = fragmentContext ? getTagID(this.treeAdapter.getTagName(fragmentContext)) : TAG_ID.UNKNOWN;
     this._setContextModes(fragmentContext !== null && fragmentContext !== void 0 ? fragmentContext : this.document, this.fragmentContextID);
     this.openElements = new OpenElementStack(this.document, this.treeAdapter, this);
   }
+  // API
   static parse(html3, options) {
     const parser = new this(options);
     parser.tokenizer.write(html3, true);
@@ -30521,6 +45762,8 @@ var Parser = class {
     this._adoptNodes(rootElement, fragment);
     return fragment;
   }
+  //Errors
+  /** @internal */
   _err(token, code, beforeToken) {
     var _a2;
     if (!this.onParseError)
@@ -30537,12 +45780,15 @@ var Parser = class {
     };
     this.onParseError(err);
   }
+  //Stack events
+  /** @internal */
   onItemPush(node, tid, isTop) {
     var _a2, _b;
     (_b = (_a2 = this.treeAdapter).onItemPush) === null || _b === void 0 ? void 0 : _b.call(_a2, node);
     if (isTop && this.openElements.stackTop > 0)
       this._setContextModes(node, tid);
   }
+  /** @internal */
   onItemPop(node, isTop) {
     var _a2, _b;
     if (this.options.sourceCodeLocationInfo) {
@@ -30566,6 +45812,7 @@ var Parser = class {
     this.currentNotInHTML = !isHTML;
     this.tokenizer.inForeignNode = !isHTML && !this._isIntegrationPoint(tid, current);
   }
+  /** @protected */
   _switchToTextParsing(currentToken, nextTokenizerState) {
     this._insertElement(currentToken, NS.HTML);
     this.tokenizer.state = nextTokenizerState;
@@ -30577,9 +45824,12 @@ var Parser = class {
     this.originalInsertionMode = InsertionMode.IN_BODY;
     this.tokenizer.state = TokenizerMode.PLAINTEXT;
   }
+  //Fragment parsing
+  /** @protected */
   _getAdjustedCurrentElement() {
     return this.openElements.stackTop === 0 && this.fragmentContext ? this.fragmentContext : this.openElements.current;
   }
+  /** @protected */
   _findFormInFragmentContext() {
     let node = this.fragmentContext;
     while (node) {
@@ -30620,6 +45870,8 @@ var Parser = class {
       default:
     }
   }
+  //Tree mutation
+  /** @protected */
   _setDocumentType(token) {
     const name = token.name || "";
     const publicId = token.publicId || "";
@@ -30633,6 +45885,7 @@ var Parser = class {
       }
     }
   }
+  /** @protected */
   _attachElementToTree(element, location) {
     if (this.options.sourceCodeLocationInfo) {
       const loc = location && {
@@ -30648,20 +45901,28 @@ var Parser = class {
       this.treeAdapter.appendChild(parent2, element);
     }
   }
+  /**
+   * For self-closing tags. Add an element to the tree, but skip adding it
+   * to the stack.
+   */
+  /** @protected */
   _appendElement(token, namespaceURI) {
     const element = this.treeAdapter.createElement(token.tagName, namespaceURI, token.attrs);
     this._attachElementToTree(element, token.location);
   }
+  /** @protected */
   _insertElement(token, namespaceURI) {
     const element = this.treeAdapter.createElement(token.tagName, namespaceURI, token.attrs);
     this._attachElementToTree(element, token.location);
     this.openElements.push(element, token.tagID);
   }
+  /** @protected */
   _insertFakeElement(tagName, tagID) {
     const element = this.treeAdapter.createElement(tagName, NS.HTML, []);
     this._attachElementToTree(element, null);
     this.openElements.push(element, tagID);
   }
+  /** @protected */
   _insertTemplate(token) {
     const tmpl = this.treeAdapter.createElement(token.tagName, NS.HTML, token.attrs);
     const content = this.treeAdapter.createDocumentFragment();
@@ -30671,6 +45932,7 @@ var Parser = class {
     if (this.options.sourceCodeLocationInfo)
       this.treeAdapter.setNodeSourceCodeLocation(content, null);
   }
+  /** @protected */
   _insertFakeRootElement() {
     const element = this.treeAdapter.createElement(TAG_NAMES.HTML, NS.HTML, []);
     if (this.options.sourceCodeLocationInfo)
@@ -30678,6 +45940,7 @@ var Parser = class {
     this.treeAdapter.appendChild(this.openElements.current, element);
     this.openElements.push(element, TAG_ID.HTML);
   }
+  /** @protected */
   _appendCommentNode(token, parent2) {
     const commentNode = this.treeAdapter.createCommentNode(token.data);
     this.treeAdapter.appendChild(parent2, commentNode);
@@ -30685,6 +45948,7 @@ var Parser = class {
       this.treeAdapter.setNodeSourceCodeLocation(commentNode, token.location);
     }
   }
+  /** @protected */
   _insertCharacters(token) {
     let parent2;
     let beforeElement;
@@ -30712,29 +45976,36 @@ var Parser = class {
       this.treeAdapter.setNodeSourceCodeLocation(textNode, token.location);
     }
   }
+  /** @protected */
   _adoptNodes(donor, recipient) {
     for (let child = this.treeAdapter.getFirstChild(donor); child; child = this.treeAdapter.getFirstChild(donor)) {
       this.treeAdapter.detachNode(child);
       this.treeAdapter.appendChild(recipient, child);
     }
   }
+  /** @protected */
   _setEndLocation(element, closingToken) {
     if (this.treeAdapter.getNodeSourceCodeLocation(element) && closingToken.location) {
       const ctLoc = closingToken.location;
       const tn = this.treeAdapter.getTagName(element);
-      const endLoc = closingToken.type === TokenType.END_TAG && tn === closingToken.tagName ? {
-        endTag: { ...ctLoc },
-        endLine: ctLoc.endLine,
-        endCol: ctLoc.endCol,
-        endOffset: ctLoc.endOffset
-      } : {
-        endLine: ctLoc.startLine,
-        endCol: ctLoc.startCol,
-        endOffset: ctLoc.startOffset
-      };
+      const endLoc = (
+        // NOTE: For cases like <p> <p> </p> - First 'p' closes without a closing
+        // tag and for cases like <td> <p> </td> - 'p' closes without a closing tag.
+        closingToken.type === TokenType.END_TAG && tn === closingToken.tagName ? {
+          endTag: { ...ctLoc },
+          endLine: ctLoc.endLine,
+          endCol: ctLoc.endCol,
+          endOffset: ctLoc.endOffset
+        } : {
+          endLine: ctLoc.startLine,
+          endCol: ctLoc.startCol,
+          endOffset: ctLoc.startOffset
+        }
+      );
       this.treeAdapter.updateNodeSourceCodeLocation(element, endLoc);
     }
   }
+  //Token processing
   shouldProcessStartTagTokenInForeignContent(token) {
     if (!this.currentNotInHTML)
       return false;
@@ -30749,8 +46020,14 @@ var Parser = class {
     if (token.tagID === TAG_ID.SVG && this.treeAdapter.getTagName(current) === TAG_NAMES.ANNOTATION_XML && this.treeAdapter.getNamespaceURI(current) === NS.MATHML) {
       return false;
     }
-    return this.tokenizer.inForeignNode || (token.tagID === TAG_ID.MGLYPH || token.tagID === TAG_ID.MALIGNMARK) && !this._isIntegrationPoint(currentTagId, current, NS.HTML);
+    return (
+      // Check that `current` is not an integration point for HTML or MathML elements.
+      this.tokenizer.inForeignNode || // If it _is_ an integration point, then we might have to check that it is not an HTML
+      // integration point.
+      (token.tagID === TAG_ID.MGLYPH || token.tagID === TAG_ID.MALIGNMARK) && !this._isIntegrationPoint(currentTagId, current, NS.HTML)
+    );
   }
+  /** @protected */
   _processToken(token) {
     switch (token.type) {
       case TokenType.CHARACTER: {
@@ -30787,11 +46064,15 @@ var Parser = class {
       }
     }
   }
+  //Integration points
+  /** @protected */
   _isIntegrationPoint(tid, element, foreignNS) {
     const ns = this.treeAdapter.getNamespaceURI(element);
     const attrs = this.treeAdapter.getAttrList(element);
     return isIntegrationPoint(tid, ns, attrs, foreignNS);
   }
+  //Active formatting elements reconstruction
+  /** @protected */
   _reconstructActiveFormattingElements() {
     const listLength = this.activeFormattingElements.entries.length;
     if (listLength) {
@@ -30804,16 +46085,21 @@ var Parser = class {
       }
     }
   }
+  //Close elements
+  /** @protected */
   _closeTableCell() {
     this.openElements.generateImpliedEndTags();
     this.openElements.popUntilTableCellPopped();
     this.activeFormattingElements.clearToLastMarker();
     this.insertionMode = InsertionMode.IN_ROW;
   }
+  /** @protected */
   _closePElement() {
     this.openElements.generateImpliedEndTagsWithExclusion(TAG_ID.P);
     this.openElements.popUntilTagNamePopped(TAG_ID.P);
   }
+  //Insertion modes
+  /** @protected */
   _resetInsertionMode() {
     for (let i = this.openElements.stackTop; i >= 0; i--) {
       switch (i === 0 && this.fragmentContext ? this.fragmentContextID : this.openElements.tagIDs[i]) {
@@ -30878,6 +46164,7 @@ var Parser = class {
     }
     this.insertionMode = InsertionMode.IN_BODY;
   }
+  /** @protected */
   _resetInsertionModeForSelect(selectIdx) {
     if (selectIdx > 0) {
       for (let i = selectIdx - 1; i > 0; i--) {
@@ -30892,12 +46179,16 @@ var Parser = class {
     }
     this.insertionMode = InsertionMode.IN_SELECT;
   }
+  //Foster parenting
+  /** @protected */
   _isElementCausesFosterParenting(tn) {
     return TABLE_STRUCTURE_TAGS.has(tn);
   }
+  /** @protected */
   _shouldFosterParentOnInsertion() {
     return this.fosterParentingEnabled && this._isElementCausesFosterParenting(this.openElements.currentTagId);
   }
+  /** @protected */
   _findFosterParentingLocation() {
     for (let i = this.openElements.stackTop; i >= 0; i--) {
       const openElement = this.openElements.items[i];
@@ -30920,6 +46211,7 @@ var Parser = class {
     }
     return { parent: this.openElements.items[0], beforeElement: null };
   }
+  /** @protected */
   _fosterParentElement(element) {
     const location = this._findFosterParentingLocation();
     if (location.beforeElement) {
@@ -30928,10 +46220,13 @@ var Parser = class {
       this.treeAdapter.appendChild(location.parent, element);
     }
   }
+  //Special elements
+  /** @protected */
   _isSpecialElement(element, id) {
     const ns = this.treeAdapter.getNamespaceURI(element);
     return SPECIAL_ELEMENTS[ns].has(id);
   }
+  /** @internal */
   onCharacter(token) {
     this.skipNextNewLine = false;
     if (this.tokenizer.inForeignNode) {
@@ -31001,6 +46296,7 @@ var Parser = class {
       default:
     }
   }
+  /** @internal */
   onNullCharacter(token) {
     this.skipNextNewLine = false;
     if (this.tokenizer.inForeignNode) {
@@ -31057,6 +46353,7 @@ var Parser = class {
       default:
     }
   }
+  /** @internal */
   onComment(token) {
     this.skipNextNewLine = false;
     if (this.currentNotInHTML) {
@@ -31101,6 +46398,7 @@ var Parser = class {
       default:
     }
   }
+  /** @internal */
   onDoctype(token) {
     this.skipNextNewLine = false;
     switch (this.insertionMode) {
@@ -31122,6 +46420,7 @@ var Parser = class {
       default:
     }
   }
+  /** @internal */
   onStartTag(token) {
     this.skipNextNewLine = false;
     this.currentToken = token;
@@ -31130,6 +46429,17 @@ var Parser = class {
       this._err(token, ERR.nonVoidHtmlElementStartTagWithTrailingSolidus);
     }
   }
+  /**
+   * Processes a given start tag.
+   *
+   * `onStartTag` checks if a self-closing tag was recognized. When a token
+   * is moved inbetween multiple insertion modes, this check for self-closing
+   * could lead to false positives. To avoid this, `_processStartTag` is used
+   * for nested calls.
+   *
+   * @param token The token to process.
+   * @protected
+   */
   _processStartTag(token) {
     if (this.shouldProcessStartTagTokenInForeignContent(token)) {
       startTagInForeignContent(this, token);
@@ -31137,6 +46447,7 @@ var Parser = class {
       this._startTagOutsideForeignContent(token);
     }
   }
+  /** @protected */
   _startTagOutsideForeignContent(token) {
     switch (this.insertionMode) {
       case InsertionMode.INITIAL: {
@@ -31230,6 +46541,7 @@ var Parser = class {
       default:
     }
   }
+  /** @internal */
   onEndTag(token) {
     this.skipNextNewLine = false;
     this.currentToken = token;
@@ -31239,6 +46551,7 @@ var Parser = class {
       this._endTagOutsideForeignContent(token);
     }
   }
+  /** @protected */
   _endTagOutsideForeignContent(token) {
     switch (this.insertionMode) {
       case InsertionMode.INITIAL: {
@@ -31332,6 +46645,7 @@ var Parser = class {
       default:
     }
   }
+  /** @internal */
   onEof(token) {
     switch (this.insertionMode) {
       case InsertionMode.INITIAL: {
@@ -31393,6 +46707,7 @@ var Parser = class {
       default:
     }
   }
+  /** @internal */
   onWhitespaceCharacter(token) {
     if (this.skipNextNewLine) {
       this.skipNextNewLine = false;
@@ -33504,9 +48819,11 @@ function serializeDoctypeContent(name, publicId, systemId) {
   return str;
 }
 var adapter = {
+  // Re-exports from domhandler
   isCommentNode: isComment,
   isElementNode: isTag2,
   isTextNode: isText,
+  //Node construction
   createDocument() {
     const node = new Document([]);
     node["x-mode"] = html_exports.DOCUMENT_MODE.NO_QUIRKS;
@@ -33537,6 +48854,7 @@ var adapter = {
   createTextNode(value) {
     return new Text2(value);
   },
+  //Tree mutation
   appendChild(parentNode, newNode) {
     const prev2 = parentNode.children[parentNode.children.length - 1];
     if (prev2) {
@@ -33564,24 +48882,24 @@ var adapter = {
   getTemplateContent(templateElement) {
     return templateElement.children[0];
   },
-  setDocumentType(document, name, publicId, systemId) {
+  setDocumentType(document2, name, publicId, systemId) {
     const data2 = serializeDoctypeContent(name, publicId, systemId);
-    let doctypeNode = document.children.find((node) => isDirective(node) && node.name === "!doctype");
+    let doctypeNode = document2.children.find((node) => isDirective(node) && node.name === "!doctype");
     if (doctypeNode) {
       doctypeNode.data = data2 !== null && data2 !== void 0 ? data2 : null;
     } else {
       doctypeNode = new ProcessingInstruction("!doctype", data2);
-      adapter.appendChild(document, doctypeNode);
+      adapter.appendChild(document2, doctypeNode);
     }
     doctypeNode["x-name"] = name;
     doctypeNode["x-publicId"] = publicId;
     doctypeNode["x-systemId"] = systemId;
   },
-  setDocumentMode(document, mode) {
-    document["x-mode"] = mode;
+  setDocumentMode(document2, mode) {
+    document2["x-mode"] = mode;
   },
-  getDocumentMode(document) {
-    return document["x-mode"];
+  getDocumentMode(document2) {
+    return document2["x-mode"];
   },
   detachNode(node) {
     if (node.parent) {
@@ -33625,6 +48943,7 @@ var adapter = {
       }
     }
   },
+  //Tree traversing
   getFirstChild(node) {
     return node.children[0];
   },
@@ -33637,6 +48956,7 @@ var adapter = {
   getAttrList(element) {
     return element.attributes;
   },
+  //Node data
   getTagName(element) {
     return element.name;
   },
@@ -33661,9 +48981,11 @@ var adapter = {
     var _a2;
     return (_a2 = doctypeNode["x-systemId"]) !== null && _a2 !== void 0 ? _a2 : "";
   },
+  //Node types
   isDocumentTypeNode(node) {
     return isDirective(node) && node.name === "!doctype";
   },
+  // Source code location
   setNodeSourceCodeLocation(node, location) {
     if (location) {
       node.startIndex = location.startOffset;
@@ -33788,11 +49110,17 @@ var QuoteType;
 })(QuoteType || (QuoteType = {}));
 var Sequences = {
   Cdata: new Uint8Array([67, 68, 65, 84, 65, 91]),
+  // CDATA[
   CdataEnd: new Uint8Array([93, 93, 62]),
+  // ]]>
   CommentEnd: new Uint8Array([45, 45, 62]),
+  // `-->`
   ScriptEnd: new Uint8Array([60, 47, 115, 99, 114, 105, 112, 116]),
+  // `</script`
   StyleEnd: new Uint8Array([60, 47, 115, 116, 121, 108, 101]),
+  // `</style`
   TitleEnd: new Uint8Array([60, 47, 116, 105, 116, 108, 101]),
+  // `</title`
   TextareaEnd: new Uint8Array([
     60,
     47,
@@ -33805,6 +49133,7 @@ var Sequences = {
     101,
     97
   ])
+  // `</textarea`
 };
 var Tokenizer2 = class {
   constructor({ xmlMode = false, decodeEntities = true }, cbs) {
@@ -33865,7 +49194,13 @@ var Tokenizer2 = class {
   }
   stateSpecialStartSequence(c) {
     const isEnd = this.sequenceIndex === this.currentSequence.length;
-    const isMatch = isEnd ? isEndOfTagSection(c) : (c | 32) === this.currentSequence[this.sequenceIndex];
+    const isMatch = isEnd ? (
+      // If we are at the end of the sequence, make sure the tag name has ended
+      isEndOfTagSection(c)
+    ) : (
+      // Otherwise, do a case-insensitive comparison
+      (c | 32) === this.currentSequence[this.sequenceIndex]
+    );
     if (!isMatch) {
       this.isSpecial = false;
     } else if (!isEnd) {
@@ -33876,6 +49211,7 @@ var Tokenizer2 = class {
     this.state = State2.InTagName;
     this.stateInTagName(c);
   }
+  /** Look for an end tag. For <title> tags, also decode entities. */
   stateInSpecialTag(c) {
     if (this.sequenceIndex === this.currentSequence.length) {
       if (c === CharCodes2.Gt || isWhitespace2(c)) {
@@ -33921,6 +49257,12 @@ var Tokenizer2 = class {
       this.stateInDeclaration(c);
     }
   }
+  /**
+   * When we wait for one specific character, we can speed things up
+   * by skipping through the buffer until we find it.
+   *
+   * @returns Whether the character was found.
+   */
   fastForwardTo(c) {
     while (++this.index < this.buffer.length + this.offset) {
       if (this.buffer.charCodeAt(this.index - this.offset) === c) {
@@ -33930,6 +49272,14 @@ var Tokenizer2 = class {
     this.index = this.buffer.length + this.offset - 1;
     return false;
   }
+  /**
+   * Comments and CDATA end with `-->` and `]]>`.
+   *
+   * Their common qualities are:
+   * - Their end sequences have a distinct character they start with.
+   * - That character is then repeated, so we have to check multiple repeats.
+   * - All characters but the start character of the sequence can be skipped.
+   */
   stateInCommentLike(c) {
     if (c === this.currentSequence[this.sequenceIndex]) {
       if (++this.sequenceIndex === this.currentSequence.length) {
@@ -33950,6 +49300,12 @@ var Tokenizer2 = class {
       this.sequenceIndex = 0;
     }
   }
+  /**
+   * HTML only allows ASCII alpha characters (a-z and A-Z) at the beginning of a tag name.
+   *
+   * XML allows a lot more characters here (@see https://www.w3.org/TR/REC-xml/#NT-NameStartChar).
+   * We allow anything that wouldn't end the tag.
+   */
   isTagStartChar(c) {
     return this.xmlMode ? !isEndOfTagSection(c) : isASCIIAlpha(c);
   }
@@ -34184,6 +49540,9 @@ var Tokenizer2 = class {
       this.index = this.offset + this.buffer.length - 1;
     }
   }
+  /**
+   * Remove data that has already been consumed from the buffer.
+   */
   cleanup() {
     if (this.running && this.sectionStart !== this.index) {
       if (this.state === State2.Text || this.state === State2.InSpecialTag && this.sequenceIndex === 0) {
@@ -34198,6 +49557,11 @@ var Tokenizer2 = class {
   shouldContinue() {
     return this.index < this.buffer.length + this.offset && this.running;
   }
+  /**
+   * Iterates through the buffer, calling the function corresponding to the current state.
+   *
+   * States that are more likely to be hit are higher up, as a performance improvement.
+   */
   parse() {
     while (this.shouldContinue()) {
       const c = this.buffer.charCodeAt(this.index - this.offset);
@@ -34319,6 +49683,7 @@ var Tokenizer2 = class {
     this.handleTrailingData();
     this.cbs.onend();
   }
+  /** Handle any trailing data. */
   handleTrailingData() {
     const endIndex = this.buffer.length + this.offset;
     if (this.sectionStart >= endIndex) {
@@ -34476,6 +49841,8 @@ var Parser2 = class {
     this.foreignContext = [!this.htmlMode];
     (_f = (_e = this.cbs).onparserinit) === null || _f === void 0 ? void 0 : _f.call(_e, this);
   }
+  // Tokenizer event handlers
+  /** @internal */
   ontext(start, endIndex) {
     var _a2, _b;
     const data2 = this.getSlice(start, endIndex);
@@ -34483,15 +49850,21 @@ var Parser2 = class {
     (_b = (_a2 = this.cbs).ontext) === null || _b === void 0 ? void 0 : _b.call(_a2, data2);
     this.startIndex = endIndex;
   }
+  /** @internal */
   ontextentity(cp, endIndex) {
     var _a2, _b;
     this.endIndex = endIndex - 1;
     (_b = (_a2 = this.cbs).ontext) === null || _b === void 0 ? void 0 : _b.call(_a2, fromCodePoint(cp));
     this.startIndex = endIndex;
   }
+  /**
+   * Checks if the current tag is a void element. Override this if you want
+   * to specify your own additional void elements.
+   */
   isVoidElement(name) {
     return this.htmlMode && voidElements.has(name);
   }
+  /** @internal */
   onopentagname(start, endIndex) {
     this.endIndex = endIndex;
     let name = this.getSlice(start, endIndex);
@@ -34537,11 +49910,13 @@ var Parser2 = class {
     }
     this.tagname = "";
   }
+  /** @internal */
   onopentagend(endIndex) {
     this.endIndex = endIndex;
     this.endOpenTag(false);
     this.startIndex = endIndex + 1;
   }
+  /** @internal */
   onclosetag(start, endIndex) {
     var _a2, _b, _c, _d, _e, _f, _g, _h;
     this.endIndex = endIndex;
@@ -34570,6 +49945,7 @@ var Parser2 = class {
     }
     this.startIndex = endIndex + 1;
   }
+  /** @internal */
   onselfclosingtag(endIndex) {
     this.endIndex = endIndex;
     if (this.recognizeSelfClosing || this.foreignContext[0]) {
@@ -34588,17 +49964,21 @@ var Parser2 = class {
       this.stack.shift();
     }
   }
+  /** @internal */
   onattribname(start, endIndex) {
     this.startIndex = start;
     const name = this.getSlice(start, endIndex);
     this.attribname = this.lowerCaseAttributeNames ? name.toLowerCase() : name;
   }
+  /** @internal */
   onattribdata(start, endIndex) {
     this.attribvalue += this.getSlice(start, endIndex);
   }
+  /** @internal */
   onattribentity(cp) {
     this.attribvalue += fromCodePoint(cp);
   }
+  /** @internal */
   onattribend(quote, endIndex) {
     var _a2, _b;
     this.endIndex = endIndex;
@@ -34616,6 +49996,7 @@ var Parser2 = class {
     }
     return name;
   }
+  /** @internal */
   ondeclaration(start, endIndex) {
     this.endIndex = endIndex;
     const value = this.getSlice(start, endIndex);
@@ -34625,6 +50006,7 @@ var Parser2 = class {
     }
     this.startIndex = endIndex + 1;
   }
+  /** @internal */
   onprocessinginstruction(start, endIndex) {
     this.endIndex = endIndex;
     const value = this.getSlice(start, endIndex);
@@ -34634,6 +50016,7 @@ var Parser2 = class {
     }
     this.startIndex = endIndex + 1;
   }
+  /** @internal */
   oncomment(start, endIndex, offset) {
     var _a2, _b, _c, _d;
     this.endIndex = endIndex;
@@ -34641,6 +50024,7 @@ var Parser2 = class {
     (_d = (_c = this.cbs).oncommentend) === null || _d === void 0 ? void 0 : _d.call(_c);
     this.startIndex = endIndex + 1;
   }
+  /** @internal */
   oncdata(start, endIndex, offset) {
     var _a2, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     this.endIndex = endIndex;
@@ -34655,6 +50039,7 @@ var Parser2 = class {
     }
     this.startIndex = endIndex + 1;
   }
+  /** @internal */
   onend() {
     var _a2, _b;
     if (this.cbs.onclosetag) {
@@ -34665,6 +50050,9 @@ var Parser2 = class {
     }
     (_b = (_a2 = this.cbs).onend) === null || _b === void 0 ? void 0 : _b.call(_a2);
   }
+  /**
+   * Resets the parser to a blank state, ready to parse a new HTML document
+   */
   reset() {
     var _a2, _b, _c, _d;
     (_b = (_a2 = this.cbs).onreset) === null || _b === void 0 ? void 0 : _b.call(_a2);
@@ -34683,6 +50071,12 @@ var Parser2 = class {
     this.writeIndex = 0;
     this.ended = false;
   }
+  /**
+   * Resets the parser, then parses a complete document and
+   * pushes it to the handler.
+   *
+   * @param data Document to parse.
+   */
   parseComplete(data2) {
     this.reset();
     this.end(data2);
@@ -34703,6 +50097,11 @@ var Parser2 = class {
     this.writeIndex--;
     this.buffers.shift();
   }
+  /**
+   * Parses a chunk of data and calls the corresponding callbacks.
+   *
+   * @param chunk Chunk to parse.
+   */
   write(chunk) {
     var _a2, _b;
     if (this.ended) {
@@ -34715,6 +50114,11 @@ var Parser2 = class {
       this.writeIndex++;
     }
   }
+  /**
+   * Parses the end of the buffer and clears the stack, calls onend.
+   *
+   * @param chunk Optional final chunk to parse.
+   */
   end(chunk) {
     var _a2, _b;
     if (this.ended) {
@@ -34726,9 +50130,15 @@ var Parser2 = class {
     this.ended = true;
     this.tokenizer.end();
   }
+  /**
+   * Pauses parsing. The parser won't emit events until `resume` is called.
+   */
   pause() {
     this.tokenizer.pause();
   }
+  /**
+   * Resumes parsing after `pause` was called.
+   */
   resume() {
     this.tokenizer.resume();
     while (this.tokenizer.running && this.writeIndex < this.buffers.length) {
@@ -34737,9 +50147,21 @@ var Parser2 = class {
     if (this.ended)
       this.tokenizer.end();
   }
+  /**
+   * Alias of `write`, for backwards compatibility.
+   *
+   * @param chunk Chunk to parse.
+   * @deprecated
+   */
   parseChunk(chunk) {
     this.write(chunk);
   }
+  /**
+   * Alias of `end`, for backwards compatibility.
+   *
+   * @param chunk Optional final chunk to parse.
+   * @deprecated
+   */
   done(chunk) {
     this.end(chunk);
   }
@@ -34881,705 +50303,715 @@ function isAsciiAlpha(c) {
 function isQuote(c) {
   return c === Chars.DQUOTE || c === Chars.SQUOTE;
 }
-var Sniffer = function() {
-  function Sniffer2(_a2) {
-    var _b = _a2 === void 0 ? {} : _a2, _c = _b.maxBytes, maxBytes = _c === void 0 ? 1024 : _c, userEncoding = _b.userEncoding, transportLayerEncodingLabel = _b.transportLayerEncodingLabel, defaultEncoding = _b.defaultEncoding;
-    this.offset = 0;
-    this.state = State3.Begin;
-    this.sectionIndex = 0;
-    this.attribType = AttribType.None;
-    this.gotPragma = null;
-    this.needsPragma = null;
-    this.inMetaTag = false;
-    this.encoding = "windows-1252";
-    this.resultType = ResultType.DEFAULT;
-    this.quoteCharacter = 0;
-    this.attributeValue = [];
-    this.maxBytes = maxBytes;
-    if (userEncoding) {
-      this.setResult(userEncoding, ResultType.PASSED);
-    }
-    if (transportLayerEncodingLabel) {
-      this.setResult(transportLayerEncodingLabel, ResultType.PASSED);
-    }
-    if (defaultEncoding) {
-      this.setResult(defaultEncoding, ResultType.DEFAULT);
-    }
-  }
-  Sniffer2.prototype.setResult = function(label, type) {
-    if (this.resultType === ResultType.DEFAULT || this.resultType > type) {
-      var encoding = (0, import_whatwg_encoding.labelToName)(label);
-      if (encoding) {
-        this.encoding = type === ResultType.META_TAG && encoding === "x-user-defined" ? "windows-1252" : (type === ResultType.META_TAG || type === ResultType.XML_ENCODING) && (encoding === "UTF-16LE" || encoding === "UTF-16BE") ? "UTF-8" : encoding;
-        this.resultType = type;
-      }
-    }
-  };
-  Sniffer2.prototype.stateBegin = function(c) {
-    switch (c) {
-      case STRINGS.UTF16BE_BOM[0]: {
-        this.state = State3.BOM16BE;
-        break;
-      }
-      case STRINGS.UTF16LE_BOM[0]: {
-        this.state = State3.BOM16LE;
-        break;
-      }
-      case STRINGS.UTF8_BOM[0]: {
-        this.sectionIndex = 1;
-        this.state = State3.BOM8;
-        break;
-      }
-      case Chars.NIL: {
-        this.state = State3.UTF16BE_XML_PREFIX;
-        this.sectionIndex = 1;
-        break;
-      }
-      case Chars.LT: {
-        this.state = State3.BeginLT;
-        break;
-      }
-      default: {
-        this.state = State3.BeforeTag;
-      }
-    }
-  };
-  Sniffer2.prototype.stateBeginLT = function(c) {
-    if (c === Chars.NIL) {
-      this.state = State3.UTF16LE_XML_PREFIX;
-      this.sectionIndex = 2;
-    } else if (c === Chars.QUESTION) {
-      this.state = State3.XMLDeclaration;
-      this.sectionIndex = 2;
-    } else {
-      this.state = State3.BeforeTagName;
-      this.stateBeforeTagName(c);
-    }
-  };
-  Sniffer2.prototype.stateUTF16BE_XML_PREFIX = function(c) {
-    if (this.advanceSection(STRINGS.UTF16BE_XML_PREFIX, c)) {
-      if (this.sectionIndex === STRINGS.UTF16BE_XML_PREFIX.length) {
-        this.setResult("utf-16be", ResultType.XML_PREFIX);
-      }
-    } else {
-      this.state = State3.BeforeTag;
-      this.stateBeforeTag(c);
-    }
-  };
-  Sniffer2.prototype.stateUTF16LE_XML_PREFIX = function(c) {
-    if (this.advanceSection(STRINGS.UTF16LE_XML_PREFIX, c)) {
-      if (this.sectionIndex === STRINGS.UTF16LE_XML_PREFIX.length) {
-        this.setResult("utf-16le", ResultType.XML_PREFIX);
-      }
-    } else {
-      this.state = State3.BeforeTag;
-      this.stateBeforeTag(c);
-    }
-  };
-  Sniffer2.prototype.stateBOM16LE = function(c) {
-    if (c === STRINGS.UTF16LE_BOM[1]) {
-      this.setResult("utf-16le", ResultType.BOM);
-    } else {
-      this.state = State3.BeforeTag;
-      this.stateBeforeTag(c);
-    }
-  };
-  Sniffer2.prototype.stateBOM16BE = function(c) {
-    if (c === STRINGS.UTF16BE_BOM[1]) {
-      this.setResult("utf-16be", ResultType.BOM);
-    } else {
-      this.state = State3.BeforeTag;
-      this.stateBeforeTag(c);
-    }
-  };
-  Sniffer2.prototype.stateBOM8 = function(c) {
-    if (this.advanceSection(STRINGS.UTF8_BOM, c) && this.sectionIndex === STRINGS.UTF8_BOM.length) {
-      this.setResult("utf-8", ResultType.BOM);
-    }
-  };
-  Sniffer2.prototype.stateBeforeTag = function(c) {
-    if (c === Chars.LT) {
-      this.state = State3.BeforeTagName;
+var Sniffer = (
+  /** @class */
+  function() {
+    function Sniffer2(_a2) {
+      var _b = _a2 === void 0 ? {} : _a2, _c = _b.maxBytes, maxBytes = _c === void 0 ? 1024 : _c, userEncoding = _b.userEncoding, transportLayerEncodingLabel = _b.transportLayerEncodingLabel, defaultEncoding = _b.defaultEncoding;
+      this.offset = 0;
+      this.state = State3.Begin;
+      this.sectionIndex = 0;
+      this.attribType = AttribType.None;
+      this.gotPragma = null;
+      this.needsPragma = null;
       this.inMetaTag = false;
-    }
-  };
-  Sniffer2.prototype.stateBeforeTagName = function(c) {
-    if (isAsciiAlpha(c)) {
-      if ((c | 32) === STRINGS.META[0]) {
-        this.sectionIndex = 1;
-        this.state = State3.TagNameMeta;
-      } else {
-        this.state = State3.TagNameOther;
+      this.encoding = "windows-1252";
+      this.resultType = ResultType.DEFAULT;
+      this.quoteCharacter = 0;
+      this.attributeValue = [];
+      this.maxBytes = maxBytes;
+      if (userEncoding) {
+        this.setResult(userEncoding, ResultType.PASSED);
       }
-    } else
+      if (transportLayerEncodingLabel) {
+        this.setResult(transportLayerEncodingLabel, ResultType.PASSED);
+      }
+      if (defaultEncoding) {
+        this.setResult(defaultEncoding, ResultType.DEFAULT);
+      }
+    }
+    Sniffer2.prototype.setResult = function(label, type) {
+      if (this.resultType === ResultType.DEFAULT || this.resultType > type) {
+        var encoding = (0, import_whatwg_encoding.labelToName)(label);
+        if (encoding) {
+          this.encoding = // Check if we are in a meta tag and the encoding is `x-user-defined`
+          type === ResultType.META_TAG && encoding === "x-user-defined" ? "windows-1252" : (
+            // Check if we are in a meta tag or xml declaration, and the encoding is UTF-16
+            (type === ResultType.META_TAG || type === ResultType.XML_ENCODING) && (encoding === "UTF-16LE" || encoding === "UTF-16BE") ? "UTF-8" : encoding
+          );
+          this.resultType = type;
+        }
+      }
+    };
+    Sniffer2.prototype.stateBegin = function(c) {
       switch (c) {
-        case Chars.SLASH: {
-          this.state = State3.BeforeCloseTagName;
+        case STRINGS.UTF16BE_BOM[0]: {
+          this.state = State3.BOM16BE;
           break;
         }
-        case Chars.EXCLAMATION: {
-          this.state = State3.CommentStart;
-          this.sectionIndex = 2;
+        case STRINGS.UTF16LE_BOM[0]: {
+          this.state = State3.BOM16LE;
           break;
         }
-        case Chars.QUESTION: {
-          this.state = State3.WeirdTag;
+        case STRINGS.UTF8_BOM[0]: {
+          this.sectionIndex = 1;
+          this.state = State3.BOM8;
+          break;
+        }
+        case Chars.NIL: {
+          this.state = State3.UTF16BE_XML_PREFIX;
+          this.sectionIndex = 1;
+          break;
+        }
+        case Chars.LT: {
+          this.state = State3.BeginLT;
           break;
         }
         default: {
           this.state = State3.BeforeTag;
-          this.stateBeforeTag(c);
         }
       }
-  };
-  Sniffer2.prototype.stateBeforeCloseTagName = function(c) {
-    this.state = isAsciiAlpha(c) ? State3.TagNameOther : State3.WeirdTag;
-  };
-  Sniffer2.prototype.stateCommentStart = function(c) {
-    if (this.advanceSection(STRINGS.COMMENT_START, c)) {
-      if (this.sectionIndex === STRINGS.COMMENT_START.length) {
-        this.state = State3.CommentEnd;
+    };
+    Sniffer2.prototype.stateBeginLT = function(c) {
+      if (c === Chars.NIL) {
+        this.state = State3.UTF16LE_XML_PREFIX;
+        this.sectionIndex = 2;
+      } else if (c === Chars.QUESTION) {
+        this.state = State3.XMLDeclaration;
+        this.sectionIndex = 2;
+      } else {
+        this.state = State3.BeforeTagName;
+        this.stateBeforeTagName(c);
+      }
+    };
+    Sniffer2.prototype.stateUTF16BE_XML_PREFIX = function(c) {
+      if (this.advanceSection(STRINGS.UTF16BE_XML_PREFIX, c)) {
+        if (this.sectionIndex === STRINGS.UTF16BE_XML_PREFIX.length) {
+          this.setResult("utf-16be", ResultType.XML_PREFIX);
+        }
+      } else {
+        this.state = State3.BeforeTag;
+        this.stateBeforeTag(c);
+      }
+    };
+    Sniffer2.prototype.stateUTF16LE_XML_PREFIX = function(c) {
+      if (this.advanceSection(STRINGS.UTF16LE_XML_PREFIX, c)) {
+        if (this.sectionIndex === STRINGS.UTF16LE_XML_PREFIX.length) {
+          this.setResult("utf-16le", ResultType.XML_PREFIX);
+        }
+      } else {
+        this.state = State3.BeforeTag;
+        this.stateBeforeTag(c);
+      }
+    };
+    Sniffer2.prototype.stateBOM16LE = function(c) {
+      if (c === STRINGS.UTF16LE_BOM[1]) {
+        this.setResult("utf-16le", ResultType.BOM);
+      } else {
+        this.state = State3.BeforeTag;
+        this.stateBeforeTag(c);
+      }
+    };
+    Sniffer2.prototype.stateBOM16BE = function(c) {
+      if (c === STRINGS.UTF16BE_BOM[1]) {
+        this.setResult("utf-16be", ResultType.BOM);
+      } else {
+        this.state = State3.BeforeTag;
+        this.stateBeforeTag(c);
+      }
+    };
+    Sniffer2.prototype.stateBOM8 = function(c) {
+      if (this.advanceSection(STRINGS.UTF8_BOM, c) && this.sectionIndex === STRINGS.UTF8_BOM.length) {
+        this.setResult("utf-8", ResultType.BOM);
+      }
+    };
+    Sniffer2.prototype.stateBeforeTag = function(c) {
+      if (c === Chars.LT) {
+        this.state = State3.BeforeTagName;
+        this.inMetaTag = false;
+      }
+    };
+    Sniffer2.prototype.stateBeforeTagName = function(c) {
+      if (isAsciiAlpha(c)) {
+        if ((c | 32) === STRINGS.META[0]) {
+          this.sectionIndex = 1;
+          this.state = State3.TagNameMeta;
+        } else {
+          this.state = State3.TagNameOther;
+        }
+      } else
+        switch (c) {
+          case Chars.SLASH: {
+            this.state = State3.BeforeCloseTagName;
+            break;
+          }
+          case Chars.EXCLAMATION: {
+            this.state = State3.CommentStart;
+            this.sectionIndex = 2;
+            break;
+          }
+          case Chars.QUESTION: {
+            this.state = State3.WeirdTag;
+            break;
+          }
+          default: {
+            this.state = State3.BeforeTag;
+            this.stateBeforeTag(c);
+          }
+        }
+    };
+    Sniffer2.prototype.stateBeforeCloseTagName = function(c) {
+      this.state = isAsciiAlpha(c) ? (
+        // Switch to `TagNameOther`; the HTML spec allows attributes here as well.
+        State3.TagNameOther
+      ) : State3.WeirdTag;
+    };
+    Sniffer2.prototype.stateCommentStart = function(c) {
+      if (this.advanceSection(STRINGS.COMMENT_START, c)) {
+        if (this.sectionIndex === STRINGS.COMMENT_START.length) {
+          this.state = State3.CommentEnd;
+          this.sectionIndex = 2;
+        }
+      } else {
+        this.state = State3.WeirdTag;
+        this.stateWeirdTag(c);
+      }
+    };
+    Sniffer2.prototype.stateCommentEnd = function(c) {
+      if (this.advanceSection(STRINGS.COMMENT_END, c)) {
+        if (this.sectionIndex === STRINGS.COMMENT_END.length) {
+          this.state = State3.BeforeTag;
+        }
+      } else if (c === Chars.DASH) {
         this.sectionIndex = 2;
       }
-    } else {
-      this.state = State3.WeirdTag;
-      this.stateWeirdTag(c);
-    }
-  };
-  Sniffer2.prototype.stateCommentEnd = function(c) {
-    if (this.advanceSection(STRINGS.COMMENT_END, c)) {
-      if (this.sectionIndex === STRINGS.COMMENT_END.length) {
+    };
+    Sniffer2.prototype.stateWeirdTag = function(c) {
+      if (c === Chars.GT) {
         this.state = State3.BeforeTag;
       }
-    } else if (c === Chars.DASH) {
-      this.sectionIndex = 2;
-    }
-  };
-  Sniffer2.prototype.stateWeirdTag = function(c) {
-    if (c === Chars.GT) {
-      this.state = State3.BeforeTag;
-    }
-  };
-  Sniffer2.prototype.advanceSectionIC = function(section, c) {
-    return this.advanceSection(section, c | 32);
-  };
-  Sniffer2.prototype.advanceSection = function(section, c) {
-    if (section[this.sectionIndex] === c) {
-      this.sectionIndex++;
-      return true;
-    }
-    this.sectionIndex = 0;
-    return false;
-  };
-  Sniffer2.prototype.stateTagNameMeta = function(c) {
-    if (this.sectionIndex < STRINGS.META.length) {
-      if (this.advanceSectionIC(STRINGS.META, c)) {
-        return;
+    };
+    Sniffer2.prototype.advanceSectionIC = function(section, c) {
+      return this.advanceSection(section, c | 32);
+    };
+    Sniffer2.prototype.advanceSection = function(section, c) {
+      if (section[this.sectionIndex] === c) {
+        this.sectionIndex++;
+        return true;
       }
-    } else if (SPACE_CHARACTERS.has(c)) {
-      this.inMetaTag = true;
-      this.gotPragma = null;
-      this.needsPragma = null;
-      this.state = State3.BeforeAttribute;
-      return;
-    }
-    this.state = State3.TagNameOther;
-    this.stateTagNameOther(c);
-  };
-  Sniffer2.prototype.stateTagNameOther = function(c) {
-    if (SPACE_CHARACTERS.has(c)) {
-      this.state = State3.BeforeAttribute;
-    } else if (c === Chars.GT) {
-      this.state = State3.BeforeTag;
-    }
-  };
-  Sniffer2.prototype.stateBeforeAttribute = function(c) {
-    if (SPACE_CHARACTERS.has(c))
-      return;
-    if (this.inMetaTag) {
-      var lower = c | 32;
-      if (lower === STRINGS.HTTP_EQUIV[0]) {
-        this.sectionIndex = 1;
-        this.state = State3.MetaAttribHttpEquiv;
-        return;
-      } else if (lower === STRINGS.CHARSET[0]) {
-        this.sectionIndex = 1;
-        this.state = State3.MetaAttribC;
-        return;
-      }
-    }
-    this.state = c === Chars.SLASH || c === Chars.GT ? State3.BeforeTag : State3.AnyAttribName;
-  };
-  Sniffer2.prototype.handleMetaAttrib = function(c, section, type) {
-    if (this.advanceSectionIC(section, c)) {
-      if (this.sectionIndex === section.length) {
-        this.attribType = type;
-        this.state = State3.MetaAttribAfterName;
-      }
-    } else {
-      this.state = State3.AnyAttribName;
-      this.stateAnyAttribName(c);
-    }
-  };
-  Sniffer2.prototype.stateMetaAttribHttpEquiv = function(c) {
-    this.handleMetaAttrib(c, STRINGS.HTTP_EQUIV, AttribType.HttpEquiv);
-  };
-  Sniffer2.prototype.stateMetaAttribC = function(c) {
-    var lower = c | 32;
-    if (lower === STRINGS.CHARSET[1]) {
-      this.sectionIndex = 2;
-      this.state = State3.MetaAttribCharset;
-    } else if (lower === STRINGS.CONTENT[1]) {
-      this.sectionIndex = 2;
-      this.state = State3.MetaAttribContent;
-    } else {
-      this.state = State3.AnyAttribName;
-      this.stateAnyAttribName(c);
-    }
-  };
-  Sniffer2.prototype.stateMetaAttribCharset = function(c) {
-    this.handleMetaAttrib(c, STRINGS.CHARSET, AttribType.Charset);
-  };
-  Sniffer2.prototype.stateMetaAttribContent = function(c) {
-    this.handleMetaAttrib(c, STRINGS.CONTENT, AttribType.Content);
-  };
-  Sniffer2.prototype.stateMetaAttribAfterName = function(c) {
-    if (SPACE_CHARACTERS.has(c) || c === Chars.EQUALS) {
-      this.state = State3.AfterAttributeName;
-      this.stateAfterAttributeName(c);
-    } else {
-      this.state = State3.AnyAttribName;
-      this.stateAnyAttribName(c);
-    }
-  };
-  Sniffer2.prototype.stateAnyAttribName = function(c) {
-    if (SPACE_CHARACTERS.has(c)) {
-      this.attribType = AttribType.None;
-      this.state = State3.AfterAttributeName;
-    } else if (c === Chars.SLASH || c === Chars.GT) {
-      this.state = State3.BeforeTag;
-    } else if (c === Chars.EQUALS) {
-      this.state = State3.BeforeAttributeValue;
-    }
-  };
-  Sniffer2.prototype.stateAfterAttributeName = function(c) {
-    if (SPACE_CHARACTERS.has(c))
-      return;
-    if (c === Chars.EQUALS) {
-      this.state = State3.BeforeAttributeValue;
-    } else {
-      this.state = State3.BeforeAttribute;
-      this.stateBeforeAttribute(c);
-    }
-  };
-  Sniffer2.prototype.stateBeforeAttributeValue = function(c) {
-    if (SPACE_CHARACTERS.has(c))
-      return;
-    this.attributeValue.length = 0;
-    this.sectionIndex = 0;
-    if (isQuote(c)) {
-      this.quoteCharacter = c;
-      this.state = this.attribType === AttribType.Content ? State3.MetaContentValueQuotedBeforeEncoding : this.attribType === AttribType.HttpEquiv ? State3.MetaAttribHttpEquivValue : State3.AttributeValueQuoted;
-    } else if (this.attribType === AttribType.Content) {
-      this.state = State3.MetaContentValueUnquotedBeforeEncoding;
-      this.stateMetaContentValueUnquotedBeforeEncoding(c);
-    } else if (this.attribType === AttribType.HttpEquiv) {
-      this.quoteCharacter = 0;
       this.sectionIndex = 0;
-      this.state = State3.MetaAttribHttpEquivValue;
-      this.stateMetaAttribHttpEquivValue(c);
-    } else {
-      this.state = State3.AttributeValueUnquoted;
-      this.stateAttributeValueUnquoted(c);
-    }
-  };
-  Sniffer2.prototype.stateMetaAttribHttpEquivValue = function(c) {
-    if (this.sectionIndex === STRINGS.CONTENT_TYPE.length) {
-      if (this.quoteCharacter === 0 ? END_OF_UNQUOTED_ATTRIBUTE_VALUE.has(c) : c === this.quoteCharacter) {
-        if (this.needsPragma !== null) {
-          this.setResult(this.needsPragma, ResultType.META_TAG);
-        } else if (this.gotPragma === null) {
-          this.gotPragma = true;
+      return false;
+    };
+    Sniffer2.prototype.stateTagNameMeta = function(c) {
+      if (this.sectionIndex < STRINGS.META.length) {
+        if (this.advanceSectionIC(STRINGS.META, c)) {
+          return;
         }
+      } else if (SPACE_CHARACTERS.has(c)) {
+        this.inMetaTag = true;
+        this.gotPragma = null;
+        this.needsPragma = null;
         this.state = State3.BeforeAttribute;
         return;
       }
-    } else if (this.advanceSectionIC(STRINGS.CONTENT_TYPE, c)) {
-      return;
-    }
-    this.gotPragma = false;
-    if (this.quoteCharacter === 0) {
-      this.state = State3.AttributeValueUnquoted;
-      this.stateAttributeValueUnquoted(c);
-    } else {
-      this.state = State3.AttributeValueQuoted;
-      this.stateAttributeValueQuoted(c);
-    }
-  };
-  Sniffer2.prototype.handleMetaContentValue = function() {
-    if (this.attributeValue.length === 0)
-      return;
-    var encoding = String.fromCharCode.apply(String, this.attributeValue);
-    if (this.gotPragma) {
-      this.setResult(encoding, ResultType.META_TAG);
-    } else if (this.needsPragma === null) {
-      this.needsPragma = encoding;
-    }
-    this.attributeValue.length = 0;
-  };
-  Sniffer2.prototype.handleAttributeValue = function() {
-    if (this.attribType === AttribType.Charset) {
-      this.setResult(String.fromCharCode.apply(String, this.attributeValue), ResultType.META_TAG);
-    }
-  };
-  Sniffer2.prototype.stateAttributeValueUnquoted = function(c) {
-    if (SPACE_CHARACTERS.has(c)) {
-      this.handleAttributeValue();
-      this.state = State3.BeforeAttribute;
-    } else if (c === Chars.SLASH || c === Chars.GT) {
-      this.handleAttributeValue();
-      this.state = State3.BeforeTag;
-    } else if (this.attribType === AttribType.Charset) {
-      this.attributeValue.push(c | 32);
-    }
-  };
-  Sniffer2.prototype.findMetaContentEncoding = function(c) {
-    if (this.advanceSectionIC(STRINGS.CHARSET, c)) {
-      if (this.sectionIndex === STRINGS.CHARSET.length) {
-        return true;
+      this.state = State3.TagNameOther;
+      this.stateTagNameOther(c);
+    };
+    Sniffer2.prototype.stateTagNameOther = function(c) {
+      if (SPACE_CHARACTERS.has(c)) {
+        this.state = State3.BeforeAttribute;
+      } else if (c === Chars.GT) {
+        this.state = State3.BeforeTag;
       }
-    } else {
-      this.sectionIndex = Number(c === STRINGS.CHARSET[0]);
-    }
-    return false;
-  };
-  Sniffer2.prototype.stateMetaContentValueUnquotedBeforeEncoding = function(c) {
-    if (END_OF_UNQUOTED_ATTRIBUTE_VALUE.has(c)) {
-      this.stateAttributeValueUnquoted(c);
-    } else if (this.sectionIndex === STRINGS.CHARSET.length) {
+    };
+    Sniffer2.prototype.stateBeforeAttribute = function(c) {
+      if (SPACE_CHARACTERS.has(c))
+        return;
+      if (this.inMetaTag) {
+        var lower = c | 32;
+        if (lower === STRINGS.HTTP_EQUIV[0]) {
+          this.sectionIndex = 1;
+          this.state = State3.MetaAttribHttpEquiv;
+          return;
+        } else if (lower === STRINGS.CHARSET[0]) {
+          this.sectionIndex = 1;
+          this.state = State3.MetaAttribC;
+          return;
+        }
+      }
+      this.state = c === Chars.SLASH || c === Chars.GT ? State3.BeforeTag : State3.AnyAttribName;
+    };
+    Sniffer2.prototype.handleMetaAttrib = function(c, section, type) {
+      if (this.advanceSectionIC(section, c)) {
+        if (this.sectionIndex === section.length) {
+          this.attribType = type;
+          this.state = State3.MetaAttribAfterName;
+        }
+      } else {
+        this.state = State3.AnyAttribName;
+        this.stateAnyAttribName(c);
+      }
+    };
+    Sniffer2.prototype.stateMetaAttribHttpEquiv = function(c) {
+      this.handleMetaAttrib(c, STRINGS.HTTP_EQUIV, AttribType.HttpEquiv);
+    };
+    Sniffer2.prototype.stateMetaAttribC = function(c) {
+      var lower = c | 32;
+      if (lower === STRINGS.CHARSET[1]) {
+        this.sectionIndex = 2;
+        this.state = State3.MetaAttribCharset;
+      } else if (lower === STRINGS.CONTENT[1]) {
+        this.sectionIndex = 2;
+        this.state = State3.MetaAttribContent;
+      } else {
+        this.state = State3.AnyAttribName;
+        this.stateAnyAttribName(c);
+      }
+    };
+    Sniffer2.prototype.stateMetaAttribCharset = function(c) {
+      this.handleMetaAttrib(c, STRINGS.CHARSET, AttribType.Charset);
+    };
+    Sniffer2.prototype.stateMetaAttribContent = function(c) {
+      this.handleMetaAttrib(c, STRINGS.CONTENT, AttribType.Content);
+    };
+    Sniffer2.prototype.stateMetaAttribAfterName = function(c) {
+      if (SPACE_CHARACTERS.has(c) || c === Chars.EQUALS) {
+        this.state = State3.AfterAttributeName;
+        this.stateAfterAttributeName(c);
+      } else {
+        this.state = State3.AnyAttribName;
+        this.stateAnyAttribName(c);
+      }
+    };
+    Sniffer2.prototype.stateAnyAttribName = function(c) {
+      if (SPACE_CHARACTERS.has(c)) {
+        this.attribType = AttribType.None;
+        this.state = State3.AfterAttributeName;
+      } else if (c === Chars.SLASH || c === Chars.GT) {
+        this.state = State3.BeforeTag;
+      } else if (c === Chars.EQUALS) {
+        this.state = State3.BeforeAttributeValue;
+      }
+    };
+    Sniffer2.prototype.stateAfterAttributeName = function(c) {
+      if (SPACE_CHARACTERS.has(c))
+        return;
       if (c === Chars.EQUALS) {
-        this.state = State3.MetaContentValueUnquotedBeforeValue;
+        this.state = State3.BeforeAttributeValue;
+      } else {
+        this.state = State3.BeforeAttribute;
+        this.stateBeforeAttribute(c);
       }
-    } else {
-      this.findMetaContentEncoding(c);
-    }
-  };
-  Sniffer2.prototype.stateMetaContentValueUnquotedBeforeValue = function(c) {
-    if (isQuote(c)) {
-      this.quoteCharacter = c;
-      this.state = State3.MetaContentValueUnquotedValueQuoted;
-    } else if (END_OF_UNQUOTED_ATTRIBUTE_VALUE.has(c)) {
-      this.stateAttributeValueUnquoted(c);
-    } else {
-      this.state = State3.MetaContentValueUnquotedValueUnquoted;
-      this.stateMetaContentValueUnquotedValueUnquoted(c);
-    }
-  };
-  Sniffer2.prototype.stateMetaContentValueUnquotedValueQuoted = function(c) {
-    if (END_OF_UNQUOTED_ATTRIBUTE_VALUE.has(c)) {
-      this.stateAttributeValueUnquoted(c);
-    } else if (c === this.quoteCharacter) {
-      this.handleMetaContentValue();
-      this.state = State3.AttributeValueUnquoted;
-    } else {
-      this.attributeValue.push(c | 32);
-    }
-  };
-  Sniffer2.prototype.stateMetaContentValueUnquotedValueUnquoted = function(c) {
-    if (END_OF_UNQUOTED_ATTRIBUTE_VALUE.has(c) || c === Chars.SEMICOLON) {
-      this.handleMetaContentValue();
-      this.state = State3.AttributeValueUnquoted;
-      this.stateAttributeValueUnquoted(c);
-    } else {
-      this.attributeValue.push(c | 32);
-    }
-  };
-  Sniffer2.prototype.stateMetaContentValueQuotedValueUnquoted = function(c) {
-    if (isQuote(c) || SPACE_CHARACTERS.has(c) || c === Chars.SEMICOLON) {
-      this.handleMetaContentValue();
-      this.state = State3.AttributeValueQuoted;
-      this.stateAttributeValueQuoted(c);
-    } else {
-      this.attributeValue.push(c | 32);
-    }
-  };
-  Sniffer2.prototype.stateMetaContentValueQuotedValueQuoted = function(c) {
-    if (isQuote(c)) {
-      if (c !== this.quoteCharacter) {
-        this.handleMetaContentValue();
-      }
-      this.state = State3.AttributeValueQuoted;
-      this.stateAttributeValueQuoted(c);
-    } else {
-      this.attributeValue.push(c | 32);
-    }
-  };
-  Sniffer2.prototype.stateMetaContentValueQuotedBeforeEncoding = function(c) {
-    if (c === this.quoteCharacter) {
-      this.stateAttributeValueQuoted(c);
-    } else if (this.findMetaContentEncoding(c)) {
-      this.state = State3.MetaContentValueQuotedAfterEncoding;
-    }
-  };
-  Sniffer2.prototype.stateMetaContentValueQuotedAfterEncoding = function(c) {
-    if (c === Chars.EQUALS) {
-      this.state = State3.MetaContentValueQuotedBeforeValue;
-    } else if (!SPACE_CHARACTERS.has(c)) {
-      this.state = State3.MetaContentValueQuotedBeforeEncoding;
-      this.stateMetaContentValueQuotedBeforeEncoding(c);
-    }
-  };
-  Sniffer2.prototype.stateMetaContentValueQuotedBeforeValue = function(c) {
-    if (c === this.quoteCharacter) {
-      this.stateAttributeValueQuoted(c);
-    } else if (isQuote(c)) {
-      this.state = State3.MetaContentValueQuotedValueQuoted;
-    } else if (!SPACE_CHARACTERS.has(c)) {
-      this.state = State3.MetaContentValueQuotedValueUnquoted;
-      this.stateMetaContentValueQuotedValueUnquoted(c);
-    }
-  };
-  Sniffer2.prototype.stateAttributeValueQuoted = function(c) {
-    if (c === this.quoteCharacter) {
-      this.handleAttributeValue();
-      this.state = State3.BeforeAttribute;
-    } else if (this.attribType === AttribType.Charset) {
-      this.attributeValue.push(c | 32);
-    }
-  };
-  Sniffer2.prototype.stateXMLDeclaration = function(c) {
-    if (this.advanceSection(STRINGS.XML_DECLARATION, c)) {
-      if (this.sectionIndex === STRINGS.XML_DECLARATION.length) {
-        this.sectionIndex = 0;
-        this.state = State3.XMLDeclarationBeforeEncoding;
-      }
-    } else {
-      this.state = State3.WeirdTag;
-    }
-  };
-  Sniffer2.prototype.stateXMLDeclarationBeforeEncoding = function(c) {
-    if (this.advanceSection(STRINGS.ENCODING, c)) {
-      if (this.sectionIndex === STRINGS.ENCODING.length) {
-        this.state = State3.XMLDeclarationAfterEncoding;
-      }
-    } else if (c === Chars.GT) {
-      this.state = State3.BeforeTag;
-    } else {
-      this.sectionIndex = Number(c === STRINGS.ENCODING[0]);
-    }
-  };
-  Sniffer2.prototype.stateXMLDeclarationAfterEncoding = function(c) {
-    if (c === Chars.EQUALS) {
-      this.state = State3.XMLDeclarationBeforeValue;
-    } else if (c > Chars.SPACE) {
-      this.state = State3.WeirdTag;
-      this.stateWeirdTag(c);
-    }
-  };
-  Sniffer2.prototype.stateXMLDeclarationBeforeValue = function(c) {
-    if (isQuote(c)) {
+    };
+    Sniffer2.prototype.stateBeforeAttributeValue = function(c) {
+      if (SPACE_CHARACTERS.has(c))
+        return;
       this.attributeValue.length = 0;
-      this.state = State3.XMLDeclarationValue;
-    } else if (c > Chars.SPACE) {
-      this.state = State3.WeirdTag;
-      this.stateWeirdTag(c);
-    }
-  };
-  Sniffer2.prototype.stateXMLDeclarationValue = function(c) {
-    if (isQuote(c)) {
-      this.setResult(String.fromCharCode.apply(String, this.attributeValue), ResultType.XML_ENCODING);
-      this.state = State3.WeirdTag;
-    } else if (c === Chars.GT) {
-      this.state = State3.BeforeTag;
-    } else if (c <= Chars.SPACE) {
-      this.state = State3.WeirdTag;
-    } else {
-      this.attributeValue.push(c | 32);
-    }
-  };
-  Sniffer2.prototype.write = function(buffer) {
-    var index2 = 0;
-    for (; index2 < buffer.length && this.offset + index2 < this.maxBytes; index2++) {
-      var c = buffer[index2];
-      switch (this.state) {
-        case State3.Begin: {
-          this.stateBegin(c);
-          break;
-        }
-        case State3.BOM16BE: {
-          this.stateBOM16BE(c);
-          break;
-        }
-        case State3.BOM16LE: {
-          this.stateBOM16LE(c);
-          break;
-        }
-        case State3.BOM8: {
-          this.stateBOM8(c);
-          break;
-        }
-        case State3.UTF16LE_XML_PREFIX: {
-          this.stateUTF16LE_XML_PREFIX(c);
-          break;
-        }
-        case State3.BeginLT: {
-          this.stateBeginLT(c);
-          break;
-        }
-        case State3.UTF16BE_XML_PREFIX: {
-          this.stateUTF16BE_XML_PREFIX(c);
-          break;
-        }
-        case State3.BeforeTag: {
-          var idx = buffer.indexOf(Chars.LT, index2);
-          if (idx < 0) {
-            index2 = buffer.length;
-          } else {
-            index2 = idx;
-            this.stateBeforeTag(Chars.LT);
+      this.sectionIndex = 0;
+      if (isQuote(c)) {
+        this.quoteCharacter = c;
+        this.state = this.attribType === AttribType.Content ? State3.MetaContentValueQuotedBeforeEncoding : this.attribType === AttribType.HttpEquiv ? State3.MetaAttribHttpEquivValue : State3.AttributeValueQuoted;
+      } else if (this.attribType === AttribType.Content) {
+        this.state = State3.MetaContentValueUnquotedBeforeEncoding;
+        this.stateMetaContentValueUnquotedBeforeEncoding(c);
+      } else if (this.attribType === AttribType.HttpEquiv) {
+        this.quoteCharacter = 0;
+        this.sectionIndex = 0;
+        this.state = State3.MetaAttribHttpEquivValue;
+        this.stateMetaAttribHttpEquivValue(c);
+      } else {
+        this.state = State3.AttributeValueUnquoted;
+        this.stateAttributeValueUnquoted(c);
+      }
+    };
+    Sniffer2.prototype.stateMetaAttribHttpEquivValue = function(c) {
+      if (this.sectionIndex === STRINGS.CONTENT_TYPE.length) {
+        if (this.quoteCharacter === 0 ? END_OF_UNQUOTED_ATTRIBUTE_VALUE.has(c) : c === this.quoteCharacter) {
+          if (this.needsPragma !== null) {
+            this.setResult(this.needsPragma, ResultType.META_TAG);
+          } else if (this.gotPragma === null) {
+            this.gotPragma = true;
           }
-          break;
+          this.state = State3.BeforeAttribute;
+          return;
         }
-        case State3.BeforeTagName: {
-          this.stateBeforeTagName(c);
-          break;
+      } else if (this.advanceSectionIC(STRINGS.CONTENT_TYPE, c)) {
+        return;
+      }
+      this.gotPragma = false;
+      if (this.quoteCharacter === 0) {
+        this.state = State3.AttributeValueUnquoted;
+        this.stateAttributeValueUnquoted(c);
+      } else {
+        this.state = State3.AttributeValueQuoted;
+        this.stateAttributeValueQuoted(c);
+      }
+    };
+    Sniffer2.prototype.handleMetaContentValue = function() {
+      if (this.attributeValue.length === 0)
+        return;
+      var encoding = String.fromCharCode.apply(String, this.attributeValue);
+      if (this.gotPragma) {
+        this.setResult(encoding, ResultType.META_TAG);
+      } else if (this.needsPragma === null) {
+        this.needsPragma = encoding;
+      }
+      this.attributeValue.length = 0;
+    };
+    Sniffer2.prototype.handleAttributeValue = function() {
+      if (this.attribType === AttribType.Charset) {
+        this.setResult(String.fromCharCode.apply(String, this.attributeValue), ResultType.META_TAG);
+      }
+    };
+    Sniffer2.prototype.stateAttributeValueUnquoted = function(c) {
+      if (SPACE_CHARACTERS.has(c)) {
+        this.handleAttributeValue();
+        this.state = State3.BeforeAttribute;
+      } else if (c === Chars.SLASH || c === Chars.GT) {
+        this.handleAttributeValue();
+        this.state = State3.BeforeTag;
+      } else if (this.attribType === AttribType.Charset) {
+        this.attributeValue.push(c | 32);
+      }
+    };
+    Sniffer2.prototype.findMetaContentEncoding = function(c) {
+      if (this.advanceSectionIC(STRINGS.CHARSET, c)) {
+        if (this.sectionIndex === STRINGS.CHARSET.length) {
+          return true;
         }
-        case State3.BeforeCloseTagName: {
-          this.stateBeforeCloseTagName(c);
-          break;
+      } else {
+        this.sectionIndex = Number(c === STRINGS.CHARSET[0]);
+      }
+      return false;
+    };
+    Sniffer2.prototype.stateMetaContentValueUnquotedBeforeEncoding = function(c) {
+      if (END_OF_UNQUOTED_ATTRIBUTE_VALUE.has(c)) {
+        this.stateAttributeValueUnquoted(c);
+      } else if (this.sectionIndex === STRINGS.CHARSET.length) {
+        if (c === Chars.EQUALS) {
+          this.state = State3.MetaContentValueUnquotedBeforeValue;
         }
-        case State3.CommentStart: {
-          this.stateCommentStart(c);
-          break;
+      } else {
+        this.findMetaContentEncoding(c);
+      }
+    };
+    Sniffer2.prototype.stateMetaContentValueUnquotedBeforeValue = function(c) {
+      if (isQuote(c)) {
+        this.quoteCharacter = c;
+        this.state = State3.MetaContentValueUnquotedValueQuoted;
+      } else if (END_OF_UNQUOTED_ATTRIBUTE_VALUE.has(c)) {
+        this.stateAttributeValueUnquoted(c);
+      } else {
+        this.state = State3.MetaContentValueUnquotedValueUnquoted;
+        this.stateMetaContentValueUnquotedValueUnquoted(c);
+      }
+    };
+    Sniffer2.prototype.stateMetaContentValueUnquotedValueQuoted = function(c) {
+      if (END_OF_UNQUOTED_ATTRIBUTE_VALUE.has(c)) {
+        this.stateAttributeValueUnquoted(c);
+      } else if (c === this.quoteCharacter) {
+        this.handleMetaContentValue();
+        this.state = State3.AttributeValueUnquoted;
+      } else {
+        this.attributeValue.push(c | 32);
+      }
+    };
+    Sniffer2.prototype.stateMetaContentValueUnquotedValueUnquoted = function(c) {
+      if (END_OF_UNQUOTED_ATTRIBUTE_VALUE.has(c) || c === Chars.SEMICOLON) {
+        this.handleMetaContentValue();
+        this.state = State3.AttributeValueUnquoted;
+        this.stateAttributeValueUnquoted(c);
+      } else {
+        this.attributeValue.push(c | 32);
+      }
+    };
+    Sniffer2.prototype.stateMetaContentValueQuotedValueUnquoted = function(c) {
+      if (isQuote(c) || SPACE_CHARACTERS.has(c) || c === Chars.SEMICOLON) {
+        this.handleMetaContentValue();
+        this.state = State3.AttributeValueQuoted;
+        this.stateAttributeValueQuoted(c);
+      } else {
+        this.attributeValue.push(c | 32);
+      }
+    };
+    Sniffer2.prototype.stateMetaContentValueQuotedValueQuoted = function(c) {
+      if (isQuote(c)) {
+        if (c !== this.quoteCharacter) {
+          this.handleMetaContentValue();
         }
-        case State3.CommentEnd: {
-          this.stateCommentEnd(c);
-          break;
+        this.state = State3.AttributeValueQuoted;
+        this.stateAttributeValueQuoted(c);
+      } else {
+        this.attributeValue.push(c | 32);
+      }
+    };
+    Sniffer2.prototype.stateMetaContentValueQuotedBeforeEncoding = function(c) {
+      if (c === this.quoteCharacter) {
+        this.stateAttributeValueQuoted(c);
+      } else if (this.findMetaContentEncoding(c)) {
+        this.state = State3.MetaContentValueQuotedAfterEncoding;
+      }
+    };
+    Sniffer2.prototype.stateMetaContentValueQuotedAfterEncoding = function(c) {
+      if (c === Chars.EQUALS) {
+        this.state = State3.MetaContentValueQuotedBeforeValue;
+      } else if (!SPACE_CHARACTERS.has(c)) {
+        this.state = State3.MetaContentValueQuotedBeforeEncoding;
+        this.stateMetaContentValueQuotedBeforeEncoding(c);
+      }
+    };
+    Sniffer2.prototype.stateMetaContentValueQuotedBeforeValue = function(c) {
+      if (c === this.quoteCharacter) {
+        this.stateAttributeValueQuoted(c);
+      } else if (isQuote(c)) {
+        this.state = State3.MetaContentValueQuotedValueQuoted;
+      } else if (!SPACE_CHARACTERS.has(c)) {
+        this.state = State3.MetaContentValueQuotedValueUnquoted;
+        this.stateMetaContentValueQuotedValueUnquoted(c);
+      }
+    };
+    Sniffer2.prototype.stateAttributeValueQuoted = function(c) {
+      if (c === this.quoteCharacter) {
+        this.handleAttributeValue();
+        this.state = State3.BeforeAttribute;
+      } else if (this.attribType === AttribType.Charset) {
+        this.attributeValue.push(c | 32);
+      }
+    };
+    Sniffer2.prototype.stateXMLDeclaration = function(c) {
+      if (this.advanceSection(STRINGS.XML_DECLARATION, c)) {
+        if (this.sectionIndex === STRINGS.XML_DECLARATION.length) {
+          this.sectionIndex = 0;
+          this.state = State3.XMLDeclarationBeforeEncoding;
         }
-        case State3.TagNameMeta: {
-          this.stateTagNameMeta(c);
-          break;
+      } else {
+        this.state = State3.WeirdTag;
+      }
+    };
+    Sniffer2.prototype.stateXMLDeclarationBeforeEncoding = function(c) {
+      if (this.advanceSection(STRINGS.ENCODING, c)) {
+        if (this.sectionIndex === STRINGS.ENCODING.length) {
+          this.state = State3.XMLDeclarationAfterEncoding;
         }
-        case State3.TagNameOther: {
-          this.stateTagNameOther(c);
-          break;
-        }
-        case State3.XMLDeclaration: {
-          this.stateXMLDeclaration(c);
-          break;
-        }
-        case State3.XMLDeclarationBeforeEncoding: {
-          this.stateXMLDeclarationBeforeEncoding(c);
-          break;
-        }
-        case State3.XMLDeclarationAfterEncoding: {
-          this.stateXMLDeclarationAfterEncoding(c);
-          break;
-        }
-        case State3.XMLDeclarationBeforeValue: {
-          this.stateXMLDeclarationBeforeValue(c);
-          break;
-        }
-        case State3.XMLDeclarationValue: {
-          this.stateXMLDeclarationValue(c);
-          break;
-        }
-        case State3.WeirdTag: {
-          this.stateWeirdTag(c);
-          break;
-        }
-        case State3.BeforeAttribute: {
-          this.stateBeforeAttribute(c);
-          break;
-        }
-        case State3.MetaAttribHttpEquiv: {
-          this.stateMetaAttribHttpEquiv(c);
-          break;
-        }
-        case State3.MetaAttribHttpEquivValue: {
-          this.stateMetaAttribHttpEquivValue(c);
-          break;
-        }
-        case State3.MetaAttribC: {
-          this.stateMetaAttribC(c);
-          break;
-        }
-        case State3.MetaAttribContent: {
-          this.stateMetaAttribContent(c);
-          break;
-        }
-        case State3.MetaAttribCharset: {
-          this.stateMetaAttribCharset(c);
-          break;
-        }
-        case State3.MetaAttribAfterName: {
-          this.stateMetaAttribAfterName(c);
-          break;
-        }
-        case State3.MetaContentValueQuotedBeforeEncoding: {
-          this.stateMetaContentValueQuotedBeforeEncoding(c);
-          break;
-        }
-        case State3.MetaContentValueQuotedAfterEncoding: {
-          this.stateMetaContentValueQuotedAfterEncoding(c);
-          break;
-        }
-        case State3.MetaContentValueQuotedBeforeValue: {
-          this.stateMetaContentValueQuotedBeforeValue(c);
-          break;
-        }
-        case State3.MetaContentValueQuotedValueQuoted: {
-          this.stateMetaContentValueQuotedValueQuoted(c);
-          break;
-        }
-        case State3.MetaContentValueQuotedValueUnquoted: {
-          this.stateMetaContentValueQuotedValueUnquoted(c);
-          break;
-        }
-        case State3.MetaContentValueUnquotedBeforeEncoding: {
-          this.stateMetaContentValueUnquotedBeforeEncoding(c);
-          break;
-        }
-        case State3.MetaContentValueUnquotedBeforeValue: {
-          this.stateMetaContentValueUnquotedBeforeValue(c);
-          break;
-        }
-        case State3.MetaContentValueUnquotedValueQuoted: {
-          this.stateMetaContentValueUnquotedValueQuoted(c);
-          break;
-        }
-        case State3.MetaContentValueUnquotedValueUnquoted: {
-          this.stateMetaContentValueUnquotedValueUnquoted(c);
-          break;
-        }
-        case State3.AnyAttribName: {
-          this.stateAnyAttribName(c);
-          break;
-        }
-        case State3.AfterAttributeName: {
-          this.stateAfterAttributeName(c);
-          break;
-        }
-        case State3.BeforeAttributeValue: {
-          this.stateBeforeAttributeValue(c);
-          break;
-        }
-        case State3.AttributeValueQuoted: {
-          this.stateAttributeValueQuoted(c);
-          break;
-        }
-        default: {
-          this.stateAttributeValueUnquoted(c);
+      } else if (c === Chars.GT) {
+        this.state = State3.BeforeTag;
+      } else {
+        this.sectionIndex = Number(c === STRINGS.ENCODING[0]);
+      }
+    };
+    Sniffer2.prototype.stateXMLDeclarationAfterEncoding = function(c) {
+      if (c === Chars.EQUALS) {
+        this.state = State3.XMLDeclarationBeforeValue;
+      } else if (c > Chars.SPACE) {
+        this.state = State3.WeirdTag;
+        this.stateWeirdTag(c);
+      }
+    };
+    Sniffer2.prototype.stateXMLDeclarationBeforeValue = function(c) {
+      if (isQuote(c)) {
+        this.attributeValue.length = 0;
+        this.state = State3.XMLDeclarationValue;
+      } else if (c > Chars.SPACE) {
+        this.state = State3.WeirdTag;
+        this.stateWeirdTag(c);
+      }
+    };
+    Sniffer2.prototype.stateXMLDeclarationValue = function(c) {
+      if (isQuote(c)) {
+        this.setResult(String.fromCharCode.apply(String, this.attributeValue), ResultType.XML_ENCODING);
+        this.state = State3.WeirdTag;
+      } else if (c === Chars.GT) {
+        this.state = State3.BeforeTag;
+      } else if (c <= Chars.SPACE) {
+        this.state = State3.WeirdTag;
+      } else {
+        this.attributeValue.push(c | 32);
+      }
+    };
+    Sniffer2.prototype.write = function(buffer) {
+      var index2 = 0;
+      for (; index2 < buffer.length && this.offset + index2 < this.maxBytes; index2++) {
+        var c = buffer[index2];
+        switch (this.state) {
+          case State3.Begin: {
+            this.stateBegin(c);
+            break;
+          }
+          case State3.BOM16BE: {
+            this.stateBOM16BE(c);
+            break;
+          }
+          case State3.BOM16LE: {
+            this.stateBOM16LE(c);
+            break;
+          }
+          case State3.BOM8: {
+            this.stateBOM8(c);
+            break;
+          }
+          case State3.UTF16LE_XML_PREFIX: {
+            this.stateUTF16LE_XML_PREFIX(c);
+            break;
+          }
+          case State3.BeginLT: {
+            this.stateBeginLT(c);
+            break;
+          }
+          case State3.UTF16BE_XML_PREFIX: {
+            this.stateUTF16BE_XML_PREFIX(c);
+            break;
+          }
+          case State3.BeforeTag: {
+            var idx = buffer.indexOf(Chars.LT, index2);
+            if (idx < 0) {
+              index2 = buffer.length;
+            } else {
+              index2 = idx;
+              this.stateBeforeTag(Chars.LT);
+            }
+            break;
+          }
+          case State3.BeforeTagName: {
+            this.stateBeforeTagName(c);
+            break;
+          }
+          case State3.BeforeCloseTagName: {
+            this.stateBeforeCloseTagName(c);
+            break;
+          }
+          case State3.CommentStart: {
+            this.stateCommentStart(c);
+            break;
+          }
+          case State3.CommentEnd: {
+            this.stateCommentEnd(c);
+            break;
+          }
+          case State3.TagNameMeta: {
+            this.stateTagNameMeta(c);
+            break;
+          }
+          case State3.TagNameOther: {
+            this.stateTagNameOther(c);
+            break;
+          }
+          case State3.XMLDeclaration: {
+            this.stateXMLDeclaration(c);
+            break;
+          }
+          case State3.XMLDeclarationBeforeEncoding: {
+            this.stateXMLDeclarationBeforeEncoding(c);
+            break;
+          }
+          case State3.XMLDeclarationAfterEncoding: {
+            this.stateXMLDeclarationAfterEncoding(c);
+            break;
+          }
+          case State3.XMLDeclarationBeforeValue: {
+            this.stateXMLDeclarationBeforeValue(c);
+            break;
+          }
+          case State3.XMLDeclarationValue: {
+            this.stateXMLDeclarationValue(c);
+            break;
+          }
+          case State3.WeirdTag: {
+            this.stateWeirdTag(c);
+            break;
+          }
+          case State3.BeforeAttribute: {
+            this.stateBeforeAttribute(c);
+            break;
+          }
+          case State3.MetaAttribHttpEquiv: {
+            this.stateMetaAttribHttpEquiv(c);
+            break;
+          }
+          case State3.MetaAttribHttpEquivValue: {
+            this.stateMetaAttribHttpEquivValue(c);
+            break;
+          }
+          case State3.MetaAttribC: {
+            this.stateMetaAttribC(c);
+            break;
+          }
+          case State3.MetaAttribContent: {
+            this.stateMetaAttribContent(c);
+            break;
+          }
+          case State3.MetaAttribCharset: {
+            this.stateMetaAttribCharset(c);
+            break;
+          }
+          case State3.MetaAttribAfterName: {
+            this.stateMetaAttribAfterName(c);
+            break;
+          }
+          case State3.MetaContentValueQuotedBeforeEncoding: {
+            this.stateMetaContentValueQuotedBeforeEncoding(c);
+            break;
+          }
+          case State3.MetaContentValueQuotedAfterEncoding: {
+            this.stateMetaContentValueQuotedAfterEncoding(c);
+            break;
+          }
+          case State3.MetaContentValueQuotedBeforeValue: {
+            this.stateMetaContentValueQuotedBeforeValue(c);
+            break;
+          }
+          case State3.MetaContentValueQuotedValueQuoted: {
+            this.stateMetaContentValueQuotedValueQuoted(c);
+            break;
+          }
+          case State3.MetaContentValueQuotedValueUnquoted: {
+            this.stateMetaContentValueQuotedValueUnquoted(c);
+            break;
+          }
+          case State3.MetaContentValueUnquotedBeforeEncoding: {
+            this.stateMetaContentValueUnquotedBeforeEncoding(c);
+            break;
+          }
+          case State3.MetaContentValueUnquotedBeforeValue: {
+            this.stateMetaContentValueUnquotedBeforeValue(c);
+            break;
+          }
+          case State3.MetaContentValueUnquotedValueQuoted: {
+            this.stateMetaContentValueUnquotedValueQuoted(c);
+            break;
+          }
+          case State3.MetaContentValueUnquotedValueUnquoted: {
+            this.stateMetaContentValueUnquotedValueUnquoted(c);
+            break;
+          }
+          case State3.AnyAttribName: {
+            this.stateAnyAttribName(c);
+            break;
+          }
+          case State3.AfterAttributeName: {
+            this.stateAfterAttributeName(c);
+            break;
+          }
+          case State3.BeforeAttributeValue: {
+            this.stateBeforeAttributeValue(c);
+            break;
+          }
+          case State3.AttributeValueQuoted: {
+            this.stateAttributeValueQuoted(c);
+            break;
+          }
+          default: {
+            this.stateAttributeValueUnquoted(c);
+          }
         }
       }
-    }
-    this.offset += index2;
-  };
-  return Sniffer2;
-}();
+      this.offset += index2;
+    };
+    return Sniffer2;
+  }()
+);
 
 // node_modules/encoding-sniffer/dist/esm/index.js
-var __extends = function() {
+var __extends = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
@@ -35600,55 +51032,58 @@ var __extends = function() {
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
 }();
-var DecodeStream = function(_super) {
-  __extends(DecodeStream2, _super);
-  function DecodeStream2(options) {
-    var _a2;
-    var _this = _super.call(this, { decodeStrings: false, encoding: "utf-8" }) || this;
-    _this.buffers = [];
-    _this.iconv = null;
-    _this.readBytes = 0;
-    _this.sniffer = new Sniffer(options);
-    _this.maxBytes = (_a2 = options === null || options === void 0 ? void 0 : options.maxBytes) !== null && _a2 !== void 0 ? _a2 : 1024;
-    return _this;
-  }
-  DecodeStream2.prototype._transform = function(chunk, _encoding, callback) {
-    if (this.readBytes < this.maxBytes) {
-      this.sniffer.write(chunk);
-      this.readBytes += chunk.length;
+var DecodeStream = (
+  /** @class */
+  function(_super) {
+    __extends(DecodeStream2, _super);
+    function DecodeStream2(options) {
+      var _a2;
+      var _this = _super.call(this, { decodeStrings: false, encoding: "utf-8" }) || this;
+      _this.buffers = [];
+      _this.iconv = null;
+      _this.readBytes = 0;
+      _this.sniffer = new Sniffer(options);
+      _this.maxBytes = (_a2 = options === null || options === void 0 ? void 0 : options.maxBytes) !== null && _a2 !== void 0 ? _a2 : 1024;
+      return _this;
+    }
+    DecodeStream2.prototype._transform = function(chunk, _encoding, callback) {
       if (this.readBytes < this.maxBytes) {
-        this.buffers.push(chunk);
-        callback();
-        return;
+        this.sniffer.write(chunk);
+        this.readBytes += chunk.length;
+        if (this.readBytes < this.maxBytes) {
+          this.buffers.push(chunk);
+          callback();
+          return;
+        }
       }
-    }
-    this.getIconvStream().write(chunk, callback);
-  };
-  DecodeStream2.prototype.getIconvStream = function() {
-    var _this = this;
-    if (this.iconv) {
-      return this.iconv;
-    }
-    var stream2 = import_iconv_lite.default.decodeStream(this.sniffer.encoding);
-    stream2.on("data", function(chunk) {
-      return _this.push(chunk, "utf-8");
-    });
-    stream2.on("end", function() {
-      return _this.push(null);
-    });
-    this.iconv = stream2;
-    for (var _i = 0, _a2 = this.buffers; _i < _a2.length; _i++) {
-      var buffer = _a2[_i];
-      stream2.write(buffer);
-    }
-    this.buffers.length = 0;
-    return stream2;
-  };
-  DecodeStream2.prototype._flush = function(callback) {
-    this.getIconvStream().end(callback);
-  };
-  return DecodeStream2;
-}(Transform);
+      this.getIconvStream().write(chunk, callback);
+    };
+    DecodeStream2.prototype.getIconvStream = function() {
+      var _this = this;
+      if (this.iconv) {
+        return this.iconv;
+      }
+      var stream5 = import_iconv_lite.default.decodeStream(this.sniffer.encoding);
+      stream5.on("data", function(chunk) {
+        return _this.push(chunk, "utf-8");
+      });
+      stream5.on("end", function() {
+        return _this.push(null);
+      });
+      this.iconv = stream5;
+      for (var _i = 0, _a2 = this.buffers; _i < _a2.length; _i++) {
+        var buffer = _a2[_i];
+        stream5.write(buffer);
+      }
+      this.buffers.length = 0;
+      return stream5;
+    };
+    DecodeStream2.prototype._flush = function(callback) {
+      this.getIconvStream().end(callback);
+    };
+    return DecodeStream2;
+  }(Transform)
+);
 
 // node_modules/cheerio/dist/esm/index.js
 var undici = __toESM(require_undici(), 1);
@@ -35738,8 +51173,8 @@ function removeHook(state, name, method) {
 }
 
 // node_modules/before-after-hook/index.js
-var bind = Function.bind;
-var bindable = bind.bind(bind);
+var bind2 = Function.bind;
+var bindable = bind2.bind(bind2);
 function bindApi(hook2, state, name) {
   const removeHookRef = bindable(removeHook, null).apply(
     null,
@@ -35772,8 +51207,8 @@ function Collection() {
 var before_after_hook_default = { Singular, Collection };
 
 // node_modules/@octokit/endpoint/dist-bundle/index.js
-var VERSION = "0.0.0-development";
-var userAgent = `octokit-endpoint.js/${VERSION} ${getUserAgent()}`;
+var VERSION3 = "0.0.0-development";
+var userAgent = `octokit-endpoint.js/${VERSION3} ${getUserAgent()}`;
 var DEFAULTS = {
   method: "GET",
   baseUrl: "https://api.github.com",
@@ -35794,7 +51229,7 @@ function lowercaseKeys(object) {
     return newObj;
   }, {});
 }
-function isPlainObject(value) {
+function isPlainObject2(value) {
   if (typeof value !== "object" || value === null)
     return false;
   if (Object.prototype.toString.call(value) !== "[object Object]")
@@ -35805,14 +51240,14 @@ function isPlainObject(value) {
   const Ctor = Object.prototype.hasOwnProperty.call(proto, "constructor") && proto.constructor;
   return typeof Ctor === "function" && Ctor instanceof Ctor && Function.prototype.call(Ctor) === Function.prototype.call(value);
 }
-function mergeDeep(defaults, options) {
-  const result = Object.assign({}, defaults);
+function mergeDeep(defaults2, options) {
+  const result = Object.assign({}, defaults2);
   Object.keys(options).forEach((key) => {
-    if (isPlainObject(options[key])) {
-      if (!(key in defaults))
+    if (isPlainObject2(options[key])) {
+      if (!(key in defaults2))
         Object.assign(result, { [key]: options[key] });
       else
-        result[key] = mergeDeep(defaults[key], options[key]);
+        result[key] = mergeDeep(defaults2[key], options[key]);
     } else {
       Object.assign(result, { [key]: options[key] });
     }
@@ -35827,20 +51262,20 @@ function removeUndefinedProperties(obj) {
   }
   return obj;
 }
-function merge2(defaults, route, options) {
+function merge3(defaults2, route, options) {
   if (typeof route === "string") {
-    let [method, url] = route.split(" ");
-    options = Object.assign(url ? { method, url } : { url: method }, options);
+    let [method, url2] = route.split(" ");
+    options = Object.assign(url2 ? { method, url: url2 } : { url: method }, options);
   } else {
     options = Object.assign({}, route);
   }
   options.headers = lowercaseKeys(options.headers);
   removeUndefinedProperties(options);
   removeUndefinedProperties(options.headers);
-  const mergedOptions = mergeDeep(defaults || {}, options);
+  const mergedOptions = mergeDeep(defaults2 || {}, options);
   if (options.url === "/graphql") {
-    if (defaults && defaults.mediaType.previews?.length) {
-      mergedOptions.mediaType.previews = defaults.mediaType.previews.filter(
+    if (defaults2 && defaults2.mediaType.previews?.length) {
+      mergedOptions.mediaType.previews = defaults2.mediaType.previews.filter(
         (preview) => !mergedOptions.mediaType.previews.includes(preview)
       ).concat(mergedOptions.mediaType.previews);
     }
@@ -35848,13 +51283,13 @@ function merge2(defaults, route, options) {
   }
   return mergedOptions;
 }
-function addQueryParameters(url, parameters) {
-  const separator = /\?/.test(url) ? "&" : "?";
+function addQueryParameters(url2, parameters) {
+  const separator = /\?/.test(url2) ? "&" : "?";
   const names = Object.keys(parameters);
   if (names.length === 0) {
-    return url;
+    return url2;
   }
-  return url + separator + names.map((name) => {
+  return url2 + separator + names.map((name) => {
     if (name === "q") {
       return "q=" + parameters.q.split("+").map(encodeURIComponent).join("+");
     }
@@ -35865,8 +51300,8 @@ var urlVariableRegex = /\{[^}]+\}/g;
 function removeNonChars(variableName) {
   return variableName.replace(/^\W+|\W+$/g, "").split(/,/);
 }
-function extractUrlVariableNames(url) {
-  const matches = url.match(urlVariableRegex);
+function extractUrlVariableNames(url2) {
+  const matches = url2.match(urlVariableRegex);
   if (!matches) {
     return [];
   }
@@ -36013,7 +51448,7 @@ function expand(template, context) {
 }
 function parse8(options) {
   let method = options.method.toUpperCase();
-  let url = (options.url || "/").replace(/:([a-z]\w+)/g, "{$1}");
+  let url2 = (options.url || "/").replace(/:([a-z]\w+)/g, "{$1}");
   let headers = Object.assign({}, options.headers);
   let body;
   let parameters = omit(options, [
@@ -36024,10 +51459,10 @@ function parse8(options) {
     "request",
     "mediaType"
   ]);
-  const urlVariableNames = extractUrlVariableNames(url);
-  url = parseUrl(url).expand(parameters);
-  if (!/^http/.test(url)) {
-    url = options.baseUrl + url;
+  const urlVariableNames = extractUrlVariableNames(url2);
+  url2 = parseUrl(url2).expand(parameters);
+  if (!/^http/.test(url2)) {
+    url2 = options.baseUrl + url2;
   }
   const omittedParameters = Object.keys(options).filter((option) => urlVariableNames.includes(option)).concat("baseUrl");
   const remainingParameters = omit(parameters, omittedParameters);
@@ -36041,7 +51476,7 @@ function parse8(options) {
         )
       ).join(",");
     }
-    if (url.endsWith("/graphql")) {
+    if (url2.endsWith("/graphql")) {
       if (options.mediaType.previews?.length) {
         const previewsFromAcceptHeader = headers.accept.match(/[\w-]+(?=-preview)/g) || [];
         headers.accept = previewsFromAcceptHeader.concat(options.mediaType.previews).map((preview) => {
@@ -36052,7 +51487,7 @@ function parse8(options) {
     }
   }
   if (["GET", "HEAD"].includes(method)) {
-    url = addQueryParameters(url, remainingParameters);
+    url2 = addQueryParameters(url2, remainingParameters);
   } else {
     if ("data" in remainingParameters) {
       body = remainingParameters.data;
@@ -36069,21 +51504,21 @@ function parse8(options) {
     body = "";
   }
   return Object.assign(
-    { method, url, headers },
+    { method, url: url2, headers },
     typeof body !== "undefined" ? { body } : null,
     options.request ? { request: options.request } : null
   );
 }
-function endpointWithDefaults(defaults, route, options) {
-  return parse8(merge2(defaults, route, options));
+function endpointWithDefaults(defaults2, route, options) {
+  return parse8(merge3(defaults2, route, options));
 }
 function withDefaults(oldDefaults, newDefaults) {
-  const DEFAULTS2 = merge2(oldDefaults, newDefaults);
+  const DEFAULTS2 = merge3(oldDefaults, newDefaults);
   const endpoint2 = endpointWithDefaults.bind(null, DEFAULTS2);
   return Object.assign(endpoint2, {
     DEFAULTS: DEFAULTS2,
     defaults: withDefaults.bind(null, DEFAULTS2),
-    merge: merge2.bind(null, DEFAULTS2),
+    merge: merge3.bind(null, DEFAULTS2),
     parse: parse8
   });
 }
@@ -36095,8 +51530,17 @@ var import_fast_content_type_parse = __toESM(require_fast_content_type_parse(), 
 // node_modules/@octokit/request-error/dist-src/index.js
 var RequestError = class extends Error {
   name;
+  /**
+   * http status code
+   */
   status;
+  /**
+   * Request options that lead to the error.
+   */
   request;
+  /**
+   * Response object if a response was received
+   */
   response;
   constructor(message, statusCode, options) {
     super(message);
@@ -36123,13 +51567,13 @@ var RequestError = class extends Error {
 };
 
 // node_modules/@octokit/request/dist-bundle/index.js
-var VERSION2 = "0.0.0-development";
-var defaults_default = {
+var VERSION4 = "0.0.0-development";
+var defaults_default2 = {
   headers: {
-    "user-agent": `octokit-request.js/${VERSION2} ${getUserAgent()}`
+    "user-agent": `octokit-request.js/${VERSION4} ${getUserAgent()}`
   }
 };
-function isPlainObject2(value) {
+function isPlainObject3(value) {
   if (typeof value !== "object" || value === null)
     return false;
   if (Object.prototype.toString.call(value) !== "[object Object]")
@@ -36149,7 +51593,7 @@ async function fetchWrapper(requestOptions) {
   }
   const log = requestOptions.request?.log || console;
   const parseSuccessResponseBody = requestOptions.request?.parseSuccessResponseBody !== false;
-  const body = isPlainObject2(requestOptions.body) || Array.isArray(requestOptions.body) ? JSON.stringify(requestOptions.body) : requestOptions.body;
+  const body = isPlainObject3(requestOptions.body) || Array.isArray(requestOptions.body) ? JSON.stringify(requestOptions.body) : requestOptions.body;
   const requestHeaders = Object.fromEntries(
     Object.entries(requestOptions.headers).map(([name, value]) => [
       name,
@@ -36164,6 +51608,8 @@ async function fetchWrapper(requestOptions) {
       redirect: requestOptions.request?.redirect,
       headers: requestHeaders,
       signal: requestOptions.request?.signal,
+      // duplex must be set if request.body is ReadableStream or Async Iterables.
+      // See https://fetch.spec.whatwg.org/#dom-requestinit-duplex.
       ...requestOptions.body && { duplex: "half" }
     });
   } catch (error) {
@@ -36189,13 +51635,13 @@ async function fetchWrapper(requestOptions) {
     throw requestError;
   }
   const status = fetchResponse.status;
-  const url = fetchResponse.url;
+  const url2 = fetchResponse.url;
   const responseHeaders = {};
   for (const [key, value] of fetchResponse.headers) {
     responseHeaders[key] = value;
   }
   const octokitResponse = {
-    url,
+    url: url2,
     status,
     headers: responseHeaders,
     data: ""
@@ -36292,10 +51738,10 @@ function withDefaults2(oldEndpoint, newDefaults) {
     defaults: withDefaults2.bind(null, endpoint2)
   });
 }
-var request = withDefaults2(endpoint, defaults_default);
+var request = withDefaults2(endpoint, defaults_default2);
 
 // node_modules/@octokit/graphql/dist-bundle/index.js
-var VERSION3 = "0.0.0-development";
+var VERSION5 = "0.0.0-development";
 function _buildMessageForResponseErrors(data2) {
   return `Request failed due to following response errors:
 ` + data2.errors.map((e) => ` - ${e.message}`).join("\n");
@@ -36389,7 +51835,7 @@ function withDefaults3(request2, newDefaults) {
 }
 var graphql2 = withDefaults3(request, {
   headers: {
-    "user-agent": `octokit-graphql.js/${VERSION3} ${getUserAgent()}`
+    "user-agent": `octokit-graphql.js/${VERSION5} ${getUserAgent()}`
   },
   method: "POST",
   url: "/graphql"
@@ -36446,30 +51892,31 @@ var createTokenAuth = function createTokenAuth2(token) {
 };
 
 // node_modules/@octokit/core/dist-src/version.js
-var VERSION4 = "6.1.2";
+var VERSION6 = "6.1.2";
 
 // node_modules/@octokit/core/dist-src/index.js
-var noop = () => {
+var noop2 = () => {
 };
 var consoleWarn = console.warn.bind(console);
 var consoleError = console.error.bind(console);
-var userAgentTrail = `octokit-core.js/${VERSION4} ${getUserAgent()}`;
+var userAgentTrail = `octokit-core.js/${VERSION6} ${getUserAgent()}`;
 var Octokit = class {
-  static defaults(defaults) {
+  static VERSION = VERSION6;
+  static defaults(defaults2) {
     const OctokitWithDefaults = class extends this {
       constructor(...args) {
         const options = args[0] || {};
-        if (typeof defaults === "function") {
-          super(defaults(options));
+        if (typeof defaults2 === "function") {
+          super(defaults2(options));
           return;
         }
         super(
           Object.assign(
             {},
-            defaults,
+            defaults2,
             options,
-            options.userAgent && defaults.userAgent ? {
-              userAgent: `${options.userAgent} ${defaults.userAgent}`
+            options.userAgent && defaults2.userAgent ? {
+              userAgent: `${options.userAgent} ${defaults2.userAgent}`
             } : null
           )
         );
@@ -36477,6 +51924,13 @@ var Octokit = class {
     };
     return OctokitWithDefaults;
   }
+  static plugins = [];
+  /**
+   * Attach a plugin (or many) to your Octokit instance.
+   *
+   * @example
+   * const API = Octokit.plugin(plugin1, plugin2, plugin3, ...)
+   */
   static plugin(...newPlugins) {
     const currentPlugins = this.plugins;
     const NewOctokit = class extends this {
@@ -36492,6 +51946,7 @@ var Octokit = class {
       baseUrl: request.endpoint.DEFAULTS.baseUrl,
       headers: {},
       request: Object.assign({}, options.request, {
+        // @ts-ignore internal usage only, no need to type
         hook: hook2.bind(null, "request")
       }),
       mediaType: {
@@ -36513,8 +51968,8 @@ var Octokit = class {
     this.graphql = withCustomRequest(this.request).defaults(requestDefaults);
     this.log = Object.assign(
       {
-        debug: noop,
-        info: noop,
+        debug: noop2,
+        info: noop2,
         warn: consoleWarn,
         error: consoleError
       },
@@ -36538,6 +51993,11 @@ var Octokit = class {
           {
             request: this.request,
             log: this.log,
+            // we pass the current octokit instance as well as its constructor options
+            // to allow for authentication strategies that return a new octokit instance
+            // that shares the same internal state as the current one. The original
+            // requirement for this was the "event-octokit" authentication strategy
+            // of https://github.com/probot/octokit-auth-probot.
             octokit: this,
             octokitOptions: otherOptions
           },
@@ -36552,17 +52012,17 @@ var Octokit = class {
       Object.assign(this, classConstructor.plugins[i](this, options));
     }
   }
+  // assigned during constructor
   request;
   graphql;
   log;
   hook;
+  // TODO: type `octokit.auth` based on passed options.authStrategy
   auth;
 };
-__publicField(Octokit, "VERSION", VERSION4);
-__publicField(Octokit, "plugins", []);
 
 // node_modules/@octokit/plugin-rest-endpoint-methods/dist-src/version.js
-var VERSION5 = "13.2.6";
+var VERSION7 = "13.2.6";
 
 // node_modules/@octokit/plugin-rest-endpoint-methods/dist-src/generated/endpoints.js
 var Endpoints = {
@@ -38509,14 +53969,14 @@ var endpoints_default = Endpoints;
 var endpointMethodsMap = /* @__PURE__ */ new Map();
 for (const [scope, endpoints] of Object.entries(endpoints_default)) {
   for (const [methodName, endpoint2] of Object.entries(endpoints)) {
-    const [route, defaults, decorations] = endpoint2;
-    const [method, url] = route.split(/ /);
+    const [route, defaults2, decorations] = endpoint2;
+    const [method, url2] = route.split(/ /);
     const endpointDefaults = Object.assign(
       {
         method,
-        url
+        url: url2
       },
-      defaults
+      defaults2
     );
     if (!endpointMethodsMap.has(scope)) {
       endpointMethodsMap.set(scope, /* @__PURE__ */ new Map());
@@ -38536,6 +53996,7 @@ var handler = {
   getOwnPropertyDescriptor(target, methodName) {
     return {
       value: this.get(target, methodName),
+      // ensures method is in the cache
       configurable: true,
       writable: true,
       enumerable: true
@@ -38585,8 +54046,8 @@ function endpointsToMethods(octokit) {
   }
   return newMethods;
 }
-function decorate(octokit, scope, methodName, defaults, decorations) {
-  const requestWithDefaults = octokit.request.defaults(defaults);
+function decorate(octokit, scope, methodName, defaults2, decorations) {
+  const requestWithDefaults = octokit.request.defaults(defaults2);
   function withDecorations(...args) {
     let options = requestWithDefaults.endpoint.merge(...args);
     if (decorations.mapToData) {
@@ -38634,7 +54095,7 @@ function restEndpointMethods(octokit) {
     rest: api
   };
 }
-restEndpointMethods.VERSION = VERSION5;
+restEndpointMethods.VERSION = VERSION7;
 function legacyRestEndpointMethods(octokit) {
   const api = endpointsToMethods(octokit);
   return {
@@ -38642,7 +54103,7 @@ function legacyRestEndpointMethods(octokit) {
     rest: api
   };
 }
-legacyRestEndpointMethods.VERSION = VERSION5;
+legacyRestEndpointMethods.VERSION = VERSION7;
 
 // src/lib/cache.js
 var localStorageAvailable = true;
@@ -38701,11 +54162,11 @@ var RepositoryCache = class {
       }
     }
   }
-  generateKey(url) {
-    return url.toLowerCase();
+  generateKey(url2) {
+    return url2.toLowerCase();
   }
-  get(url) {
-    const key = this.generateKey(url);
+  get(url2) {
+    const key = this.generateKey(url2);
     const entry = this.cache[key];
     if (!entry)
       return null;
@@ -38718,8 +54179,8 @@ var RepositoryCache = class {
     this.saveCache();
     return entry.data;
   }
-  set(url, data2) {
-    const key = this.generateKey(url);
+  set(url2, data2) {
+    const key = this.generateKey(url2);
     if (data2.error)
       return;
     this.cache[key] = {
@@ -38739,17 +54200,28 @@ var repoCache = new RepositoryCache();
 // src/lib/patterns/index.js
 var patternCategories = {
   ACCESS_CONTROL: "264",
+  // A01:2021 - Broken Access Control
   CRYPTO_FAILURES: "310",
+  // A02:2021 - Cryptographic Failures
   INJECTION: "74",
+  // A03:2021 - Injection
   INSECURE_DESIGN: "509",
+  // A04:2021 - Insecure Design
   SECURITY_MISCONFIG: "16",
+  // A05:2021 - Security Misconfiguration
   VULNERABLE_COMPONENTS: "937",
+  // A06:2021 - Vulnerable Components
   AUTH_FAILURES: "287",
+  // A07:2021 - Auth & Verification Failures
   INTEGRITY_FAILURES: "494",
+  // A08:2021 - Software & Data Integrity
   LOGGING_FAILURES: "778",
+  // A09:2021 - Security Logging Failures
   SSRF: "918"
+  // A10:2021 - SSRF
 };
 var patterns = {
+  // SQL & Command Injection
   sqlInjection: {
     pattern: /\b(?:select|insert|update|delete|drop|alter|create)\b[^;]*\b(?:from|into|where)\b/i,
     description: "A03:2021 - Injection - SQL injection allowing direct data access or system compromise",
@@ -38766,6 +54238,7 @@ var patterns = {
     subcategory: "77",
     cwe: "77"
   },
+  // Authentication & Access
   brokenAuth: {
     pattern: /\b(?:password|passwd|admin|login)\b/i,
     description: "Potential authentication vulnerability",
@@ -38782,6 +54255,7 @@ var patterns = {
     subcategory: "200",
     cwe: "200"
   },
+  // XXE & XSS
   xxeVulnerability: {
     pattern: /\b<!ENTITY\b/i,
     description: "A05:2021 - Security Misconfiguration - XML parsing vulnerabilities",
@@ -38798,6 +54272,7 @@ var patterns = {
     subcategory: "79",
     cwe: "79"
   },
+  // Access Control & Configuration
   brokenAccessControl: {
     pattern: /\b(?:admin=true|role=admin|isAdmin|auth\.check|permissions|authorize)\b/i,
     description: "A01:2021 - Broken Access Control - Unauthorized access to protected functionality",
@@ -38814,6 +54289,7 @@ var patterns = {
     subcategory: "16",
     cwe: "16"
   },
+  // Deserialization & Components
   insecureDeserialization: {
     pattern: /\b(?:pickle|cPickle|unpickle|pyYAML|yaml\.load)\b/i,
     description: "A08:2021 - Software and Data Integrity Failures - Unsafe deserialization of data",
@@ -38830,6 +54306,7 @@ var patterns = {
     subcategory: "937",
     cwe: "937"
   },
+  // Logging
   insufficientLogging: {
     pattern: /\b(?:print|console\.log)\b/i,
     description: "A09:2021 - Security Logging and Monitoring Failures - Inadequate logging practices",
@@ -39076,7 +54553,7 @@ What to Do:
   <div class="example-label">\u274C Vulnerable:</div>
   <pre class="code-block bad">
     <code>
-const userInput = '<script>alert("xss")<\/script>';  // Example malicious input
+const userInput = '<script>alert("xss")</script>';  // Example malicious input
 element.innerHTML = userInput;           // Direct DOM manipulation
 document.write(data);                    // Unsafe document writing
   </code>
@@ -39371,6 +54848,7 @@ var GitHubAuthManager = class {
       return null;
     }
   }
+  // etc...
   setToken(token) {
     try {
       if (token) {
@@ -39393,15 +54871,18 @@ var GitHubAuthManager = class {
   clearToken() {
     this.setToken(null);
   }
+  // Validate token format (basic check)
   isValidTokenFormat(token) {
     return /^(ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})$/.test(token);
   }
+  // etc...
 };
 var authManager = new GitHubAuthManager();
 
 // src/lib/scanner.js
 var MyOctokit = Octokit.plugin(restEndpointMethods);
 var IGNORED_DOMAINS = [
+  // Analytics & Tracking
   /google-?analytics?\.com/i,
   /google-?tag-?manager\.com/i,
   /google-?optimize\.com/i,
@@ -39409,8 +54890,10 @@ var IGNORED_DOMAINS = [
   /googletagmanager\.com/i,
   /analytics?\./i,
   /doubleclick\.net/i,
+  // Framer
   /framer\.com/i,
   /events\.framer\.com/i,
+  // HubSpot
   /hubspot\.com/i,
   /hs-?scripts?\.com/i,
   /hs-?analytics\.net/i,
@@ -39418,6 +54901,7 @@ var IGNORED_DOMAINS = [
   /hscollectedforms\.net/i,
   /hs-?banner\.com/i,
   /hubspot-web-interactives/i,
+  // Other Common Third-Party Services
   /segment\.com/i,
   /segment\.io/i,
   /mixpanel\.com/i,
@@ -39431,22 +54915,28 @@ var IGNORED_DOMAINS = [
   /pinterest\.com/i
 ];
 var IGNORED_SCRIPT_CONTENT = [
+  // HubSpot Script Patterns
   /HubSpot Script Loader/i,
   /hs-script/i,
   /_hsp\s*=\s*window\._hsp/i,
   /hsq_\d+/i,
   /data-hsjs-portal/i,
   /data-hs-ignore/i,
+  // Google Analytics/Tag Manager
   /GoogleAnalyticsObject/i,
   /gtag\s*\(/i,
   /ga\s*\(\s*['"]create/i,
+  // Generic Analytics/Tracking
   /tracking-?pixel/i,
   /pixel-?tracking/i,
   /tag-?manager/i,
   /analytics-?loader/i,
   /analytics-?script/i,
+  // Common Third-Party Script Patterns
   /'UA-\d{4,10}-\d{1,4}'/i,
+  // Google Analytics ID pattern
   /'G-[A-Z0-9]{10,}'/i,
+  // GA4 ID pattern
   /data-pixel-id/i,
   /clearbit/i,
   /intercom/i,
@@ -39462,8 +54952,11 @@ var VulnerabilityScanner = class {
       octokit: null,
       onProgress: null,
       maxFileSize: 1024 * 1024,
+      // 1MB
       patternTimeout: 3e4,
+      // 30 seconds per file
       totalScanTimeout: 3e5,
+      // 5 minutes for entire scan
       ...config
     };
     const token = authManager.getToken();
@@ -39490,6 +54983,9 @@ var VulnerabilityScanner = class {
     console.log(`Scanner initialized with ${validPatterns} valid patterns`);
     this.rateLimitInfo = null;
   }
+  /**
+   * Fetch rate limit information from GitHub
+   */
   async getRateLimitInfo() {
     if (!this.config.octokit) {
       return null;
@@ -39504,6 +55000,10 @@ var VulnerabilityScanner = class {
       return null;
     }
   }
+  /**
+   * Get the default branch for a repository
+   * @private
+   */
   async getDefaultBranch(owner, repo) {
     try {
       const repoData = await this.config.octokit.rest.repos.get({
@@ -39516,6 +55016,10 @@ var VulnerabilityScanner = class {
       throw error;
     }
   }
+  /**
+   * Get repository tree using Git Data API
+   * @private
+   */
   async getRepoTree(owner, repo, branch) {
     try {
       let targetBranch = branch;
@@ -39556,6 +55060,10 @@ var VulnerabilityScanner = class {
       throw error;
     }
   }
+  /**
+   * Manually traverse the tree when it's too large for a single request
+   * @private
+   */
   async getTreeManually(owner, repo, treeSha, path = "") {
     const results = [];
     try {
@@ -39586,12 +55094,17 @@ var VulnerabilityScanner = class {
       throw error;
     }
   }
-  async fetchRepositoryFiles(url, octokitInstance) {
+  /**
+   * Fetch repository files from GitHub
+   * @param {string} url - GitHub repository URL
+   * @param {Octokit} octokitInstance - Octokit instance with authentication
+   */
+  async fetchRepositoryFiles(url2, octokitInstance) {
     if (octokitInstance) {
       this.config.octokit = octokitInstance;
     }
     const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/(?:tree|blob)\/([^/]+))?(\/.*)?/;
-    const match = url.match(githubRegex);
+    const match = url2.match(githubRegex);
     if (!match) {
       throw new Error("Invalid GitHub URL format");
     }
@@ -39662,6 +55175,10 @@ var VulnerabilityScanner = class {
       throw error;
     }
   }
+  /**
+   * Scan local files
+   * @param {Array<File>} files - Array of uploaded files
+   */
   async scanLocalFiles(files) {
     const findings = [];
     let processedFiles = 0;
@@ -39688,6 +55205,11 @@ var VulnerabilityScanner = class {
     }
     return this.generateReport(findings);
   }
+  /**
+   * Scan a single file's content
+   * @param {string} fileContent - Content of the file
+   * @param {string} filePath - Path of the file
+   */
   async scanFile(fileContent, filePath, options = {}) {
     if (this.shouldIgnoreScript(fileContent, filePath)) {
       console.debug("Skipping third-party script:", filePath);
@@ -39760,6 +55282,7 @@ var VulnerabilityScanner = class {
               subcategory: vulnInfo.subcategory,
               cwe: vulnInfo.cwe,
               matchInfo
+              // Add match information to finding
             });
           }
         } catch (error) {
@@ -39815,6 +55338,10 @@ var VulnerabilityScanner = class {
       throw error;
     }
   }
+  /**
+   * Generate a structured report from findings
+   * @param {Array} findings - Array of vulnerability findings
+   */
   generateReport(findings) {
     const groupedFindings = findings.reduce((acc, finding) => {
       if (!acc[finding.type]) {
@@ -39880,6 +55407,10 @@ var VulnerabilityScanner = class {
       }
     };
   }
+  /**
+   * Generate recommendations based on findings
+   * @param {Array} findings - Array of vulnerability findings
+   */
   generateRecommendations(findings) {
     const uniqueRecs = /* @__PURE__ */ new Set();
     findings.forEach((finding) => {
@@ -39923,18 +55454,18 @@ var handler2 = async (event) => {
     };
   }
   try {
-    const { url } = JSON.parse(event.body || "{}");
-    if (!url) {
+    const { url: url2 } = JSON.parse(event.body || "{}");
+    if (!url2) {
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ error: "No URL provided" })
       };
     }
-    console.log("Attempting to scan URL:", url);
+    console.log("Attempting to scan URL:", url2);
     let response;
     try {
-      response = await axios.get(url);
+      response = await axios_default.get(url2);
     } catch (fetchError) {
       console.error("Error fetching URL:", fetchError.message);
       return {
@@ -39968,8 +55499,8 @@ var handler2 = async (event) => {
         });
       } else {
         try {
-          const absoluteUrl = new URL(script.src, url).href;
-          const scriptResponse = await axios.get(absoluteUrl);
+          const absoluteUrl = new URL(script.src, url2).href;
+          const scriptResponse = await axios_default.get(absoluteUrl);
           scriptContents.push({
             filename: absoluteUrl,
             content: scriptResponse.data
@@ -40018,5 +55549,27 @@ var handler2 = async (event) => {
 export {
   handler2 as handler
 };
-/*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
-/*! ws. MIT License. Einar Otto Stangvik <einaros@gmail.com> */
+/*! Bundled license information:
+
+mime-db/index.js:
+  (*!
+   * mime-db
+   * Copyright(c) 2014 Jonathan Ong
+   * Copyright(c) 2015-2022 Douglas Christopher Wilson
+   * MIT Licensed
+   *)
+
+mime-types/index.js:
+  (*!
+   * mime-types
+   * Copyright(c) 2014 Jonathan Ong
+   * Copyright(c) 2015 Douglas Christopher Wilson
+   * MIT Licensed
+   *)
+
+undici/lib/web/fetch/body.js:
+  (*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> *)
+
+undici/lib/web/websocket/frame.js:
+  (*! ws. MIT License. Einar Otto Stangvik <einaros@gmail.com> *)
+*/

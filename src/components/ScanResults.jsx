@@ -1,6 +1,7 @@
 import React from 'react';
 import { patterns, patternCategories, recommendations } from '../lib/patterns';
 import { Shield } from 'lucide-react';
+import { type } from 'os';
 
 // Severity sort order
 const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
@@ -305,15 +306,27 @@ const ScanResults = ({
   onViewProtection
 }) => {
   return (
-    <div className="mt-8 relative">
-      <div className="bg-gray-900 p-6 rounded-lg shadow-lg border border-gray-700">
+    <div className="mt-8 relative" id="scanResults">
+      <div
+        className="
+          bg-gray-800
+          rounded-lg
+          p-6
+          prose prose-invert
+          prose-pre:bg-gray-900 
+          prose-pre:text-gray-100 
+          max-w-none
+          sticky top-4
+          text-gray-100
+        "
+      >
         {/* *** Added: Firmware/Binary Analysis Filter *** */}
         <div className="flex items-center mb-6">
           <label className="flex items-center">
             <input
               type="checkbox"
               checked={includeFirmware}
-              onChange={(e) => {} /* Handle firmware filter change if needed */}
+              onChange={(e) => {}} /* Handle firmware filter change if needed */
               className="form-checkbox h-4 w-4 text-blue-600"
               disabled // Disable for now since functionality is not implemented
             />
