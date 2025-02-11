@@ -112,6 +112,9 @@ const ScannerUI = () => {
     setProgress(progressData);
   };
 
+  // Add a ref for the progress bar
+  const progressRef = React.useRef(null);
+
   // ------------------------------------------------------------------
   // File Upload (Local)
   // ------------------------------------------------------------------
@@ -120,6 +123,7 @@ const ScannerUI = () => {
     if (files.length === 0) return;
 
     setScanning(true);
+    progressRef.current?.scrollIntoView({ behavior: 'smooth' });
     setError(null);
     setScanResults(null);
     setProgress({
@@ -166,8 +170,6 @@ const ScannerUI = () => {
     } catch (err) {
       console.error('Scan error:', err);
       setError(err.message || 'Error scanning files');
-    } finally {
-      setScanning(false);
     }
   };
 
@@ -183,6 +185,7 @@ const ScannerUI = () => {
     }
 
     setScanning(true);
+    progressRef.current?.scrollIntoView({ behavior: 'smooth' });
     setError(null);
     setScanResults(null);
     setUsedCache(false);
@@ -245,8 +248,6 @@ const ScannerUI = () => {
       if (err.status === 403) {
         setError('Rate limit exceeded. Please try again later.');
       }
-    } finally {
-      setScanning(false);
     }
   }, [urlInput, includeFirmware]);
 
@@ -275,6 +276,8 @@ const ScannerUI = () => {
   };
 
   const handleWebsiteScan = async (url) => {
+    setScanning(true);
+    progressRef.current?.scrollIntoView({ behavior: 'smooth' });
     setError(null);
     setScanResults(null);
     setSuccessMessage('');
@@ -285,7 +288,6 @@ const ScannerUI = () => {
       details: { url }
     });
     setFirmwareMessage('');
-    setScanning(true);
 
     try {
         // Basic URL validation
@@ -350,8 +352,6 @@ const ScannerUI = () => {
     } catch (err) {
         console.error('Website scan error:', err);
         setError(err.message || 'Error scanning website. Please check the URL and try again.');
-    } finally {
-        setScanning(false);
     }
   };
 
@@ -732,7 +732,7 @@ const ScannerUI = () => {
 
             {/* PROGRESS BAR */}
             {scanning && (
-              <div className="my-6">
+              <div ref={progressRef} className="my-6">
                 <div className="w-full bg-gray-600 rounded-full h-3 overflow-hidden">
                   <div
                     className="bg-blue-400 h-3 rounded-full transition-all duration-300"

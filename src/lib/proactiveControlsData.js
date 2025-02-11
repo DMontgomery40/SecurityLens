@@ -998,6 +998,72 @@ updates:
       interval: "daily"
         </code></pre>
       `
+    },
+
+    // New entry for A09:2021 - Security Logging and Monitoring Failures
+    securityLogging: {
+      title: "A09:2021 - Security Logging and Monitoring Failures",
+      content: `
+        <h3>Security Logging and Monitoring Failures Overview</h3>
+        <p>
+          Inadequate logging and monitoring practices can delay the detection of security incidents,
+          enabling attackers to remain undetected and prolonging the time to respond to breaches.
+          Comprehensive logging and real-time monitoring are vital for effective incident response.
+        </p>
+      `,
+      redTeam: `
+        <h4>Red Team Testing Guide</h4>
+        <h5>1. Log Tampering and Injection</h5>
+        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
+# Attempt to delete or modify log files to conceal malicious activities
+rm -f /var/log/auth.log
+echo "Unauthorized access detected at $(date)" >> /var/log/app.log
+        </code></pre>
+        <h5>2. Simulated Breach</h5>
+        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
+# Trigger events that should be logged and verify if alerts are generated
+curl http://target.com/admin -H "User-Agent: RedTeamScanner"
+        </code></pre>
+      `,
+      blueTeamWindows: `
+        <h4>Blue Team Protection (Windows)</h4>
+        <h5>1. Enable Detailed Audit Logging</h5>
+        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
+# Configure audit policies to capture detailed security events
+auditpol /set /subcategory:"Logon" /success:enable /failure:enable
+        </code></pre>
+        <h5>2. Centralize and Monitor Logs</h5>
+        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
+# Use Windows Event Forwarding or a SIEM solution for centralized log monitoring
+wecutil qc /q
+        </code></pre>
+      `,
+      blueTeamMac: `
+        <h4>Blue Team Protection (Mac)</h4>
+        <h5>1. Centralize Syslog</h5>
+        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
+# Forward system logs to a centralized server
+*.* @logserver.example.com
+        </code></pre>
+        <h5>2. Setup Log Monitoring</h5>
+        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
+# Employ tools like OSQuery to monitor log integrity and detect anomalies
+brew install osquery
+        </code></pre>
+      `,
+      blueTeamLinux: `
+        <h4>Blue Team Protection (Linux)</h4>
+        <h5>1. Centralize Logs</h5>
+        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
+# Configure rsyslog or syslog-ng to forward logs to a centralized logging server
+*.* @@logserver.example.com:514
+        </code></pre>
+        <h5>2. Monitor and Alert</h5>
+        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
+# Use monitoring tools like OSSEC or fail2ban to detect suspicious log activity
+sudo apt-get install ossec-hids
+        </code></pre>
+      `
     }
   }
 };

@@ -79,6 +79,23 @@ const InfoPanel = ({ selectedVulnerability, isScanning, onBackToResults, isMobil
       <p className="text-gray-300">
         Select "View Protection Guide" on a result to see in-depth Red/Blue Team content here.
       </p>
+
+      {/* Official CVE Details Link */}
+      {selectedVulnerability && selectedVulnerability.type && (
+        <div className="mt-6">
+          <h3 className="text-lg font-bold text-blue-300 mb-2">
+            Recent CVEs for {selectedVulnerability.type}
+          </h3>
+          <a
+            href={`https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=${encodeURIComponent(selectedVulnerability.type)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 underline"
+          >
+            View recent CVEs for {selectedVulnerability.type}
+          </a>
+        </div>
+      )}
     </div>
   );
 };

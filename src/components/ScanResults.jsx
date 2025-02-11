@@ -53,16 +53,20 @@ const FileLineNumbers = ({ vuln, file }) => {
 /**
  * Vulnerability Card - toggles between normal "CVE details" and "Protection Guide" 
  */
-const VulnerabilityCard = ({ vuln }) => {
-  const [isExpanded, setIsExpanded] = React.useState(false);
+const VulnerabilityCard = ({ vuln, isExpanded, onToggleExpand, cardId }) => {
   const [isGuideView, setIsGuideView] = React.useState(false);
 
-  // Normal CVE detail
-  const rec = recommendations[vuln.type]; // "recommendation" object
-  const matchedPattern = patterns[vuln.type] ? patterns[vuln.type].pattern.toString() : '';
-
+  // Mapping raw vulnerability type strings to the keys used in proactiveControlsData.
+  const vulnerabilityGuideKeyMap = {
+    'a09:2021 - security logging and monitoring failures': 'securityLogging',
+    // add additional mappings if necessary
+  };
+  const normalizedType = vulnerabilityGuideKeyMap[vuln.type.toLowerCase()] || vuln.type;
+  const rec = recommendations[normalizedType]; // "recommendation" object
+  const matchedPattern = patterns[normalizedType] ? patterns[normalizedType].pattern.toString() : '';
+  
   // Red/Blue Team data
-  const guideData = vulnerabilityGuides[vuln.type] || {};
+  const guideData = vulnerabilityGuides[normalizedType] || {};
 
   // Severity styling
   const severityBadge = {
@@ -83,40 +87,40 @@ const VulnerabilityCard = ({ vuln }) => {
       {/* Header */}
       <div
         className="w-full flex items-center justify-between bg-gray-800 hover:bg-gray-700 transition-colors cursor-pointer p-4"
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => onToggleExpand(cardId)}
       >
-        <div className="flex-1 relative">
-          {/* Toggle button */}
-          <button 
-            className="absolute -top-2 -right-2 py-1.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-xs"
-            onClick={handleGuideToggle}
+        <div>
+          <div className="flex items-center space-x-2">
+            <span className={`text-xs font-semibold py-1 px-2 rounded-full uppercase ${severityBadge}`}>
+              {vuln.severity}
+            </span>
+            <span className="text-xs text-gray-400">
+              Found in {vuln.files.length} file{vuln.files.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <h3 className="text-lg font-medium mt-1">{vuln.description}</h3>
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleGuideToggle(e); }}
+            className="h-8 px-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs flex items-center gap-1 min-w-[120px] justify-center"
           >
             <Shield className="w-4 h-4" />
-            {isGuideView ? 'View CVE Details' : 'View Protection Guide'}
+            {isGuideView ? "CVE Details" : "Protection Guide"}
           </button>
-
-          <span className={`text-xs font-semibold py-1 px-2 rounded-full uppercase ${severityBadge}`}>
-            {vuln.severity}
-          </span>
-          <h3 className="text-lg font-medium mt-2">{vuln.description}</h3>
-          <div className="text-xs text-gray-400 mt-1">
-            Found in {vuln.files.length} file{vuln.files.length !== 1 ? 's' : ''}
-          </div>
+          <svg
+            className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
         </div>
-
-        <svg
-          className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
       </div>
-
       {/* Expanded content */}
       {isExpanded && (
         <div className="p-4 bg-gray-700 text-gray-200">
@@ -144,58 +148,102 @@ const VulnerabilityCard = ({ vuln }) => {
                   </details>
                 ))}
               </div>
-
               {/* Recommendation Section */}
               {rec ? (
-                <div className="bg-gray-600 border border-gray-500 rounded-md p-3 text-xs leading-relaxed">
-                  {rec.recommendation.split(/(Instead of:|Do:)/).map((section, index) => {
-                    if (section === 'Instead of:' || section === 'Do:') {
-                      return (
-                        <div key={index} className="font-medium mt-3 mb-2 text-sm text-gray-100">
-                          {section}
+                <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                  {/* Why it Matters */}
+                  <div className="mb-4">
+                    <h4 className="text-sm font-semibold text-blue-300 mb-2">Why it Matters</h4>
+                    <p className="text-gray-300 text-sm">
+                      Command injection can allow attackers to execute arbitrary system commands.
+                    </p>
+                  </div>
+
+                  {/* What to Do */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-blue-300 mb-2">What to Do</h4>
+                    <div className="space-y-4 text-sm text-gray-300">
+                      {rec.recommendation.split('<div class="example-block">').map((section, index) => {
+                        if (section.includes('example-label')) {
+                          // This is a code example section
+                          const isVulnerable = section.includes('✕ Vulnerable:');
+                          const label = isVulnerable ? '✕ Vulnerable:' : '✓ Safe:';
+                          const code = section.split('<code>')[1]?.split('</code>')[0];
+                          
+                          return code ? (
+                            <div key={index} className="mt-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`${isVulnerable ? 'text-red-400' : 'text-green-400'} text-sm`}>
+                                  {label}
+                                </span>
+                              </div>
+                              <pre className="bg-gray-950 p-3 text-gray-300 font-mono rounded border border-gray-800 overflow-x-auto">
+                                <code>{code.trim()}</code>
+                              </pre>
+                            </div>
+                          ) : null;
+                        }
+
+                        // Regular text and numbered items
+                        return section.split('\n').map((line, lineIndex) => {
+                          if (!line.trim()) return null;
+                          
+                          // If it's a numbered item
+                          if (line.match(/^\d+\./)) {
+                            return (
+                              <div key={`${index}-${lineIndex}`} className="flex items-start">
+                                <span className="mr-2">{line.match(/^\d+\./)[0]}</span>
+                                <span>{line.replace(/^\d+\./, '').trim()}</span>
+                              </div>
+                            );
+                          }
+                          
+                          // Regular text
+                          return <p key={`${index}-${lineIndex}`}>{line.trim()}</p>;
+                        });
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Code Examples */}
+                  {rec.examples && (
+                    <div className="mt-4">
+                      {rec.examples.map((example, index) => (
+                        <div key={index} className="mt-4">
+                          <div className="flex items-center gap-2 mb-1">
+                            {example.type === 'vulnerable' ? (
+                              <span className="text-red-400 text-sm">✕ Vulnerable:</span>
+                            ) : (
+                              <span className="text-green-400 text-sm">✓ Safe:</span>
+                            )}
+                          </div>
+                          <pre className="bg-gray-950 p-3 text-sm text-gray-300 font-mono rounded border border-gray-800 overflow-x-auto">
+                            <code>{example.code}</code>
+                          </pre>
                         </div>
-                      );
-                    } else if (section.includes('```')) {
-                      // Extract code blocks
-                      const codeMatch = section.match(/```[\w]*\n([\s\S]*?)```/);
-                      return codeMatch ? (
-                        <pre
-                          key={index}
-                          className="bg-gray-800 text-gray-200 p-3 rounded-md my-2 overflow-x-auto text-xs"
-                        >
-                          <code>{codeMatch[1].trim()}</code>
-                        </pre>
-                      ) : null;
-                    } else {
-                      // Normal text
-                      return (
-                        <div
-                          key={index}
-                          className="prose prose-sm text-gray-100 max-w-none"
-                          dangerouslySetInnerHTML={{
-                            __html: section
-                              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                              .replace(/\n/g, '<br />')
-                          }}
-                        />
-                      );
-                    }
-                  })}
+                      ))}
+                    </div>
+                  )}
 
                   {/* References */}
                   {rec.references && rec.references.length > 0 && (
-                    <div className="references border-t border-gray-500 mt-3 pt-3">
-                      <h4 className="font-medium mb-2 text-sm text-gray-100">References</h4>
-                      <ul className="list-disc pl-5">
-                        {rec.references.map((r, i) => (
+                    <div className="mt-6 pt-4 border-t border-gray-700">
+                      <h4 className="text-sm font-semibold text-blue-300 mb-2">References</h4>
+                      <ul className="space-y-1">
+                        {rec.references.map((ref, i) => (
                           <li key={i}>
                             <a
-                              href={r.url}
-                              className="text-blue-400 underline"
+                              href={ref.url}
+                              className="text-sm text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1"
                               target="_blank"
                               rel="noreferrer"
                             >
-                              {r.title || r.url}
+                              {ref.title}
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                <polyline points="15 3 21 3 21 9" />
+                                <line x1="10" y1="14" x2="21" y2="3" />
+                              </svg>
                             </a>
                           </li>
                         ))}
@@ -203,28 +251,24 @@ const VulnerabilityCard = ({ vuln }) => {
                     </div>
                   )}
 
-                  {/* Pattern Info */}
+                  {/* Detection Pattern */}
                   {matchedPattern && (
-                    <div className="pattern-info mt-3 pt-3 border-t border-gray-500">
-                      <h4 className="font-medium mb-2 text-sm text-gray-100">Detection Pattern</h4>
-                      <pre className="bg-gray-800 p-2 text-xs text-gray-200 rounded overflow-auto">
-                        {matchedPattern}
+                    <div className="mt-6 pt-4 border-t border-gray-700">
+                      <h4 className="text-sm font-semibold text-blue-300 mb-2">Detection Pattern</h4>
+                      <pre className="bg-gray-950 p-3 text-sm text-gray-300 font-mono rounded border border-gray-800 overflow-x-auto">
+                        <code>{matchedPattern}</code>
                       </pre>
                       {(vuln.category || vuln.subcategory) && (
-                        <p className="text-xs text-gray-400 mt-2">
-                          Category:{' '}
-                          {Object.keys(patternCategories).find(
-                            k => patternCategories[k] === vuln.category
-                          )}{' '}
-                          ({vuln.category})<br />
-                          Subcategory: {vuln.subcategory}
-                        </p>
+                        <div className="mt-2 text-sm text-gray-400">
+                          <div>Category: {Object.keys(patternCategories).find(k => patternCategories[k] === vuln.category)} ({vuln.category})</div>
+                          <div>Subcategory: {vuln.subcategory}</div>
+                        </div>
                       )}
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="bg-gray-600 border border-gray-500 rounded-md p-3 text-sm">
+                <div className="bg-gray-900 rounded-lg p-4 border border-gray-700 text-gray-300">
                   No recommendation found for "{vuln.type}".
                 </div>
               )}
@@ -323,8 +367,22 @@ const ScanResults = ({
   scrollToTop,
   includeFirmware
 }) => {
+  const [expandedCardId, setExpandedCardId] = React.useState(null);
+  const resultsRef = React.useRef(null);
+
+  // Scroll to results when they become available
+  React.useEffect(() => {
+    if (!scanning && (filteredByType.length > 0 || filteredByFile.length > 0)) {
+      resultsRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [scanning, filteredByType.length, filteredByFile.length]);
+
+  const handleCardToggle = (cardId) => {
+    setExpandedCardId(expandedCardId === cardId ? null : cardId);
+  };
+
   return (
-    <div className="mt-8 relative" id="scanResults">
+    <div className="mt-8 relative" id="scanResults" ref={resultsRef}>
       <div
         className="
           bg-gray-800
@@ -374,7 +432,7 @@ const ScanResults = ({
             <button
               onClick={onRefreshRequest}
               disabled={scanning}
-              className={`px-4 py-2 rounded text-sm ${
+              className={`h-8 px-4 rounded text-sm min-w-[120px] ${
                 scanning
                   ? 'bg-gray-700 cursor-not-allowed text-gray-400'
                   : 'bg-blue-600 hover:bg-blue-700 text-white'
@@ -389,7 +447,7 @@ const ScanResults = ({
         <div className="flex gap-1 bg-gray-800 rounded-md p-1 w-fit mb-4">
           <button
             onClick={() => setViewMode('type')}
-            className={`px-4 py-2 text-sm rounded ${
+            className={`h-8 px-4 text-sm rounded min-w-[120px] ${
               viewMode === 'type' ? 'bg-gray-700 text-white font-medium' : 'bg-gray-800 text-gray-300'
             }`}
           >
@@ -397,7 +455,7 @@ const ScanResults = ({
           </button>
           <button
             onClick={() => setViewMode('file')}
-            className={`px-4 py-2 text-sm rounded ${
+            className={`h-8 px-4 text-sm rounded min-w-[120px] ${
               viewMode === 'file' ? 'bg-gray-700 text-white font-medium' : 'bg-gray-800 text-gray-300'
             }`}
           >
@@ -421,7 +479,13 @@ const ScanResults = ({
           filteredByType.length ? (
             <div className="space-y-4">
               {filteredByType.map((vuln, idx) => (
-                <VulnerabilityCard key={idx} vuln={vuln} />
+                <VulnerabilityCard 
+                  key={idx} 
+                  vuln={vuln} 
+                  cardId={`type-${idx}`}
+                  isExpanded={expandedCardId === `type-${idx}`}
+                  onToggleExpand={handleCardToggle}
+                />
               ))}
             </div>
           ) : (
@@ -431,12 +495,18 @@ const ScanResults = ({
           )
         ) : filteredByFile.length ? (
           <div className="space-y-4">
-            {filteredByFile.map(({ fileName, vulns }) => (
+            {filteredByFile.map(({ fileName, vulns }, fileIdx) => (
               <div key={fileName} className="border border-gray-700 rounded-lg p-4 bg-gray-800">
                 <h3 className="text-lg font-semibold mb-3 text-gray-100">{fileName}</h3>
                 <div className="space-y-4">
-                  {vulns.map((v, idx) => (
-                    <VulnerabilityCard key={idx} vuln={v} />
+                  {vulns.map((v, vulnIdx) => (
+                    <VulnerabilityCard 
+                      key={vulnIdx} 
+                      vuln={v} 
+                      cardId={`file-${fileIdx}-${vulnIdx}`}
+                      isExpanded={expandedCardId === `file-${fileIdx}-${vulnIdx}`}
+                      onToggleExpand={handleCardToggle}
+                    />
                   ))}
                 </div>
               </div>
