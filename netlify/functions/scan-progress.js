@@ -1,12 +1,12 @@
 import { getProgressForScan } from './utils/progressHandler.js';
 
-export const handler = async (event, context) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS'
-  };
+const headers = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS'
+};
 
+export const handler = async (event, context) => {
   // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -31,7 +31,7 @@ export const handler = async (event, context) => {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Scan ID is required' })
+        body: JSON.stringify({ error: 'Missing scanId parameter' })
       };
     }
 
@@ -40,13 +40,17 @@ export const handler = async (event, context) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(progress)
+      body: JSON.stringify({
+        ...progress,
+        timestamp: Date.now()
+      })
     };
   } catch (error) {
+    console.error('Error getting scan progress:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: 'Internal server error' })
     };
   }
 };

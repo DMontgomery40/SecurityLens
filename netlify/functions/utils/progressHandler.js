@@ -6,6 +6,8 @@ export class ProgressHandler {
     this.callback = callback;
     this.total = 0;
     this.current = 0;
+    this.phase = 'initializing';
+    this.details = {};
   }
 
   setTotal(total) {
@@ -21,26 +23,39 @@ export class ProgressHandler {
   emitProgress() {
     if (this.callback) {
       this.callback({
-        type: 'progress',
-        data: {
-          current: this.current,
-          total: this.total,
-          percentage: this.total ? Math.round((this.current / this.total) * 100) : 0
-        }
+        phase: this.phase,
+        current: this.current,
+        total: this.total,
+        details: this.details,
+        // Keep existing fields for backward compatibility
+        status: this.phase,
+        message: this.getProgressMessage()
       });
     }
   }
 
   complete() {
-    if (this.callback) {
-      this.callback({
-        type: 'complete',
-        data: {
-          current: this.current,
-          total: this.total,
-          percentage: 100
-        }
-      });
+    this.phase = 'complete';
+    this.current = this.total;
+    this.emitProgress();
+  }
+
+  setPhase(phase, details = {}) {
+    this.phase = phase;
+    this.details = { ...this.details, ...details };
+    this.emitProgress();
+  }
+
+  getProgressMessage() {
+    switch (this.phase) {
+      case 'fetching':
+        return `Fetching files (${this.current}/${this.total})`;
+      case 'analyzing':
+        return `Analyzing ${this.details.currentFile || ''} (${this.current}/${this.total})`;
+      case 'complete':
+        return 'Scan complete';
+      default:
+        return `Scanning file ${this.current} of ${this.total}`;
     }
   }
 }

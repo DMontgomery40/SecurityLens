@@ -9,9 +9,8 @@ export const patternCategories = {
   AUTH_FAILURES: '287',       // A07:2021 - Auth & Verification Failures
   INTEGRITY_FAILURES: '494',  // A08:2021 - Software & Data Integrity
   LOGGING_FAILURES: '778',    // A09:2021 - Security Logging Failures
-  SSRF: '918'                // A10:2021 - SSRF
+  SSRF: '918'                 // A10:2021 - SSRF
 };
-// Categories
 
 // Refined Patterns
 export const patterns = {
@@ -121,7 +120,7 @@ export const patterns = {
   }
 };
 
-// After the patterns object
+// Recommendations for each pattern (used in normal "CVE Details" view)
 export const recommendations = {
   sqlInjection: {
     recommendation: `
@@ -139,7 +138,7 @@ What to Do:
 const userId = '123';  // Example user input
 query("SELECT * FROM users WHERE id = " + userId);    // Direct concatenation
 query(\`SELECT * FROM users WHERE id = \${userId}\`);  // Template literals still vulnerable
-  </code>
+    </code>
   </pre>
 
   <div class="example-label">✅ Safe:</div>
@@ -367,7 +366,7 @@ What to Do:
 const userInput = '<script>alert("xss")</script>';  // Example malicious input
 element.innerHTML = userInput;           // Direct DOM manipulation
 document.write(data);                    // Unsafe document writing
-  </code>
+    </code>
 </pre>
 
   <div class="example-label">✅ Safe:</div>
@@ -462,7 +461,7 @@ SHOW_ERRORS=True
     
 // Default/weak configurations
 app.use(cors());               // Allow all origins
-app.use(helmet());            // Without customization
+app.use(helmet());             // Without customization
     </code>
   </pre>
 
@@ -520,7 +519,7 @@ const config = require(userProvidedPath);
 // Safe alternatives
 const data = JSON.parse(userInput);        // Use JSON instead
 const obj = yaml.safeLoad(untrustedYaml);  // Safe YAML loading
-const config = validateConfig(userInput);   // Validate all input
+const config = validateConfig(userInput);  // Validate all input
     </code>
   </pre>
 </div>`,
@@ -539,7 +538,7 @@ const config = validateConfig(userInput);   // Validate all input
 
   knownVulnComponents: {
     recommendation: `
-Why it Matters: A06:2021 - Vulnerable and Outdated Components was previously titled Using Components with Known Vulnerabilities and #2 in Top 10 2017.
+Why it Matters: A06:2021 - Vulnerable and Outdated Components was previously titled "Using Components with Known Vulnerabilities" and was #2 in Top 10 2017.
 
 What to Do:
 1. Remove unused dependencies
@@ -591,7 +590,7 @@ $ npm audit fix
 
   insufficientLogging: {
     recommendation: `
-Why it Matters: A09:2021 - Security Logging and Monitoring Failures moves up from #10 in 2017. Without proper logging, breaches cannot be detected.
+Why it Matters: A09:2021 - Security Logging and Monitoring Failures moves up from #10 in 2017. Without proper logging, breaches cannot be detected or investigated.
 
 What to Do:
 1. Ensure all login, access control, and server-side input validation failures are logged
@@ -610,9 +609,8 @@ console.log(error);                     // Insufficient error details
   <div class="example-label">✅ Safe:</div>
   <pre class="code-block good">
     <code>
-const user = { id: '123' };  // Example user object
-const attempt = { ip: '1.2.3.4' };  // Example attempt object
-const error = { code: 'AUTH_FAILED' };  // Example error object
+const user = { id: '123' };        // Example user object
+const error = { code: 'AUTH_FAILED' };  
 
 logger.info('Authentication success', {
   userId: user.id,
@@ -621,7 +619,6 @@ logger.info('Authentication success', {
 });
 
 logger.error('Authentication failed', {
-  attempt: attempt,
   reason: error.code,
   timestamp: new Date()
 });
@@ -641,3 +638,5 @@ logger.error('Authentication failed', {
     cwe: '778'
   }
 };
+
+export default patterns;

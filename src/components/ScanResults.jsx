@@ -1,18 +1,17 @@
 import React from 'react';
 import { patterns, patternCategories, recommendations } from '../lib/patterns';
+import { FloatingNav } from './FloatingNav';
+import { SeveritySummaryCard } from './SeveritySummaryCard';
+import { vulnerabilityGuides } from '../lib/proactiveControlsData';
 import { Shield } from 'lucide-react';
-import { type } from 'os';
-
-// Severity sort order
-const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 
 /**
- * Component to display line numbers with expandable functionality
+ * Display line numbers with possible code snippet expansion.
  */
 const FileLineNumbers = ({ vuln, file }) => {
   const [expanded, setExpanded] = React.useState(false);
   
-  // For web scans, show the actual code
+  // If it's a "web" type vulnerability with actual code lines
   if (vuln.scanType === 'web' && vuln.codeLines) {
     const visibleLines = expanded ? vuln.codeLines : vuln.codeLines.slice(0, 3);
     return (
@@ -20,7 +19,7 @@ const FileLineNumbers = ({ vuln, file }) => {
         {visibleLines.map(({ line, code, isMinified, isHtml }) => (
           <div key={line} className="flex items-start space-x-2">
             <span className="text-gray-500 select-none w-12 text-right font-mono">{line}</span>
-            <pre 
+            <pre
               className={`text-gray-300 overflow-x-auto font-mono text-sm whitespace-pre-wrap flex-1 ${
                 isMinified ? 'bg-gray-900/50 p-2 rounded' : ''
               }`}
@@ -40,7 +39,7 @@ const FileLineNumbers = ({ vuln, file }) => {
     );
   }
 
-  // For local/GitHub scans, show just the line numbers
+  // For local/GitHub scans, just show "Lines: X"
   const lines = vuln.allLineNumbers[file];
   if (!lines || lines.length === 0) return null;
   
@@ -52,78 +51,20 @@ const FileLineNumbers = ({ vuln, file }) => {
 };
 
 /**
- * Severity Summary Card Component
+ * Vulnerability Card - toggles between normal "CVE details" and "Protection Guide" 
  */
-const SeveritySummaryCard = ({ severity, count, totalInstances, isActive, onClick }) => {
-  const severityStyles = {
-    CRITICAL: 'bg-red-500',
-    HIGH: 'bg-orange-500',
-    MEDIUM: 'bg-yellow-500',
-    LOW: 'bg-blue-500'
-  };
-
-  return (
-    <button
-      onClick={onClick}
-      className={`p-4 rounded-lg border-2 transition-transform transform hover:scale-105 ${
-        isActive ? 'border-gray-300 shadow-lg' : 'border-transparent shadow'
-      } ${severityStyles[severity]} text-white`}
-    >
-      <div className="text-sm font-semibold mb-1">
-        {severity.charAt(0) + severity.slice(1).toLowerCase()}
-      </div>
-      <div className="text-3xl font-bold">{count}</div>
-      <div className="text-sm">Unique Vulnerabilities</div>
-      <div className="text-sm mt-1">{totalInstances} Total Instances</div>
-    </button>
-  );
-};
-
-/**
- * Floating Navigation Component for Severity Filters
- */
-const FloatingNav = ({ activeSeverity, setActiveSeverity, severityStats }) => (
-  <div className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-2 hidden lg:block">
-    {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(sev => (
-      <button
-        key={sev}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setActiveSeverity(activeSeverity === sev ? 'ALL' : sev);
-        }}
-        className={`flex items-center gap-2 px-3 py-2 rounded-md w-full mb-1 last:mb-0 transition-colors ${
-          activeSeverity === sev ? 'bg-gray-700' : 'hover:bg-gray-600'
-        }`}
-      >
-        <div
-          className={`w-2 h-2 rounded-full ${
-            sev === 'CRITICAL'
-              ? 'bg-red-500'
-              : sev === 'HIGH'
-              ? 'bg-orange-500'
-              : sev === 'MEDIUM'
-              ? 'bg-yellow-500'
-              : 'bg-blue-500'
-          }`}
-        />
-        <span className="text-sm">{severityStats[sev].uniqueCount}</span>
-      </button>
-    ))}
-  </div>
-);
-
-/**
- * Vulnerability Card Component
- */
-const VulnerabilityCard = ({ vuln, onViewProtection }) => {
+const VulnerabilityCard = ({ vuln }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const [isGuideView, setIsGuideView] = React.useState(false);
 
-  // Retrieve recommendation and references
-  const rec = recommendations[vuln.type];
+  // Normal CVE detail
+  const rec = recommendations[vuln.type]; // "recommendation" object
   const matchedPattern = patterns[vuln.type] ? patterns[vuln.type].pattern.toString() : '';
 
-  // Style severity badge based on severity
+  // Red/Blue Team data
+  const guideData = vulnerabilityGuides[vuln.type] || {};
+
+  // Severity styling
   const severityBadge = {
     CRITICAL: 'bg-red-500 text-white',
     HIGH: 'bg-orange-500 text-white',
@@ -131,31 +72,38 @@ const VulnerabilityCard = ({ vuln, onViewProtection }) => {
     LOW: 'bg-blue-500 text-white'
   }[vuln.severity] || 'bg-gray-500 text-white';
 
-  // Inside the recommendation section
-  const formatCodeBlock = (text) => {
-    // Use a different delimiter for code blocks, like :::
-    return text.replace(
-      /:::\s*(\w*)\n([\s\S]*?):::/g,
-      '<pre class="bg-gray-800 text-gray-200 p-3 rounded-md my-2"><code>$2</code></pre>'
-    );
+  // Toggle top-right button
+  const handleGuideToggle = (e) => {
+    e.stopPropagation();
+    setIsGuideView(!isGuideView);
   };
 
   return (
-    <div className="border border-gray-700 rounded-lg shadow-sm">
-      {/* Clickable Header */}
-      <button
+    <div className="border border-gray-700 rounded-lg shadow-sm text-sm">
+      {/* Header */}
+      <div
+        className="w-full flex items-center justify-between bg-gray-800 hover:bg-gray-700 transition-colors cursor-pointer p-4"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full p-4 text-left flex items-center justify-between bg-gray-800 hover:bg-gray-700 transition-colors"
       >
-        <div className="flex-1">
+        <div className="flex-1 relative">
+          {/* Toggle button */}
+          <button 
+            className="absolute -top-2 -right-2 py-1.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-xs"
+            onClick={handleGuideToggle}
+          >
+            <Shield className="w-4 h-4" />
+            {isGuideView ? 'View CVE Details' : 'View Protection Guide'}
+          </button>
+
           <span className={`text-xs font-semibold py-1 px-2 rounded-full uppercase ${severityBadge}`}>
             {vuln.severity}
           </span>
           <h3 className="text-lg font-medium mt-2">{vuln.description}</h3>
-          <div className="text-sm text-gray-400 mt-1">
-            Found in {vuln.files.length} file(s)
+          <div className="text-xs text-gray-400 mt-1">
+            Found in {vuln.files.length} file{vuln.files.length !== 1 ? 's' : ''}
           </div>
         </div>
+
         <svg
           className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
           viewBox="0 0 24 24"
@@ -167,127 +115,198 @@ const VulnerabilityCard = ({ vuln, onViewProtection }) => {
         >
           <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
-      </button>
+      </div>
 
-      {/* Expandable Content */}
+      {/* Expanded content */}
       {isExpanded && (
-        <div className="p-4 bg-gray-700">
-          {/* File list */}
-          <div className="files-list mb-4 text-sm text-gray-300">
-            {vuln.files.length > 0 ? (
-              <div>Found in {vuln.files.length} file{vuln.files.length > 1 ? 's' : ''}:</div>
-            ) : (
-              <div>No files recorded.</div>
-            )}
-            {vuln.files.map((file, idx) => (
-              <details
-                key={`${file}-${idx}`}
-                className="file-item border border-gray-600 rounded-md mt-2"
-              >
-                <summary className="px-3 py-2 bg-gray-800 rounded-t-md cursor-pointer hover:bg-gray-700">
-                  {file}
-                </summary>
-                <div className="p-3 bg-gray-700 rounded-b-md">
-                  <FileLineNumbers vuln={vuln} file={file} />
-                </div>
-              </details>
-            ))}
-          </div>
-
-          {/* Recommendation Section */}
-          {rec ? (
-            <div className="recommendation bg-gray-600 border border-gray-500 rounded-md p-4 text-sm">
-              {/* Split recommendation into sections and handle code blocks */}
-              {rec.recommendation.split(/(Instead of:|Do:)/).map((section, index) => {
-                if (section === 'Instead of:' || section === 'Do:') {
-                  // Return the label
-                  return (
-                    <div key={index} className="font-medium mt-3 mb-2">
-                      {section}
+        <div className="p-4 bg-gray-700 text-gray-200">
+          {!isGuideView ? (
+            /* =============== CVE Details View =============== */
+            <div>
+              {/* File list */}
+              <div className="files-list mb-4 text-sm text-gray-300">
+                {vuln.files.length > 0 ? (
+                  <div>Found in {vuln.files.length} file{vuln.files.length > 1 ? 's' : ''}:</div>
+                ) : (
+                  <div>No files recorded.</div>
+                )}
+                {vuln.files.map((file, idx) => (
+                  <details
+                    key={`${file}-${idx}`}
+                    className="file-item border border-gray-600 rounded-md mt-2"
+                  >
+                    <summary className="px-3 py-2 bg-gray-800 rounded-t-md cursor-pointer hover:bg-gray-700">
+                      {file}
+                    </summary>
+                    <div className="p-3 bg-gray-700 rounded-b-md">
+                      <FileLineNumbers vuln={vuln} file={file} />
                     </div>
-                  );
-                } else if (section.includes('```')) {
-                  // Handle code blocks - extract content between ``` marks
-                  const codeMatch = section.match(/```[\w]*\n([\s\S]*?)```/);
-                  return codeMatch ? (
-                    <pre key={index} className="bg-gray-800 text-gray-200 p-3 rounded-md my-2 overflow-x-auto">
-                      <code>{codeMatch[1].trim()}</code>
-                    </pre>
-                  ) : null;
-                } else {
-                  // Regular text
-                  return (
-                    <div
-                      key={index}
-                      className="prose prose-sm text-gray-300 max-w-none"
-                      dangerouslySetInnerHTML={{
-                        __html: section
-                          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                          .replace(/\n/g, '<br />')
-                      }}
-                    />
-                  );
-                }
-              })}
+                  </details>
+                ))}
+              </div>
 
-              {/* References */}
-              {rec.references && rec.references.length > 0 && (
-                <div className="references border-t border-gray-500 mt-3 pt-3">
-                  <h4 className="font-medium mb-2">References</h4>
-                  <ul className="list-disc pl-5">
-                    {rec.references.map((r, i) => (
-                      <li key={i}>
-                        <a
-                          href={r.url}
-                          className="text-blue-400 underline"
-                          target="_blank"
-                          rel="noreferrer"
+              {/* Recommendation Section */}
+              {rec ? (
+                <div className="bg-gray-600 border border-gray-500 rounded-md p-3 text-xs leading-relaxed">
+                  {rec.recommendation.split(/(Instead of:|Do:)/).map((section, index) => {
+                    if (section === 'Instead of:' || section === 'Do:') {
+                      return (
+                        <div key={index} className="font-medium mt-3 mb-2 text-sm text-gray-100">
+                          {section}
+                        </div>
+                      );
+                    } else if (section.includes('```')) {
+                      // Extract code blocks
+                      const codeMatch = section.match(/```[\w]*\n([\s\S]*?)```/);
+                      return codeMatch ? (
+                        <pre
+                          key={index}
+                          className="bg-gray-800 text-gray-200 p-3 rounded-md my-2 overflow-x-auto text-xs"
                         >
-                          {r.title || r.url}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                          <code>{codeMatch[1].trim()}</code>
+                        </pre>
+                      ) : null;
+                    } else {
+                      // Normal text
+                      return (
+                        <div
+                          key={index}
+                          className="prose prose-sm text-gray-100 max-w-none"
+                          dangerouslySetInnerHTML={{
+                            __html: section
+                              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                              .replace(/\n/g, '<br />')
+                          }}
+                        />
+                      );
+                    }
+                  })}
 
-              {/* Pattern Info */}
-              {matchedPattern && (
-                <div className="pattern-info mt-3 pt-3 border-t border-gray-500">
-                  <h4 className="font-medium mb-2">Detection Pattern</h4>
-                  <pre className="bg-gray-800 p-2 text-xs text-gray-200 rounded overflow-auto">
-                    {matchedPattern}
-                  </pre>
-                  {vuln.category || vuln.subcategory ? (
-                    <p className="text-xs text-gray-400 mt-2">
-                      Category: {Object.keys(patternCategories).find(k => patternCategories[k] === vuln.category)} ({vuln.category})<br />
-                      Subcategory: {vuln.subcategory}
-                    </p>
-                  ) : null}
+                  {/* References */}
+                  {rec.references && rec.references.length > 0 && (
+                    <div className="references border-t border-gray-500 mt-3 pt-3">
+                      <h4 className="font-medium mb-2 text-sm text-gray-100">References</h4>
+                      <ul className="list-disc pl-5">
+                        {rec.references.map((r, i) => (
+                          <li key={i}>
+                            <a
+                              href={r.url}
+                              className="text-blue-400 underline"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {r.title || r.url}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Pattern Info */}
+                  {matchedPattern && (
+                    <div className="pattern-info mt-3 pt-3 border-t border-gray-500">
+                      <h4 className="font-medium mb-2 text-sm text-gray-100">Detection Pattern</h4>
+                      <pre className="bg-gray-800 p-2 text-xs text-gray-200 rounded overflow-auto">
+                        {matchedPattern}
+                      </pre>
+                      {(vuln.category || vuln.subcategory) && (
+                        <p className="text-xs text-gray-400 mt-2">
+                          Category:{' '}
+                          {Object.keys(patternCategories).find(
+                            k => patternCategories[k] === vuln.category
+                          )}{' '}
+                          ({vuln.category})<br />
+                          Subcategory: {vuln.subcategory}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-gray-600 border border-gray-500 rounded-md p-3 text-sm">
+                  No recommendation found for "{vuln.type}".
                 </div>
               )}
             </div>
           ) : (
-            <div className="bg-gray-600 border border-gray-500 rounded-md p-3 text-sm">
-              No recommendation found for "{vuln.type}" type.
+            /* =============== Protection Guide (Red/Blue) View =============== */
+            <div className="text-xs space-y-6">
+              {/* Main text content */}
+              {guideData.title && (
+                <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-600">
+                  <h2 className="text-lg font-semibold text-blue-300 mb-3">{guideData.title}</h2>
+                  <div
+                    className="prose prose-invert text-gray-100 max-w-none"
+                    dangerouslySetInnerHTML={{ __html: guideData.content || '' }}
+                  />
+                </div>
+              )}
+
+              {/* Red Team */}
+              {guideData.redTeam && (
+                <div className="bg-gray-800/50 rounded-lg p-4 border border-red-500/40">
+                  <h3 className="text-md font-semibold text-red-400 mb-2">Red Team</h3>
+                  <div
+                    className="prose prose-invert text-gray-100 max-w-none"
+                    dangerouslySetInnerHTML={{ __html: guideData.redTeam }}
+                  />
+                </div>
+              )}
+
+              {/* Blue Team - check if separate OS sections or single fallback */}
+              {guideData.blueTeamWindows || guideData.blueTeamMac || guideData.blueTeamLinux ? (
+                <div className="space-y-3">
+                  {guideData.blueTeamWindows && (
+                    <div className="bg-gray-800/50 rounded-lg p-4 border border-blue-500/30">
+                      <div
+                        className="prose prose-invert text-gray-100 max-w-none"
+                        dangerouslySetInnerHTML={{ __html: guideData.blueTeamWindows }}
+                      />
+                    </div>
+                  )}
+                  {guideData.blueTeamMac && (
+                    <div className="bg-gray-800/50 rounded-lg p-4 border border-blue-500/30">
+                      <div
+                        className="prose prose-invert text-gray-100 max-w-none"
+                        dangerouslySetInnerHTML={{ __html: guideData.blueTeamMac }}
+                      />
+                    </div>
+                  )}
+                  {guideData.blueTeamLinux && (
+                    <div className="bg-gray-800/50 rounded-lg p-4 border border-blue-500/30">
+                      <div
+                        className="prose prose-invert text-gray-100 max-w-none"
+                        dangerouslySetInnerHTML={{ __html: guideData.blueTeamLinux }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : guideData.blueTeam ? (
+                <div className="bg-gray-800/50 rounded-lg p-4 border border-blue-500/40">
+                  <h3 className="text-md font-semibold text-blue-400 mb-2">Blue Team</h3>
+                  <div
+                    className="prose prose-invert text-gray-100 max-w-none"
+                    dangerouslySetInnerHTML={{ __html: guideData.blueTeam }}
+                  />
+                </div>
+              ) : (
+                <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-600">
+                  <p className="text-gray-100">No Blue Team guidance found for this vulnerability.</p>
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
-
-      {/* Add mobile protection guide button */}
-      <button 
-        className="lg:hidden mt-4 w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-        onClick={() => onViewProtection(vuln)}
-      >
-        <Shield className="w-4 h-4" />
-        View Protection Guide
-      </button>
     </div>
   );
 };
 
-const ScanResults = ({ 
+/**
+ * Main Scan Results component
+ */
+const ScanResults = ({
   viewMode,
   setViewMode,
   searchQuery,
@@ -302,8 +321,7 @@ const ScanResults = ({
   onRefreshRequest,
   showBackToTop,
   scrollToTop,
-  includeFirmware,
-  onViewProtection
+  includeFirmware
 }) => {
   return (
     <div className="mt-8 relative" id="scanResults">
@@ -313,22 +331,22 @@ const ScanResults = ({
           rounded-lg
           p-6
           prose prose-invert
-          prose-pre:bg-gray-900 
-          prose-pre:text-gray-100 
+          prose-pre:bg-gray-900
+          prose-pre:text-gray-100
           max-w-none
           sticky top-4
           text-gray-100
         "
       >
-        {/* *** Added: Firmware/Binary Analysis Filter *** */}
+        {/* Firmware/Binary Analysis Filter (disabled) */}
         <div className="flex items-center mb-6">
           <label className="flex items-center">
             <input
               type="checkbox"
               checked={includeFirmware}
-              onChange={(e) => {}} /* Handle firmware filter change if needed */
+              onChange={() => {}}
               className="form-checkbox h-4 w-4 text-blue-600"
-              disabled // Disable for now since functionality is not implemented
+              disabled
             />
             <span className="ml-2 text-gray-300">Include Firmware/Binary Analysis</span>
           </label>
@@ -367,7 +385,7 @@ const ScanResults = ({
           </div>
         )}
 
-        {/* Toggle Buttons */}
+        {/* View Toggle Buttons */}
         <div className="flex gap-1 bg-gray-800 rounded-md p-1 w-fit mb-4">
           <button
             onClick={() => setViewMode('type')}
@@ -398,16 +416,12 @@ const ScanResults = ({
           />
         </div>
 
-        {/* Scan Results */}
+        {/* Results */}
         {viewMode === 'type' ? (
           filteredByType.length ? (
             <div className="space-y-4">
               {filteredByType.map((vuln, idx) => (
-                <VulnerabilityCard 
-                  key={idx} 
-                  vuln={vuln} 
-                  onViewProtection={onViewProtection} 
-                />
+                <VulnerabilityCard key={idx} vuln={vuln} />
               ))}
             </div>
           ) : (
@@ -422,7 +436,7 @@ const ScanResults = ({
                 <h3 className="text-lg font-semibold mb-3 text-gray-100">{fileName}</h3>
                 <div className="space-y-4">
                   {vulns.map((v, idx) => (
-                    <VulnerabilityCard key={idx} vuln={v} onViewProtection={onViewProtection} />
+                    <VulnerabilityCard key={idx} vuln={v} />
                   ))}
                 </div>
               </div>
@@ -435,13 +449,14 @@ const ScanResults = ({
         )}
       </div>
 
-      <FloatingNav 
+      {/* Floating nav for severity */}
+      <FloatingNav
         activeSeverity={activeSeverity}
         setActiveSeverity={setActiveSeverity}
         severityStats={severityStats}
       />
 
-      {/* Back to Top Button */}
+      {/* Back to Top */}
       {showBackToTop && (
         <button
           onClick={scrollToTop}
@@ -462,39 +477,6 @@ const ScanResults = ({
           </svg>
         </button>
       )}
-
-      <style>
-        {`
-          .example-block {
-            margin: 1rem 0;
-            border-radius: 0.5rem;
-            overflow: hidden;
-          }
-
-          .example-label {
-            padding: 0.5rem 1rem;
-            font-weight: 500;
-            background: rgba(0,0,0,0.2);
-          }
-
-          .code-block {
-            margin: 0;
-            padding: 1rem;
-            background: rgba(0,0,0,0.3);
-            font-family: monospace;
-            font-size: 0.9rem;
-            overflow-x: auto;
-          }
-
-          .code-block.bad {
-            border-left: 4px solid #ef4444;
-          }
-
-          .code-block.good {
-            border-left: 4px solid #22c55e;
-          }
-        `}
-      </style>
     </div>
   );
 };

@@ -1,8 +1,9 @@
 import { Octokit } from '@octokit/core';
 import { restEndpointMethods } from '@octokit/plugin-rest-endpoint-methods';
 import { repoCache } from './cache.js';
-import { patterns, patternCategories, recommendations } from './patterns/index.js';
+import { patterns, patternCategories, recommendations } from './patterns.js';
 import { authManager } from './githubAuth.js';
+import { ProgressHandler } from '../../netlify/functions/utils/progressHandler.js';
 
 // Create an Octokit class with the REST plugin
 const MyOctokit = Octokit.plugin(restEndpointMethods);
@@ -93,6 +94,8 @@ class VulnerabilityScanner {
       ...config
     };
 
+    this.progressHandler = new ProgressHandler(this.config.onProgress);
+
     // Initialize Octokit if we have a token
     const token = authManager.getToken();
     if (token) {
@@ -123,6 +126,19 @@ class VulnerabilityScanner {
     console.log(`Scanner initialized with ${validPatterns} valid patterns`);
 
     this.rateLimitInfo = null;
+  }
+
+  updateProgress(phase, current, total, details = {}) {
+    if (this.progressHandler) {
+      this.progressHandler.setPhase(phase, details);
+      if (total !== undefined) {
+        this.progressHandler.setTotal(total);
+      }
+      if (current !== undefined) {
+        this.progressHandler.current = current;
+        this.progressHandler.emitProgress();
+      }
+    }
   }
 
   /**
@@ -268,6 +284,8 @@ class VulnerabilityScanner {
       this.config.octokit = octokitInstance;
     }
 
+    this.updateProgress('fetching', 0, 0);
+
     // Enhanced regex to better handle branches and paths
     const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/(?:tree|blob)\/([^/]+))?(\/.*)?/;
     const match = url.match(githubRegex);
@@ -284,6 +302,7 @@ class VulnerabilityScanner {
     const cacheKey = `${owner}/${repo}/${branch}/${cleanPath}`;
     const cachedData = repoCache.get(cacheKey);
     if (cachedData) {
+      this.updateProgress('analyzing', 0, 1, { currentFile: cacheKey });
       return { ...cachedData, fromCache: true };
     }
 
@@ -361,6 +380,7 @@ class VulnerabilityScanner {
       
       const result = { files: filesWithContent };
       repoCache.set(cacheKey, result);
+      this.updateProgress('analyzing', 0, filesWithContent.length);
       return { ...result, fromCache: false };
     } catch (error) {
       console.error('Error fetching repository files:', error);
@@ -373,6 +393,7 @@ class VulnerabilityScanner {
    * @param {Array<File>} files - Array of uploaded files
    */
   async scanLocalFiles(files) {
+    this.updateProgress('initializing', 0, files.length);
     const findings = [];
     let processedFiles = 0;
     const totalFiles = files.length;
@@ -381,7 +402,9 @@ class VulnerabilityScanner {
       this.config.onProgress({ current: 0, total: totalFiles });
     }
 
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      this.updateProgress('analyzing', i, files.length, { currentFile: file.name });
       try {
         const content = await file.text();
         const fileFindings = await this.scanFile(content, file.name);
@@ -400,6 +423,7 @@ class VulnerabilityScanner {
       this.config.onProgress({ current: totalFiles, total: totalFiles });
     }
 
+    this.progressHandler.complete();
     return this.generateReport(findings);
   }
 
@@ -409,9 +433,11 @@ class VulnerabilityScanner {
    * @param {string} filePath - Path of the file
    */
   async scanFile(fileContent, filePath, options = {}) {
+    this.updateProgress('analyzing', 0, 1, { currentFile: filePath });
     // Early return if it's a third-party script
     if (this.shouldIgnoreScript(fileContent, filePath)) {
       console.debug('Skipping third-party script:', filePath);
+      this.updateProgress('analyzing', 1, 1, { currentFile: filePath });
       return [];
     }
 
@@ -423,6 +449,7 @@ class VulnerabilityScanner {
 
     if (!fileContent || typeof fileContent !== 'string') {
       console.error('Invalid file content provided to scanner');
+      this.updateProgress('analyzing', 1, 1, { currentFile: filePath });
       return [];
     }
 
@@ -430,6 +457,7 @@ class VulnerabilityScanner {
     const contentSize = new Blob([fileContent]).size;
     if (contentSize > this.config.maxFileSize) {
       console.warn(`File ${filePath} exceeds size limit of ${this.config.maxFileSize} bytes`);
+      this.updateProgress('analyzing', 1, 1, { currentFile: filePath });
       return [];
     }
 
@@ -437,6 +465,7 @@ class VulnerabilityScanner {
 
     if (!this.vulnerabilityPatterns || Object.keys(this.vulnerabilityPatterns).length === 0) {
       console.error('No vulnerability patterns loaded');
+      this.updateProgress('analyzing', 1, 1, { currentFile: filePath });
       return findings;
     }
 
@@ -552,6 +581,7 @@ class VulnerabilityScanner {
         }
       });
 
+      this.updateProgress('analyzing', 1, 1, { currentFile: filePath });
       return findings;
     } catch (error) {
       console.error(`Error scanning file ${filePath}:`, error);
@@ -560,6 +590,7 @@ class VulnerabilityScanner {
         patternCount: this.vulnerabilityPatterns ? Object.keys(this.vulnerabilityPatterns).length : 0,
         fileSize: fileContent ? fileContent.length : 0
       });
+      this.updateProgress('analyzing', 1, 1, { currentFile: filePath });
       throw error;
     }
   }
@@ -628,7 +659,8 @@ class VulnerabilityScanner {
       LOW: { uniqueCount: 0, instanceCount: 0 }
     });
 
-    return {
+    this.updateProgress('analyzing', 0, 1, { currentFile: 'report generation' });
+    const report = {
       findings: processedFindings,
       summary: {
         totalIssues: processedFindings.length,
@@ -642,6 +674,10 @@ class VulnerabilityScanner {
         lowInstances: severityStats.LOW.instanceCount
       }
     };
+    report.rateLimit = this.rateLimitInfo;
+    report.fromCache = false;
+    this.updateProgress('analyzing', 1, 1, { currentFile: 'report generation' });
+    return report;
   }
 
   /**

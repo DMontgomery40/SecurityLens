@@ -1,9 +1,8 @@
 import React from 'react';
-import { proactiveControls } from '../lib/proactiveControls';
 import { ArrowLeft } from 'lucide-react';
 
 const InfoPanel = ({ selectedVulnerability, isScanning, onBackToResults, isMobile }) => {
-  // Show overview content when no vulnerability is selected
+  // If no vulnerability is selected, show an overview
   if (!selectedVulnerability) {
     return (
       <div className="bg-gray-800 rounded-lg p-6 sticky top-4">
@@ -25,37 +24,37 @@ const InfoPanel = ({ selectedVulnerability, isScanning, onBackToResults, isMobil
             <div className="space-y-3">
               <div className="p-3 bg-gray-700/50 rounded-lg border border-red-500/20">
                 <span className="text-red-500 font-semibold">CRITICAL:</span>
-                <p className="text-sm mt-1">Whoa! These need immediate attention - they're like leaving your front door wide open! 🚨</p>
+                <p className="text-sm mt-1">These need immediate attention - like leaving the front door wide open! 🚨</p>
               </div>
               <div className="p-3 bg-gray-700/50 rounded-lg border border-orange-500/20">
                 <span className="text-orange-500 font-semibold">HIGH:</span>
-                <p className="text-sm mt-1">Pretty serious stuff - like having a weak lock on that door. Let's fix these soon! ⚠️</p>
+                <p className="text-sm mt-1">Pretty serious - fix these soon! ⚠️</p>
               </div>
               <div className="p-3 bg-gray-700/50 rounded-lg border border-yellow-500/20">
                 <span className="text-yellow-500 font-semibold">MEDIUM:</span>
-                <p className="text-sm mt-1">Not urgent, but definitely worth improving - think of it as upgrading your security system. 🔍</p>
+                <p className="text-sm mt-1">Worth improving - think about stronger locks. 🔍</p>
               </div>
               <div className="p-3 bg-gray-700/50 rounded-lg border border-blue-500/20">
                 <span className="text-blue-500 font-semibold">LOW:</span>
-                <p className="text-sm mt-1">Good practices to learn - like adding a security camera to an already secure house. 💡</p>
+                <p className="text-sm mt-1">Not urgent, but good to address for best practices. 💡</p>
               </div>
             </div>
           </section>
 
           <section>
-            <h3 className="text-lg font-semibold mb-3">Pro Tips for Young Security Researchers</h3>
+            <h3 className="text-lg font-semibold mb-3">Pro Tips for Security Researchers</h3>
             <ul className="space-y-3">
               <li className="flex items-start gap-2">
                 <span className="text-blue-400">🔍</span>
-                <span>Look at each finding carefully - real security experts always dig deeper!</span>
+                <span>Look at each finding carefully - real experts dig deeper!</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400">💻</span>
-                <span>Check out the code examples - they show you exactly what to look for.</span>
+                <span>Check out code examples - they show you what to look for.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400">📚</span>
-                <span>Follow the protection guides - they're like cheat codes for security!</span>
+                <span>Use the protection guides - they're like cheat codes for security!</span>
               </li>
             </ul>
           </section>
@@ -64,12 +63,9 @@ const InfoPanel = ({ selectedVulnerability, isScanning, onBackToResults, isMobil
     );
   }
 
-  // Show proactive controls for selected vulnerability
-  const control = proactiveControls[selectedVulnerability.type];
-  
+  // If a vulnerability is selected, you could show minimal content or something else
   return (
     <div className="bg-gray-800 rounded-lg p-6 sticky top-4">
-      {/* Mobile back button */}
       {isMobile && (
         <button
           onClick={onBackToResults}
@@ -79,54 +75,12 @@ const InfoPanel = ({ selectedVulnerability, isScanning, onBackToResults, isMobil
           Back to Results
         </button>
       )}
-
-      <h2 className="text-xl font-bold mb-4">{control?.title || 'Security Control'}</h2>
-      <div 
-        className="prose prose-invert prose-pre:bg-gray-900 prose-pre:text-gray-100 max-w-none"
-        dangerouslySetInnerHTML={{ __html: control?.content || 'Loading...' }}
-      />
-
-      {/* Floating back button for long content */}
-      {isMobile && (
-        <button
-          onClick={onBackToResults}
-          className="lg:hidden fixed bottom-4 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-50"
-          aria-label="Back to results"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-      )}
-
-      <style jsx>{`
-        .prose pre {
-          margin: 0;
-          padding: 1rem;
-          border-radius: 0.375rem;
-        }
-        .prose code {
-          color: inherit;
-          font-weight: inherit;
-          font-size: 0.875em;
-        }
-        .example-block {
-          margin: 1rem 0;
-          border-radius: 0.5rem;
-          overflow: hidden;
-        }
-        .example-label {
-          padding: 0.5rem 1rem;
-          font-weight: 500;
-          background: rgba(0,0,0,0.2);
-        }
-        .code-block.bad {
-          border-left: 4px solid #ef4444;
-        }
-        .code-block.good {
-          border-left: 4px solid #22c55e;
-        }
-      `}</style>
+      <h2 className="text-xl font-bold mb-4">Security Control</h2>
+      <p className="text-gray-300">
+        Select "View Protection Guide" on a result to see in-depth Red/Blue Team content here.
+      </p>
     </div>
   );
 };
 
-export default InfoPanel; 
+export default InfoPanel;

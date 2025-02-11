@@ -10,7 +10,7 @@ import {
   AlertDialogContent,
   AlertDialogHeader
 } from './ui/alert-dialog';
-import { patterns } from '../lib/patterns'; // Ensure patterns are exported
+import { patterns } from '../lib/patterns.js'; // Ensure patterns are exported
 import InfoPanel from './InfoPanel';
 import Header from './Header';
 import SearchSection from './SearchSection';
@@ -28,7 +28,12 @@ const ScannerUI = () => {
   const [rateLimitInfo, setRateLimitInfo] = useState(null);
   const [urlInput, setUrlInput] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [progress, setProgress] = useState({
+    phase: 'initializing',
+    current: 0,
+    total: 0,
+    details: {}
+  });
   const [scanResults, setScanResults] = useState(null);
   const [usedCache, setUsedCache] = useState(false);
   const [githubToken, setGithubToken] = useState(authManager.getToken() || '');
@@ -57,6 +62,56 @@ const ScannerUI = () => {
   const [includeFirmware, setIncludeFirmware] = useState(false);
   const [firmwareMessage, setFirmwareMessage] = useState('');
 
+  // Add new state for tracking which section is expanded
+  const [expandedSection, setExpandedSection] = useState('all'); // 'all', 'repo', 'website', 'local', 'firmware'
+
+  // Add this with the other state declarations
+  const [port, setPort] = useState('');
+
+  // Helper function to determine if a section should be shown
+  const shouldShowSection = (sectionName) => {
+    return expandedSection === 'all' || expandedSection === sectionName;
+  };
+
+  // Helper function to handle section expansion
+  const handleSectionClick = (sectionName) => {
+    if (expandedSection === sectionName) {
+      setExpandedSection('all');
+    } else {
+      setExpandedSection(sectionName);
+    }
+  };
+
+  // Create a reusable section header component
+  const SectionHeader = ({ title, icon, sectionName, isCollapsed }) => (
+    <div 
+      onClick={() => handleSectionClick(sectionName)}
+      className="flex items-center justify-between cursor-pointer group"
+    >
+      <h2 className="text-lg font-semibold text-gray-200 mb-4 flex items-center">
+        {icon}
+        {title}
+      </h2>
+      <button 
+        className="text-gray-400 hover:text-gray-200 transition-colors"
+      >
+        {isCollapsed ? (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        ) : (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+
+  const handleProgress = (progressData) => {
+    setProgress(progressData);
+  };
+
   // ------------------------------------------------------------------
   // File Upload (Local)
   // ------------------------------------------------------------------
@@ -67,14 +122,17 @@ const ScannerUI = () => {
     setScanning(true);
     setError(null);
     setScanResults(null);
-    setProgress({ current: 0, total: files.length });
+    setProgress({
+      phase: 'initializing',
+      current: 0,
+      total: files.length,
+      details: {}
+    });
     setFirmwareMessage('');
 
     try {
       const scanner = new VulnerabilityScanner({
-        onProgress: (current, total) => {
-          setProgress({ current, total });
-        }
+        onProgress: handleProgress
       });
 
       const results = await scanner.scanLocalFiles(files);
@@ -129,6 +187,12 @@ const ScannerUI = () => {
     setScanResults(null);
     setUsedCache(false);
     setFirmwareMessage('');
+    setProgress({
+      phase: 'fetching',
+      current: 0,
+      total: 0,
+      details: { url: urlInput }
+    });
 
     try {
       const results = await scanRepositoryLocally(urlInput);
@@ -192,6 +256,7 @@ const ScannerUI = () => {
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [protocol, setProtocol] = useState('https');
 
+  // Update the normalizeUrl function to include port
   const normalizeUrl = (url) => {
     if (!url) return '';
     
@@ -201,6 +266,11 @@ const ScannerUI = () => {
     // Remove any trailing slashes
     cleanUrl = cleanUrl.replace(/\/+$/, '');
     
+    // Add port if specified
+    if (port) {
+      cleanUrl = `${cleanUrl}:${port}`;
+    }
+    
     return `${protocol}://${cleanUrl}`;
   };
 
@@ -208,7 +278,12 @@ const ScannerUI = () => {
     setError(null);
     setScanResults(null);
     setSuccessMessage('');
-    setProgress({ current: 0, total: 0 });
+    setProgress({
+      phase: 'fetching',
+      current: 0,
+      total: 0,
+      details: { url }
+    });
     setFirmwareMessage('');
     setScanning(true);
 
@@ -454,167 +529,218 @@ const ScannerUI = () => {
           {/* Main scanner area - make it exactly 2/3 */}
           <div className="w-full lg:w-2/3">
             {/* SCAN REPOSITORY */}
-            <div className="bg-gray-800/50 p-4 rounded-lg mb-4">
-              <h2 className="text-lg font-semibold text-gray-200 mb-4 flex items-center">
-                <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Scan Repository
-              </h2>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
-                  placeholder="Enter GitHub repository URL"
-                  className="flex-1 px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg 
-                            focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={handleUrlScan}
-                  disabled={scanning || !urlInput}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 
-                            disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Scan Repository
-                </button>
-              </div>
-            </div>
-
-            {/* SCAN WEBSITE */}
-            <div className="bg-gray-800/50 p-4 rounded-lg mb-4">
-              <h2 className="text-lg font-semibold text-gray-200 mb-4 flex items-center">
-                <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="9" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M3 12h18" />
-                </svg>
-                Scan Website (HTML + Scripts)
-              </h2>
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  {/* Protocol Toggle */}
-                  <div className="flex items-center bg-gray-700 rounded-lg p-1">
-                    <button
-                      onClick={() => setProtocol('https')}
-                      className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                        protocol === 'https'
-                          ? 'bg-blue-500 text-white'
-                          : 'text-gray-300 hover:text-white'
-                      }`}
-                    >
-                      HTTPS
-                    </button>
-                    <button
-                      onClick={() => setProtocol('http')}
-                      className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                        protocol === 'http'
-                          ? 'bg-blue-500 text-white'
-                          : 'text-gray-300 hover:text-white'
-                      }`}
-                    >
-                      HTTP
-                    </button>
-                  </div>
-                  
-                  {/* URL Input with Protocol Display */}
-                  <div className="flex-1 relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                      {protocol}://
-                    </div>
-                    <input
-                      type="text"
-                      value={websiteUrl}
-                      onChange={(e) => setWebsiteUrl(e.target.value.replace(/^(https?:\/\/)/, ''))}
-                      placeholder="example.com"
-                      className="w-full pl-[4.5rem] pr-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg 
-                                focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  <button
-                    onClick={() => {
-                      const normalizedUrl = normalizeUrl(websiteUrl);
-                      if (!websiteUrl.trim()) {
-                        setError('Please enter a website URL');
-                        return;
-                      }
-                      handleWebsiteScan(normalizedUrl);
+            <div className={`bg-gray-800/50 p-4 rounded-lg mb-4 transition-all duration-300 ${
+              !shouldShowSection('repo') ? 'opacity-75' : ''
+            }`}>
+              <SectionHeader
+                title="Scan Repository"
+                sectionName="repo"
+                isCollapsed={!shouldShowSection('repo')}
+                icon={
+                  <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                }
+              />
+              {shouldShowSection('repo') && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={urlInput}
+                    onChange={(e) => {
+                      setUrlInput(e.target.value);
+                      setExpandedSection('repo');
                     }}
-                    disabled={scanning || !websiteUrl.trim()}
+                    placeholder="Enter GitHub repository URL"
+                    className="flex-1 px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg 
+                              focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleUrlScan}
+                    disabled={scanning || !urlInput}
                     className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 
                               disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Scan Website
+                    Scan Repository
                   </button>
                 </div>
-                
-                {/* URL Validation Message */}
-                {websiteUrl && !websiteUrl.match(/^[a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}/) && (
-                  <div className="text-yellow-400 text-sm flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    Please enter a valid domain (e.g., example.com)
+              )}
+            </div>
+
+            {/* SCAN WEBSITE */}
+            <div className={`bg-gray-800/50 p-4 rounded-lg mb-4 transition-all duration-300 ${
+              !shouldShowSection('website') ? 'opacity-75' : ''
+            }`}>
+              <SectionHeader
+                title="Scan Website or URL"
+                sectionName="website"
+                isCollapsed={!shouldShowSection('website')}
+                icon={
+                  <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M3 12h18" />
+                  </svg>
+                }
+              />
+              {shouldShowSection('website') && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    {/* Protocol Toggle */}
+                    <div className="flex items-center bg-gray-700 rounded-lg p-1">
+                      <button
+                        onClick={() => setProtocol('https')}
+                        className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                          protocol === 'https'
+                            ? 'bg-blue-500 text-white'
+                            : 'text-gray-300 hover:text-white'
+                        }`}
+                      >
+                        HTTPS
+                      </button>
+                      <button
+                        onClick={() => setProtocol('http')}
+                        className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                          protocol === 'http'
+                            ? 'bg-blue-500 text-white'
+                            : 'text-gray-300 hover:text-white'
+                        }`}
+                      >
+                        HTTP
+                      </button>
+                    </div>
+                    
+                    {/* URL Input with Protocol Display and Port */}
+                    <div className="flex-1 relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                        {protocol}://
+                      </div>
+                      <input
+                        type="text"
+                        value={websiteUrl}
+                        onChange={(e) => setWebsiteUrl(e.target.value.replace(/^(https?:\/\/)/, ''))}
+                        placeholder="example.com"
+                        className="w-full pl-[4.5rem] pr-20 py-2 bg-gray-700/50 border border-gray-600 rounded-lg 
+                                  focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Port"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-16 px-2 py-1 
+                                  bg-gray-700/50 border border-gray-600 rounded
+                                  focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => {
+                          const port = e.target.value;
+                          if (port === '' || /^\d+$/.test(port)) {
+                            setPort(port);
+                          }
+                        }}
+                      />
+                    </div>
+                    
+                    <button
+                      onClick={() => {
+                        const normalizedUrl = normalizeUrl(websiteUrl);
+                        if (!websiteUrl.trim()) {
+                          setError('Please enter a website URL');
+                          return;
+                        }
+                        handleWebsiteScan(normalizedUrl);
+                      }}
+                      disabled={scanning || !websiteUrl.trim()}
+                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 
+                                disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Scan URL
+                    </button>
                   </div>
-                )}
-              </div>
+                  
+                  {/* URL Validation Message */}
+                  {websiteUrl && !websiteUrl.match(/^[a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}/) && (
+                    <div className="text-yellow-400 text-sm flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      Please enter a valid domain (e.g., example.com)
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* SCAN LOCAL FILES */}
-            <div className="bg-gray-800/50 p-4 rounded-lg mb-4">
-              <h2 className="text-lg font-semibold text-gray-200 mb-4 flex items-center">
-                <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h5l2 2h11v10H3z" />
-                </svg>
-                Scan Local Files
-              </h2>
-              <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center">
-                <input
-                  type="file"
-                  id="fileInput"
-                  multiple
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="fileInput"
-                  className="block cursor-pointer"
-                >
-                  <p className="text-gray-300">Drag and drop files here, or click to select files</p>
-                  <p className="text-sm text-gray-500 mt-1">Supported files: .js, .jsx, .ts, .tsx, .py, etc.</p>
-                </label>
-              </div>
+            <div className={`bg-gray-800/50 p-4 rounded-lg mb-4 transition-all duration-300 ${
+              !shouldShowSection('local') ? 'opacity-75' : ''
+            }`}>
+              <SectionHeader
+                title="Scan Local Files"
+                sectionName="local"
+                isCollapsed={!shouldShowSection('local')}
+                icon={
+                  <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h5l2 2h11v10H3z" />
+                  </svg>
+                }
+              />
+              {shouldShowSection('local') && (
+                <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center">
+                  <input
+                    type="file"
+                    id="fileInput"
+                    multiple
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="fileInput"
+                    className="block cursor-pointer"
+                  >
+                    <p className="text-gray-300">Drag and drop files here, or click to select files</p>
+                    <p className="text-sm text-gray-500 mt-1">Supported files: .js, .jsx, .ts, .tsx, .py, etc.</p>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* SCAN FIRMWARE/BINARY */}
-            <div className="bg-gray-800/50 p-4 rounded-lg mb-4">
-              <h2 className="text-lg font-semibold text-gray-200 mb-4 flex items-center">
-                <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v2m6-2v2m-3 0a3 3 0 0 0-3 3v2h6V5a3 3 0 0 0-3-3z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 9h2m10 0h2M5 15h2m10 0h2M7 9v6m10-6v6M5 12h14" />
-                </svg>
-                Scan Firmware/Binary <span className="text-xs text-yellow-400">(Coming Soon!)</span>
-              </h2>
-              <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center">
-                <p className="text-gray-300">Drag and drop firmware files here, or click to select files</p>
-                <p className="text-sm text-gray-500 mt-1">Supported files: .bin, .fw, .img, .hex</p>
-              </div>
+            <div className={`bg-gray-800/50 p-4 rounded-lg mb-4 transition-all duration-300 ${
+              !shouldShowSection('firmware') ? 'opacity-75' : ''
+            }`}>
+              <SectionHeader
+                title={
+                  <div className="flex items-center">
+                    Scan Firmware/Binary
+                    <span className="ml-2 text-xs text-yellow-400">(Coming Soon!)</span>
+                  </div>
+                }
+                sectionName="firmware"
+                isCollapsed={!shouldShowSection('firmware')}
+                icon={
+                  <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v2m6-2v2m-3 0a3 3 0 0 0-3 3v2h6V5a3 3 0 0 0-3-3z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 9h2m10 0h2M5 15h2m10 0h2M7 9v6m10-6v6M5 12h14" />
+                  </svg>
+                }
+              />
+              {shouldShowSection('firmware') && (
+                <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center">
+                  <p className="text-gray-300">Drag and drop firmware files here, or click to select files</p>
+                  <p className="text-sm text-gray-500 mt-1">Supported files: .bin, .fw, .img, .hex</p>
+                </div>
+              )}
             </div>
 
             {/* PROGRESS BAR */}
-            {scanning && progress.total > 0 && (
+            {scanning && (
               <div className="my-6">
                 <div className="w-full bg-gray-600 rounded-full h-3 overflow-hidden">
                   <div
                     className="bg-blue-400 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                    style={{ width: `${progress.total ? (progress.current / progress.total) * 100 : 0}%` }}
                   />
                 </div>
                 <div className="text-sm text-gray-300 mt-2 text-center">
-                  {progress.current === progress.total
-                    ? 'Processing results...'
-                    : `Scanning file ${progress.current} of ${progress.total}`}
+                  {progress.message || `${progress.phase}: ${progress.current} of ${progress.total}`}
                 </div>
               </div>
             )}
