@@ -1,6 +1,7 @@
 # [SecurityLens](https://securitylens.io)
 
 [![Netlify Status](https://api.netlify.com/api/v1/badges/f084be9b-91ba-4210-86a9-81b7385633aa/deploy-status)](https://app.netlify.com/sites/securitylends/deploys)
+[![GitHub license](https://img.shields.io/github/license/DMontgomery40/SecurityLens?color=blue)](https://github.com/DMontgomery40/SecurityLens/blob/main/LICENSE)
 
 [//]: # (01001000 01101001 01101110 01110100 00111010 00100000 01000011 01101000 01100101 01100011 01101011 00100000 01110100 01101000 01100101 00100000 01100110 01101111 01101111 01110100 01100101 01110010)
 **Because everyone should be able to explore cybersecurity—no fancy tools or gatekeeping required.**
