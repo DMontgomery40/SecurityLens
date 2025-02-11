@@ -90,7 +90,7 @@ const Decoder = () => {
                   <div className="mt-4 text-green-300">
                     &gt;{' '}
                     <a
-                      href="https://github.com/ghostsecurity/reaper/blob/main/docs/how-to-hack-ghostbank.md"
+                      href="https://securitylens.io/secret?message="
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hover:underline"
@@ -113,4 +113,6 @@ const Decoder = () => {
     </div>
   );
 };
+
+export default Decoder;
 

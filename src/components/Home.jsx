@@ -1,0 +1,14 @@
+import React from 'react';
+import ScannerUI from './ScannerUI';
+
+const Home = () => {
+  return (
+    <div className="min-h-screen bg-gray-900 transition-colors duration-200">
+      <div className="container mx-auto px-4">
+        <ScannerUI />
+      </div>
+    </div>
+  );
+};
+
+export default Home; 
