@@ -20,9 +20,9 @@
     "build:functions": "esbuild netlify/functions/scan-webpage-source.js --bundle --platform=node --target=node18 --format=esm --outfile=netlify/functions/scan-webpage.mjs"
   },
   "dependencies": {
-    "@octokit/core": "^6.1.2",
+    "@octokit/core": "^6.1.4",
     "@octokit/plugin-rest-endpoint-methods": "^13.2.6",
-    "@octokit/rest": "^19.0.13",
+    "@octokit/rest": "^21.1.1",
     "@radix-ui/react-alert-dialog": "1.0.5",
     "@tailwindcss/typography": "^0.5.16",
     "axios": "^1.6.0",
@@ -38,7 +38,7 @@
     "lodash": "^4.17.21",
     "lucide-react": "^0.263.1",
     "node-fetch": "^3.3.2",
-    "octokit": "^4.0.3",
+    "octokit": "^4.1.2",
     "rate-limiter-flexible": "^4.0.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
