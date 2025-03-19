@@ -6,9 +6,22 @@ const Decoder = () => {
   const [showLink, setShowLink] = useState(false);
 
   const handleDecode = () => {
+    // Base64 validation regex
+    const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(input.trim());
+    
     try {
+      if (!isValidBase64) {
+        throw new Error('Invalid base64 format');
+      }
+      
       // Attempt to decode Base64
       const decoded = atob(input);
+      
+      // Additional check to see if the decoded result is readable
+      const isPrintable = /^[\x20-\x7E\s]*$/.test(decoded);
+      if (!isPrintable && decoded.length > 0) {
+        throw new Error('Decoded result contains binary data');
+      }
 
       /* 
         Greg -
@@ -20,42 +33,50 @@ const Decoder = () => {
         – David
       */
 
+      // Added security easter eggs in the console output for Greg
+      
       // Terminal-like output sequence
       setOutput(
-        'hashcat (v6.2.6) starting in --base64 mode...\n' +
+        'john (v1.9.0-jumbo-1) starting...\n' +
         '=================================================\n' +
         '* Device #1: NVIDIA GeForce RTX 3080, 9728/10018 MB, 68MCU\n' +
+        '* OSINT module: ShadowFinder™ initialized\n' +
         'Watchdog: Temperature abort trigger set to 90c\n' +
         'Initializing backend runtime for device #1...\n'
       );
 
       setTimeout(() => {
         setOutput(prev => prev +
-          '\nPlugin.Base64........: Loaded (Mode #2400)\n' +
-          'Hash.Target.........: b64-encoded-data\n' +
-          'Session.Name........: blackhat_edu\n' +
+          '\nModule.Loaded.......: Base64 Decoder (Mode #2400)\n' +
+          'Input.Format........: base64\n' +
+          'Session.Name........: specter_recon\n' +
+          'CVE.Check...........: No Log4Shell vulnerabilities detected\n' +
           'Started.............: Thu Mar 14 20:23:11 2024\n' +
-          'Probing dictionary..: /usr/share/wordlists/rockyou.txt\n' +
+          'Operation...........: Direct transformation\n' +
           '=================================================\n'
         );
 
         setTimeout(() => {
           setOutput(prev => prev +
-            '\nProgress............: 1337/1337 (100.00%)\n' +
-            'Time.Estimated......: 0 secs\n' +
-            'Recovered.Digests...: 1/1 (100.00%)\n' +
-            'Recovered.Plains....: 1/1 (100.00%)\n' +
+            '\nProcessing.Progress.: 100%\n' +
+            'Buffer.Size.........: 4.8 KB\n' +
+            'Memcheck.Status.....: CLEAN (0xDEADBEEF -> 0xCAFEBABE)\n' +
+            'Ghost.Security......: No malware detected in payload\n' +
+            'DEF_CON.Level.......: BLUE (safe for educational use)\n' +
+            'Verification........: Completed\n' +
             '=================================================\n'
           );
 
           setTimeout(() => {
             setOutput(prev => prev +
               `\nDecoded.Output......: ${decoded}\n` +
-              'Status..............: Cracked\n' +
-              'Kernel.Feature......: Pure Kernel\n' +
-              'Host.Compute........: 2600.0 kH/s\n' +
+              'Status..............: Success\n' +
+              'Kernel.Performance..: 8.2 GB/s\n' +
+              'CPU.Utilization.....: 23%\n' +
+              'Reaper.Status.......: online\n' +
               'Elapsed.............: 0.42 secs\n' +
-              '\nSession completed. Proceed to the next stage:'
+              '\n[Ghost@Security ~]$ sudo ./validate --token 0xC001D00D\n' +
+              'Validation successful. Proceed to the next stage:'
             );
             setShowLink(true);
           }, 800);
@@ -63,7 +84,7 @@ const Decoder = () => {
       }, 400);
 
     } catch (e) {
-      setOutput('> Error: Invalid base64 input');
+      setOutput('> Error: Invalid base64 input\n> Hint: Try running strings on the secret binary from up top ^^ first');
     }
   };
 
@@ -78,7 +99,17 @@ const Decoder = () => {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleDecode()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleDecode();
+                  } else if (e.ctrlKey && e.key === 'c') {
+                    // Easter egg - shows a special message when Ctrl+C is pressed
+                    const currentVal = e.target.value;
+                    if (currentVal === '') {
+                      setOutput('> Security through obscurity is not security at all.');
+                    }
+                  }
+                }}
                 placeholder="Paste your base64 code here..."
                 className="bg-transparent border-none outline-none w-full focus:ring-0 placeholder-gray-500"
               />
@@ -90,10 +121,12 @@ const Decoder = () => {
                   <div className="mt-4 text-green-300">
                     &gt;{' '}
                     <a
-                      href="https://securitylens.io/secret?message="
+                      href="https://github.com/ghostsecurity/reaper/blob/main/docs/how-to-hack-ghostbank.md"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="hover:underline"
+                      // Easter egg in the DOM that would be visible in developer tools
+                      data-ghost-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMzM3IiwibmFtZSI6Ikdob3N0IFNlY3VyaXR5IENhbmRpZGF0ZSIsImNsZWFyYW5jZSI6InRvcF9zZWNyZXQifQ"
                     >
                       Click here to continue your journey...
                     </a>
@@ -108,6 +141,8 @@ const Decoder = () => {
           >
             Decode
           </button>
+          {/* Hidden comment for security researchers */}
+          {/* FLAG{Gh0st_S3cur1ty_H1r3_M3} */}
         </div>
       </div>
     </div>
@@ -115,4 +150,3 @@ const Decoder = () => {
 };
 
 export default Decoder;
-
