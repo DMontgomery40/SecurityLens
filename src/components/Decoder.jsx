@@ -6,9 +6,22 @@ const Decoder = () => {
   const [showLink, setShowLink] = useState(false);
 
   const handleDecode = () => {
+    // Base64 validation regex
+    const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(input.trim());
+    
     try {
+      if (!isValidBase64) {
+        throw new Error('Invalid base64 format');
+      }
+      
       // Attempt to decode Base64
       const decoded = atob(input);
+      
+      // Additional check to see if the decoded result is readable
+      const isPrintable = /^[\x20-\x7E\s]*$/.test(decoded);
+      if (!isPrintable && decoded.length > 0) {
+        throw new Error('Decoded result contains binary data');
+      }
 
       /* 
         Greg -
@@ -71,7 +84,10 @@ const Decoder = () => {
       }, 400);
 
     } catch (e) {
-      setOutput('> Error: Invalid base64 input\n> Hint: Try running strings on the binary first');
+
+      setOutput('> Error: Invalid base64 input\n> Hint: Try running strings on the secret binary from up top ^^ first');
+
+
     }
   };
 
@@ -93,7 +109,9 @@ const Decoder = () => {
                     // Easter egg - shows a special message when Ctrl+C is pressed
                     const currentVal = e.target.value;
                     if (currentVal === '') {
-                      setOutput('> Security through obscurity is not security at all.\n> - Ghost Security Philosophy');
+
+                      setOutput('> Security through obscurity is not security at all.');
+
                     }
                   }
                 }}
@@ -136,4 +154,6 @@ const Decoder = () => {
   );
 };
 
+
 export default Decoder;
+
