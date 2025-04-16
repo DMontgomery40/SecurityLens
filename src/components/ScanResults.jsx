@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { patterns, patternCategories, recommendations } from '../lib/patterns';
 import { FloatingNav } from './FloatingNav';
 import { SeveritySummaryCard } from './SeveritySummaryCard';
@@ -59,10 +59,17 @@ const VulnerabilityCard = ({ vuln, isExpanded, onToggleExpand, cardId }) => {
   // Mapping raw vulnerability type strings to the keys used in proactiveControlsData.
   const vulnerabilityGuideKeyMap = {
     'a09:2021 - security logging and monitoring failures': 'securityLogging',
-    // add additional mappings if necessary
+    'insufficientlogging': 'securityLogging',
+    'inadequatelogging': 'securityLogging',
+    'securitylogging': 'securityLogging',
+    'commandinjection': 'commandExecution',
+    'commandexecution': 'commandExecution',
+    'insecuresubmission': 'insecureSubmission',
+    'insecuretransmission': 'insecureSubmission',
+    // Add more aliases as needed
   };
-  const normalizedType = vulnerabilityGuideKeyMap[vuln.type.toLowerCase()] || vuln.type;
-  const rec = recommendations[normalizedType]; // "recommendation" object
+  const normalizedType = vulnerabilityGuideKeyMap[vuln.type.toLowerCase().replace(/\s+/g, '')] || vuln.type;
+  const rec = recommendations[normalizedType];
   const matchedPattern = patterns[normalizedType] ? patterns[normalizedType].pattern.toString() : '';
   
   // Red/Blue Team data
@@ -177,7 +184,7 @@ const VulnerabilityCard = ({ vuln, isExpanded, onToggleExpand, cardId }) => {
                                   {label}
                                 </span>
                               </div>
-                              <pre className="bg-gray-950 p-3 text-gray-300 font-mono rounded border border-gray-800 overflow-x-auto">
+                              <pre className="bg-gray-950 p-3 text-gray-300 font-mono rounded border border-gray-800 overflow-x-auto whitespace-pre-wrap break-words">
                                 <code>{code.trim()}</code>
                               </pre>
                             </div>
@@ -217,7 +224,7 @@ const VulnerabilityCard = ({ vuln, isExpanded, onToggleExpand, cardId }) => {
                               <span className="text-green-400 text-sm">✓ Safe:</span>
                             )}
                           </div>
-                          <pre className="bg-gray-950 p-3 text-sm text-gray-300 font-mono rounded border border-gray-800 overflow-x-auto">
+                          <pre className="bg-gray-950 p-3 text-sm text-gray-300 font-mono rounded border border-gray-800 overflow-x-auto whitespace-pre-wrap break-words">
                             <code>{example.code}</code>
                           </pre>
                         </div>
@@ -255,7 +262,7 @@ const VulnerabilityCard = ({ vuln, isExpanded, onToggleExpand, cardId }) => {
                   {matchedPattern && (
                     <div className="mt-6 pt-4 border-t border-gray-700">
                       <h4 className="text-sm font-semibold text-blue-300 mb-2">Detection Pattern</h4>
-                      <pre className="bg-gray-950 p-3 text-sm text-gray-300 font-mono rounded border border-gray-800 overflow-x-auto">
+                      <pre className="bg-gray-950 p-3 text-sm text-gray-300 font-mono rounded border border-gray-800 overflow-x-auto whitespace-pre-wrap break-words">
                         <code>{matchedPattern}</code>
                       </pre>
                       {(vuln.category || vuln.subcategory) && (
@@ -275,7 +282,12 @@ const VulnerabilityCard = ({ vuln, isExpanded, onToggleExpand, cardId }) => {
             </div>
           ) : (
             /* =============== Protection Guide (Red/Blue) View =============== */
-            <div className="text-xs space-y-6">
+            <div className="space-y-6">
+              {/* Try a Simulation (Coming Soon) */}
+              <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center mb-4 bg-gray-800">
+                <span className="text-blue-400 font-semibold">Try a Simulation</span>
+                <span className="ml-2 text-sm text-yellow-400">(Coming Soon!)</span>
+              </div>
               {/* Main text content */}
               {guideData.title && (
                 <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-600">
@@ -380,6 +392,22 @@ const ScanResults = ({
   const handleCardToggle = (cardId) => {
     setExpandedCardId(expandedCardId === cardId ? null : cardId);
   };
+
+  useEffect(() => {
+    // Add a style tag to the document head for code block wrapping in .prose
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .prose pre, .prose code, .prose pre code {
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+        overflow-x: auto !important;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
 
   return (
     <div className="mt-8 relative" id="scanResults" ref={resultsRef}>

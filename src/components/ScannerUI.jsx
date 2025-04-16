@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AlertTriangle, Shield } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import VulnerabilityScanner, { scanRepositoryLocally } from '../lib/scanner';
@@ -115,6 +115,9 @@ const ScannerUI = () => {
   // Add a ref for the progress bar
   const progressRef = React.useRef(null);
 
+  // Add a ref for scan results
+  const scanResultsRef = useRef(null);
+
   // ------------------------------------------------------------------
   // File Upload (Local)
   // ------------------------------------------------------------------
@@ -141,6 +144,7 @@ const ScannerUI = () => {
 
       const results = await scanner.scanLocalFiles(files);
       setScanResults(results);
+      scanResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
       setSeverityStats({
         CRITICAL: {
@@ -203,6 +207,7 @@ const ScannerUI = () => {
 
       if (results.findings && results.summary) {
         setScanResults(results);
+        scanResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         setSeverityStats({
           CRITICAL: {
             uniqueCount: results.summary.criticalIssues || 0,
@@ -321,6 +326,7 @@ const ScannerUI = () => {
             };
 
             setScanResults(finalReport);
+            scanResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
             // Update severity stats
             const { summary } = finalReport;
@@ -740,7 +746,13 @@ const ScannerUI = () => {
                   />
                 </div>
                 <div className="text-sm text-gray-300 mt-2 text-center">
-                  {progress.message || `${progress.phase}: ${progress.current} of ${progress.total}`}
+                  {progress.phase === 'fetching' && progress.total > 0
+                    ? `Fetching files (${progress.current} of ${progress.total})`
+                    : progress.phase === 'analyzing' && progress.details?.currentFile
+                    ? `Analyzing: ${progress.details.currentFile} (${progress.current} of ${progress.total})`
+                    : progress.phase === 'complete'
+                    ? 'Scan complete!'
+                    : `${progress.phase}: ${progress.current} of ${progress.total}`}
                 </div>
               </div>
             )}
@@ -793,7 +805,7 @@ const ScannerUI = () => {
 
             {/* SCAN RESULTS */}
             {scanResults && (
-              <div className="mt-6">
+              <div className="mt-6" ref={scanResultsRef}>
                 <ScanResults {...scanResultProps} />
                 {firmwareMessage && (
                   <Alert className="my-4" variant="default">

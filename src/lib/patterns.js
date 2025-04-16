@@ -1,3 +1,4 @@
+// Pattern Set Version: 2024-06-OWASP-Top20
 // Categories
 export const patternCategories = {
   ACCESS_CONTROL: '264',      // A01:2021 - Broken Access Control
@@ -9,115 +10,235 @@ export const patternCategories = {
   AUTH_FAILURES: '287',       // A07:2021 - Auth & Verification Failures
   INTEGRITY_FAILURES: '494',  // A08:2021 - Software & Data Integrity
   LOGGING_FAILURES: '778',    // A09:2021 - Security Logging Failures
-  SSRF: '918'                 // A10:2021 - SSRF
+  SSRF: '918',                // A10:2021 - SSRF
+  SESSION_MANAGEMENT: '384',  // Session management issues
+  API_SECURITY: '920',        // API Security issues
+  SUPPLY_CHAIN: '1104',       // Supply chain attacks
 };
 
-// Refined Patterns
+// Refined Patterns (context-aware, less false positives)
 export const patterns = {
-  // SQL & Command Injection
+  // --- Injection ---
   sqlInjection: {
-    pattern: /\b(?:select|insert|update|delete|drop|alter|create)\b[^;]*\b(?:from|into|where)\b/i,
-    description: 'A03:2021 - Injection - SQL injection allowing direct data access or system compromise',
+    // Looks for SQL queries built with string concatenation
+    pattern: /\b(select|insert|update|delete)\b[^;\n]*[+]{1,2}[^;\n]*\b(from|into|where)\b/i,
+    description: 'Possible SQL injection via string concatenation in query',
     severity: 'CRITICAL',
     category: patternCategories.INJECTION,
     subcategory: '89',
     cwe: '89'
   },
-
-  commandExecution: {
-    pattern: /\b(?:exec|eval|system|os\.popen|subprocess\.call)\b/i,
-    description: 'A03:2021 - Injection - Command execution allowing system compromise',
+  commandInjection: {
+    // Looks for exec/system calls with dynamic input
+    pattern: /\b(exec|system|os\.popen|subprocess\.(call|run|Popen))\b\s*\(.*[+]{1,2}.*\)/i,
+    description: 'Possible command injection via dynamic input',
     severity: 'CRITICAL',
     category: patternCategories.INJECTION,
     subcategory: '77',
     cwe: '77'
   },
-
-  // Authentication & Access
-  brokenAuth: {
-    pattern: /\b(?:password|passwd|admin|login)\b/i,
-    description: 'Potential authentication vulnerability',
+  xssVulnerability: {
+    // Looks for dangerous DOM sinks with dynamic input
+    pattern: /\b(innerHTML|outerHTML|document\.write|html\().*=\s*.*[+]{1,2}.*/i,
+    description: 'Potential XSS via dangerous DOM sink',
     severity: 'HIGH',
-    category: patternCategories.AUTH_FAILURES,
-    subcategory: '287',
-    cwe: '287'
+    category: patternCategories.INJECTION,
+    subcategory: '79',
+    cwe: '79'
   },
-
-  sensitiveExposure: {
-    pattern: /\b(?:apikey|secretkey|password|credentials)\b/i,
-    description: 'A02:2021 - Cryptographic Failures - Exposure of sensitive data',
-    severity: 'HIGH',
-    category: patternCategories.CRYPTO_FAILURES,
-    subcategory: '200',
-    cwe: '200'
+  noSqlInjection: {
+    // Looks for $where or $regex with user input
+    pattern: /\$where\s*:\s*['"]|\.find\s*\(\s*\{[^}]*\$regex/i,
+    description: 'Potential NoSQL injection vulnerability',
+    severity: 'CRITICAL',
+    category: patternCategories.INJECTION,
+    subcategory: '943',
+    cwe: '943'
   },
-
-  // XXE & XSS
   xxeVulnerability: {
-    pattern: /\b<!ENTITY\b/i,
-    description: 'A05:2021 - Security Misconfiguration - XML parsing vulnerabilities',
+    // Looks for XML entity definitions
+    pattern: /<!ENTITY\s+\w+\s+SYSTEM\s+['"][^'"]+['"]/i,
+    description: 'Potential XXE (XML External Entity) vulnerability',
     severity: 'MEDIUM',
     category: patternCategories.INJECTION,
     subcategory: '611',
     cwe: '611'
   },
 
-  xssVulnerability: {
-    pattern: /<\s*script\b[^>]*>[^<]*<\s*\/\s*script\s*>|\b(?:alert|document\.write|eval\(|javascript:|<\s*img\b[^>]*\sonerror\b)/i,
-    description: 'A03:2021 - Injection - Cross-site scripting enabling client-side attacks',
-    severity: 'HIGH',
-    category: patternCategories.INJECTION,
-    subcategory: '79',
-    cwe: '79'
+  // --- Authentication & Access ---
+  hardcodedSecret: {
+    // Assignment of secrets/keys/tokens in code
+    pattern: /\b(?:password|passwd|secret|api[_-]?key|token)\b\s*[:=]\s*['"][^'"]{6,}['"]/i,
+    description: 'Hardcoded secret or credential assignment',
+    severity: 'CRITICAL',
+    category: patternCategories.AUTH_FAILURES,
+    subcategory: '798',
+    cwe: '798'
   },
-
-  // Access Control & Configuration
+  brokenAuth: {
+    // Looks for weak auth logic (very basic, context needed)
+    pattern: /if\s*\(\s*password\s*==\s*['"][^'"]+['"]\s*\)/i,
+    description: 'Potential weak authentication check',
+    severity: 'HIGH',
+    category: patternCategories.AUTH_FAILURES,
+    subcategory: '287',
+    cwe: '287'
+  },
   brokenAccessControl: {
-    pattern: /\b(?:admin=true|role=admin|isAdmin|auth\.check|permissions|authorize)\b/i,
-    description: 'A01:2021 - Broken Access Control - Unauthorized access to protected functionality',
+    // Looks for client-side or missing access control
+    pattern: /if\s*\(\s*user\.isAdmin\s*\)/i,
+    description: 'Potential broken access control (client-side check)',
     severity: 'HIGH',
     category: patternCategories.ACCESS_CONTROL,
     subcategory: '264',
     cwe: '264'
   },
 
-  securityMisconfig: {
-    pattern: /\b(?:debug=True|verbose=True)\b/i,
-    description: 'A05:2021 - Security Misconfiguration - Insecure configuration settings',
-    severity: 'MEDIUM',
-    category: patternCategories.SECURITY_MISCONFIG,
-    subcategory: '16',
-    cwe: '16'
+  // --- Cryptography ---
+  weakCrypto: {
+    // Use of weak hash functions
+    pattern: /crypto\.createHash\s*\(\s*['"](md5|sha1)['"]\)/i,
+    description: 'Use of weak cryptographic hash function',
+    severity: 'HIGH',
+    category: patternCategories.CRYPTO_FAILURES,
+    subcategory: '326',
+    cwe: '326'
+  },
+  insecureCryptoUsage: {
+    // Use of deprecated crypto functions
+    pattern: /crypto\.(createCipher|createDecipher)\s*\(/i,
+    description: 'Use of deprecated cryptographic functions',
+    severity: 'HIGH',
+    category: patternCategories.CRYPTO_FAILURES,
+    subcategory: '327',
+    cwe: '327'
   },
 
-  // Deserialization & Components
+  // --- Data Exposure ---
+  sensitiveExposure: {
+    // Assignment of sensitive data
+    pattern: /\b(?:apikey|secretkey|password|credentials)\b\s*[:=]\s*['"][^'"]{6,}['"]/i,
+    description: 'Exposure of sensitive data in code',
+    severity: 'HIGH',
+    category: patternCategories.CRYPTO_FAILURES,
+    subcategory: '200',
+    cwe: '200'
+  },
+  insecureTransmission: {
+    // Use of HTTP (not localhost)
+    pattern: /http:\/\/(?!localhost|127\.0\.0\.1)/i,
+    description: 'Potential insecure data transmission',
+    severity: 'MEDIUM',
+    category: patternCategories.CRYPTO_FAILURES,
+    subcategory: '319',
+    cwe: '319'
+  },
+
+  // --- SSRF ---
+  ssrf: {
+    // User input in server-side request
+    pattern: /\b(fetch|axios\.get|request|get|post)\s*\(\s*.*(req\.(body|query|params)|userInput)/i,
+    description: 'Potential SSRF: user input used in server-side request',
+    severity: 'HIGH',
+    category: patternCategories.SSRF,
+    subcategory: '918',
+    cwe: '918'
+  },
+
+  // --- Open Redirect ---
+  openRedirect: {
+    // User input in redirect
+    pattern: /\b(res\.redirect|window\.location\.href)\s*=\s*(req\.(query|body|params)|userInput)/i,
+    description: 'Potential open redirect using user input',
+    severity: 'MEDIUM',
+    category: patternCategories.SECURITY_MISCONFIG,
+    subcategory: '601',
+    cwe: '601'
+  },
+
+  // --- Path Traversal ---
+  pathTraversal: {
+    // ../ or ..\ in file paths
+    pattern: /(?:\.\.\/|\.\.\\|\.\.[/\\])[^/\\]*/,
+    description: 'Potential path traversal vulnerability',
+    severity: 'HIGH',
+    category: patternCategories.INJECTION,
+    subcategory: '23',
+    cwe: '23'
+  },
+
+  // --- Insecure Deserialization ---
   insecureDeserialization: {
-    pattern: /\b(?:pickle|cPickle|unpickle|pyYAML|yaml\.load)\b/i,
-    description: 'A08:2021 - Software and Data Integrity Failures - Unsafe deserialization of data',
+    // Use of unsafe deserialization functions
+    pattern: /\b(?:pickle|cPickle|unpickle|pyYAML|yaml\.load|unserialize|node-serialize)\b/i,
+    description: 'Unsafe deserialization of data',
     severity: 'MEDIUM',
     category: patternCategories.INTEGRITY_FAILURES,
     subcategory: '502',
     cwe: '502'
   },
 
-  knownVulnComponents: {
-    pattern: /\b(?:django|flask|rails|struts|phpmyadmin)\b/i,
-    description: 'A06:2021 - Vulnerable Components - Potentially outdated dependencies',
-    severity: 'LOW',
-    category: patternCategories.VULNERABLE_COMPONENTS,
-    subcategory: '937',
-    cwe: '937'
+  // --- Session Fixation ---
+  sessionFixation: {
+    // Assignment of session id from user input
+    pattern: /req\.session\.id\s*=\s*req\.(query|body)\./i,
+    description: 'Potential session fixation vulnerability',
+    severity: 'HIGH',
+    category: patternCategories.SESSION_MANAGEMENT,
+    subcategory: '384',
+    cwe: '384'
   },
 
-  // Logging
+  // --- API Security ---
+  missingObjectAuth: {
+    // API: missing object-level authorization
+    pattern: /app\.get\(['"][^'"]+['"],\s*[^,]+,\s*[^)]*\)/i,
+    description: 'API endpoint may lack object-level authorization',
+    severity: 'HIGH',
+    category: patternCategories.API_SECURITY,
+    subcategory: '284',
+    cwe: '284'
+  },
+
+  // --- Supply Chain ---
+  suspiciousDependency: {
+    // Suspicious dependency versions or URLs in package files
+    pattern: /"(dependencies|devDependencies)"\s*:\s*\{[^}]*https?:\/\//i,
+    description: 'Suspicious dependency (URL-based) in package.json',
+    severity: 'MEDIUM',
+    category: patternCategories.SUPPLY_CHAIN,
+    subcategory: '1104',
+    cwe: '1104'
+  },
+
+  // --- Logging ---
   insufficientLogging: {
-    pattern: /\b(?:print|console\.log)\b/i,
-    description: 'A09:2021 - Security Logging and Monitoring Failures - Inadequate logging practices',
+    // Use of print or console.log for logging
+    pattern: /\b(print|console\.log)\b/i,
+    description: 'Inadequate logging practices',
     severity: 'LOW',
     category: patternCategories.LOGGING_FAILURES,
     subcategory: '778',
     cwe: '778'
-  }
+  },
+
+  insecureSubmission: {
+    pattern: /fetch\s*\(\s*['\"]http:\/\//i,
+    description: 'Insecure form or data submission over HTTP',
+    severity: 'HIGH',
+    category: patternCategories.CRYPTO_FAILURES,
+    subcategory: '319',
+    cwe: '319'
+  },
+
+  securityLogging: {
+    pattern: /console\.log|print|logger\.(info|error|warn)/i,
+    description: 'Potentially insufficient or insecure logging',
+    severity: 'LOW',
+    category: patternCategories.LOGGING_FAILURES,
+    subcategory: '778',
+    cwe: '778'
+  },
 };
 
 // Recommendations for each pattern (used in normal "CVE Details" view)
@@ -273,6 +394,8 @@ What to Do:
 1. Never hardcode sensitive data in source code
 2. Use environment variables or secure vaults
 3. Implement proper encryption for sensitive data storage
+4. Use secrets scanning tools (e.g., GitGuardian, TruffleHog) to detect accidental leaks
+5. Consider cloud KMS (Key Management Services) for managing secrets at scale
 
 <div class="example-block">
   <div class="example-label">❌ Vulnerable:</div>
@@ -357,7 +480,7 @@ Why it Matters: Cross-Site Scripting allows attackers to execute malicious scrip
 What to Do:
 1. Use content security policy (CSP)
 2. Encode/escape all user input
-3. Use safe JavaScript frameworks/libraries
+3. Use safe JavaScript frameworks/libraries (modern frameworks like React, Vue, and Angular are safer by default, as they escape content automatically)
 
 <div class="example-block">
   <div class="example-label">❌ Vulnerable:</div>
@@ -544,6 +667,7 @@ What to Do:
 1. Remove unused dependencies
 2. Continuously inventory versions of all components
 3. Monitor security databases for vulnerabilities
+4. Use Software Composition Analysis (SCA) tools (e.g., Snyk, Dependabot, npm audit) to automate detection of vulnerable dependencies
 
 <div class="example-block">
   <div class="example-label">❌ Vulnerable:</div>
@@ -596,6 +720,7 @@ What to Do:
 1. Ensure all login, access control, and server-side input validation failures are logged
 2. Ensure logs are in a format suitable for log management solutions
 3. Implement proper log retention and backup
+4. Use log management and monitoring platforms (e.g., ELK, Splunk, Datadog) for centralized log aggregation and alerting
 
 <div class="example-block">
   <div class="example-label">❌ Vulnerable:</div>
@@ -636,7 +761,81 @@ logger.error('Authentication failed', {
       }
     ],
     cwe: '778'
-  }
+  },
+
+  insecureSubmission: {
+    recommendation: `
+Why it Matters: Submitting sensitive data over insecure channels (HTTP) exposes it to interception and tampering.
+
+What to Do:
+1. Always use HTTPS for form submissions and API calls
+2. Implement HSTS headers to enforce HTTPS
+3. Educate users to look for secure connections
+
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+fetch('http://example.com/api/submit', { method: 'POST', body: data });
+    </code>
+  </pre>
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good">
+    <code>
+fetch('https://example.com/api/submit', { method: 'POST', body: data });
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: 'A02 Cryptographic Failures',
+        url: 'https://owasp.org/Top10/A02_2021-Cryptographic_Failures/'
+      },
+      {
+        title: 'CWE-319: Cleartext Transmission of Sensitive Information',
+        url: 'https://cwe.mitre.org/data/definitions/319.html'
+      }
+    ],
+    cwe: '319'
+  },
+
+  securityLogging: {
+    recommendation: `
+Why it Matters: Insufficient logging and monitoring can prevent detection of breaches and hinder incident response.
+
+What to Do:
+1. Log all authentication, access control, and input validation failures
+2. Use centralized log management and monitoring
+3. Ensure logs are protected from tampering and are retained appropriately
+
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+console.log('User logged in');
+console.log(error);
+    </code>
+  </pre>
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good">
+    <code>
+logger.info('Authentication success', { userId: user.id, timestamp: new Date(), ipAddress: req.ip });
+logger.error('Authentication failed', { reason: error.code, timestamp: new Date() });
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: 'A09 Security Logging and Monitoring Failures',
+        url: 'https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/'
+      },
+      {
+        title: 'CWE-778: Insufficient Logging',
+        url: 'https://cwe.mitre.org/data/definitions/778.html'
+      }
+    ],
+    cwe: '778'
+  },
 };
 
 export default patterns;

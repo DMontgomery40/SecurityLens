@@ -84,7 +84,7 @@ const Decoder = () => {
       }, 400);
 
     } catch (e) {
-      setOutput('> Error: Invalid base64 input\n> Hint: Try running strings on the secret binary from up top ^^ first');
+      setOutput('> Error: Invalid base64 input\n> Hint: Try running strings on the binary first');
     }
   };
 
@@ -106,7 +106,7 @@ const Decoder = () => {
                     // Easter egg - shows a special message when Ctrl+C is pressed
                     const currentVal = e.target.value;
                     if (currentVal === '') {
-                      setOutput('> Security through obscurity is not security at all.');
+                      setOutput('> Security through obscurity is not security at all.\n> - Ghost Security Philosophy');
                     }
                   }
                 }}
