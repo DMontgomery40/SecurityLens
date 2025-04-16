@@ -52,7 +52,7 @@ Each finding includes a quick explanation of **why** it matters, some **code exa
 
 ---
 
-## Pro Tips for Young Security Researchers
+## Pro Tips for New Security Researchers
 
 - **Look deeper**: Don’t just stop at the first warning. Real security experts always ask *“Why?”*  
 - **Examine the code**: Our examples show you *exactly* where vulnerabilities might lurk.  
