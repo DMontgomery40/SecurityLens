@@ -20,7 +20,7 @@
     "build:functions": "esbuild netlify/functions/scan-webpage-source.js --bundle --platform=node --target=node18 --format=esm --outfile=netlify/functions/scan-webpage.mjs"
   },
   "dependencies": {
-    "@octokit/core": "^6.1.2",
+    "@octokit/core": "^6.1.5",
     "@octokit/plugin-rest-endpoint-methods": "^13.2.6",
     "@octokit/rest": "^19.0.13",
     "@radix-ui/react-alert-dialog": "1.0.5",
