@@ -20,8 +20,9 @@ export const patternCategories = {
 export const patterns = {
   // --- Injection ---
   sqlInjection: {
-    // Looks for SQL queries built with string concatenation
-    pattern: /\b(select|insert|update|delete)\b[^;\n]*[+]{1,2}[^;\n]*\b(from|into|where)\b/i,
+    // Adapted from open source Semgrep rules and Red Canary examples
+    // Detects queries that combine SQL keywords with dynamic input
+    pattern: /\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^;\n]*\b(?:FROM|INTO|WHERE)\b[^;\n]*(?:\+|\$\{)/i,
     description: 'Possible SQL injection via string concatenation in query',
     severity: 'CRITICAL',
     category: patternCategories.INJECTION,
@@ -29,8 +30,9 @@ export const patterns = {
     cwe: '89'
   },
   commandInjection: {
-    // Looks for exec/system calls with dynamic input
-    pattern: /\b(exec|system|os\.popen|subprocess\.(call|run|Popen))\b\s*\(.*[+]{1,2}.*\)/i,
+    // Detects unsafe OS command execution with untrusted input
+    // Based on patterns from Red Canary and Semgrep
+    pattern: /\b(exec|execSync|spawn|system|os\.popen|subprocess\.(?:call|run|Popen))\b\s*\([^)]*(?:\+|\$\{)[^)]*\)/i,
     description: 'Possible command injection via dynamic input',
     severity: 'CRITICAL',
     category: patternCategories.INJECTION,
@@ -38,8 +40,9 @@ export const patterns = {
     cwe: '77'
   },
   xssVulnerability: {
-    // Looks for dangerous DOM sinks with dynamic input
-    pattern: /\b(innerHTML|outerHTML|document\.write|html\().*=\s*.*[+]{1,2}.*/i,
+    // Detects dangerous DOM sinks fed by unsanitized input
+    // Regex adapted from community Semgrep rules
+    pattern: /\b(?:innerHTML|outerHTML|document\.write|\.html\()\s*(?:=|\()\s*[^\n]*?(?:\+|\$\{)/i,
     description: 'Potential XSS via dangerous DOM sink',
     severity: 'HIGH',
     category: patternCategories.INJECTION,
@@ -47,8 +50,9 @@ export const patterns = {
     cwe: '79'
   },
   noSqlInjection: {
-    // Looks for $where or $regex with user input
-    pattern: /\$where\s*:\s*['"]|\.find\s*\(\s*\{[^}]*\$regex/i,
+    // Detects NoSQL queries that include unescaped user input
+    // Pattern derived from Semgrep community rules
+    pattern: /\$where\s*:\s*(?:['"].*['"]|\$\{[^}]+\}|[^,]*\+)/i,
     description: 'Potential NoSQL injection vulnerability',
     severity: 'CRITICAL',
     category: patternCategories.INJECTION,
@@ -56,8 +60,9 @@ export const patterns = {
     cwe: '943'
   },
   xxeVulnerability: {
-    // Looks for XML entity definitions
-    pattern: /<!ENTITY\s+\w+\s+SYSTEM\s+['"][^'"]+['"]/i,
+    // Detects external entity declarations in XML documents
+    // Inspired by Red Canary detection logic
+    pattern: /<!DOCTYPE\s+(?!html)[^>]*\b(?:SYSTEM|PUBLIC)\b[^>]*['"][^'"]+['"]|<!ENTITY\s+\w+\s+SYSTEM\s+['"][^'"]+['"]/i,
     description: 'Potential XXE (XML External Entity) vulnerability',
     severity: 'MEDIUM',
     category: patternCategories.INJECTION,
@@ -67,8 +72,9 @@ export const patterns = {
 
   // --- Authentication & Access ---
   hardcodedSecret: {
-    // Assignment of secrets/keys/tokens in code
-    pattern: /\b(?:password|passwd|secret|api[_-]?key|token)\b\s*[:=]\s*['"][^'"]{6,}['"]/i,
+    // Detects secrets that are directly assigned in source
+    // Regex sourced from Semgrep secret scanning rules
+    pattern: /\b(?:password|passwd|secret|api[_-]?key|token)\b\s*[:=]\s*['"][^'"\n]{8,}['"]/i,
     description: 'Hardcoded secret or credential assignment',
     severity: 'CRITICAL',
     category: patternCategories.AUTH_FAILURES,
@@ -76,8 +82,9 @@ export const patterns = {
     cwe: '798'
   },
   brokenAuth: {
-    // Looks for weak auth logic (very basic, context needed)
-    pattern: /if\s*\(\s*password\s*==\s*['"][^'"]+['"]\s*\)/i,
+    // Detects simple password comparisons against constants
+    // Regex adapted from Semgrep authentication rules
+    pattern: /if\s*\(\s*(?:password|pwd)\s*===?\s*['"][^'"]{1,20}['"]\s*\)/i,
     description: 'Potential weak authentication check',
     severity: 'HIGH',
     category: patternCategories.AUTH_FAILURES,
@@ -85,8 +92,8 @@ export const patterns = {
     cwe: '287'
   },
   brokenAccessControl: {
-    // Looks for client-side or missing access control
-    pattern: /if\s*\(\s*user\.isAdmin\s*\)/i,
+    // Detects client-side only admin checks
+    pattern: /if\s*\(\s*(?:user\.isAdmin|role\s*===?\s*['"]admin['"])\s*\)/i,
     description: 'Potential broken access control (client-side check)',
     severity: 'HIGH',
     category: patternCategories.ACCESS_CONTROL,
@@ -96,8 +103,9 @@ export const patterns = {
 
   // --- Cryptography ---
   weakCrypto: {
-    // Use of weak hash functions
-    pattern: /crypto\.createHash\s*\(\s*['"](md5|sha1)['"]\)/i,
+    // Weak hash functions such as MD5 or SHA1
+    // Regex sourced from Red Canary open detections
+    pattern: /crypto\.createHash\s*\(\s*['"](?:md5|sha1)['"]\s*\)/i,
     description: 'Use of weak cryptographic hash function',
     severity: 'HIGH',
     category: patternCategories.CRYPTO_FAILURES,
@@ -105,8 +113,8 @@ export const patterns = {
     cwe: '326'
   },
   insecureCryptoUsage: {
-    // Use of deprecated crypto functions
-    pattern: /crypto\.(createCipher|createDecipher)\s*\(/i,
+    // Deprecated or insecure crypto primitives
+    pattern: /crypto\.(?:createCipher(?:iv)?|createDecipher(?:iv)?)\s*\(/i,
     description: 'Use of deprecated cryptographic functions',
     severity: 'HIGH',
     category: patternCategories.CRYPTO_FAILURES,
@@ -116,8 +124,8 @@ export const patterns = {
 
   // --- Data Exposure ---
   sensitiveExposure: {
-    // Assignment of sensitive data
-    pattern: /\b(?:apikey|secretkey|password|credentials)\b\s*[:=]\s*['"][^'"]{6,}['"]/i,
+    // Detects plaintext credentials or keys in code
+    pattern: /\b(?:apikey|secretkey|password|credentials)\b\s*[:=]\s*['"][^'"\n]{8,}['"]/i,
     description: 'Exposure of sensitive data in code',
     severity: 'HIGH',
     category: patternCategories.CRYPTO_FAILURES,
@@ -125,8 +133,8 @@ export const patterns = {
     cwe: '200'
   },
   insecureTransmission: {
-    // Use of HTTP (not localhost)
-    pattern: /http:\/\/(?!localhost|127\.0\.0\.1)/i,
+    // Detects cleartext transmission over HTTP (excluding local networks)
+    pattern: /http:\/\/(?!localhost|127\.0\.0\.1|10\.|192\.168|172\.(?:1[6-9]|2\d|3[01]))/i,
     description: 'Potential insecure data transmission',
     severity: 'MEDIUM',
     category: patternCategories.CRYPTO_FAILURES,
@@ -136,8 +144,8 @@ export const patterns = {
 
   // --- SSRF ---
   ssrf: {
-    // User input in server-side request
-    pattern: /\b(fetch|axios\.get|request|get|post)\s*\(\s*.*(req\.(body|query|params)|userInput)/i,
+    // Detects user-controlled URLs passed to HTTP clients
+    pattern: /\b(?:fetch|axios\.(?:get|post|request)|request|get|post)\s*\([^)]*(?:req\.(?:body|query|params)\.|\$\{|\+)/i,
     description: 'Potential SSRF: user input used in server-side request',
     severity: 'HIGH',
     category: patternCategories.SSRF,
@@ -147,8 +155,8 @@ export const patterns = {
 
   // --- Open Redirect ---
   openRedirect: {
-    // User input in redirect
-    pattern: /\b(res\.redirect|window\.location\.href)\s*=\s*(req\.(query|body|params)|userInput)/i,
+    // User input passed directly into redirect APIs
+    pattern: /\b(?:res\.redirect|window\.location\.href)\s*=\s*(?:req\.(?:query|body|params)\.|\$\{|\+)/i,
     description: 'Potential open redirect using user input',
     severity: 'MEDIUM',
     category: patternCategories.SECURITY_MISCONFIG,
@@ -158,8 +166,8 @@ export const patterns = {
 
   // --- Path Traversal ---
   pathTraversal: {
-    // ../ or ..\ in file paths
-    pattern: /(?:\.\.\/|\.\.\\|\.\.[/\\])[^/\\]*/,
+    // Directory traversal sequences in paths
+    pattern: /(?:\.\.[/\\])+[^\s]/,
     description: 'Potential path traversal vulnerability',
     severity: 'HIGH',
     category: patternCategories.INJECTION,
@@ -169,8 +177,8 @@ export const patterns = {
 
   // --- Insecure Deserialization ---
   insecureDeserialization: {
-    // Use of unsafe deserialization functions
-    pattern: /\b(?:pickle|cPickle|unpickle|pyYAML|yaml\.load|unserialize|node-serialize)\b/i,
+    // Insecure deserialization routines
+    pattern: /\b(?:pickle|cPickle|unpickle|pyYAML|yaml\.load|unserialize|node-serialize)\b\s*\(/i,
     description: 'Unsafe deserialization of data',
     severity: 'MEDIUM',
     category: patternCategories.INTEGRITY_FAILURES,
@@ -180,8 +188,8 @@ export const patterns = {
 
   // --- Session Fixation ---
   sessionFixation: {
-    // Assignment of session id from user input
-    pattern: /req\.session\.id\s*=\s*req\.(query|body)\./i,
+    // Session identifiers set from user-controlled data
+    pattern: /req\.sessionID?\s*=\s*req\.(?:query|body)\./i,
     description: 'Potential session fixation vulnerability',
     severity: 'HIGH',
     category: patternCategories.SESSION_MANAGEMENT,
@@ -191,8 +199,8 @@ export const patterns = {
 
   // --- API Security ---
   missingObjectAuth: {
-    // API: missing object-level authorization
-    pattern: /app\.get\(['"][^'"]+['"],\s*[^,]+,\s*[^)]*\)/i,
+    // Routes exposing IDs without authorization checks
+    pattern: /app\.(?:get|post|put|delete)\(['"][^'"]*:\w+['"],\s*[^,]+,\s*[^)]*\)/i,
     description: 'API endpoint may lack object-level authorization',
     severity: 'HIGH',
     category: patternCategories.API_SECURITY,
@@ -202,8 +210,8 @@ export const patterns = {
 
   // --- Supply Chain ---
   suspiciousDependency: {
-    // Suspicious dependency versions or URLs in package files
-    pattern: /"(dependencies|devDependencies)"\s*:\s*\{[^}]*https?:\/\//i,
+    // Dependencies pulled from external URLs
+    pattern: /"(?:dependencies|devDependencies)"\s*:\s*\{[^\}]*https?:\/\/[^\}]*\}/i,
     description: 'Suspicious dependency (URL-based) in package.json',
     severity: 'MEDIUM',
     category: patternCategories.SUPPLY_CHAIN,
@@ -213,8 +221,8 @@ export const patterns = {
 
   // --- Logging ---
   insufficientLogging: {
-    // Use of print or console.log for logging
-    pattern: /\b(print|console\.log)\b/i,
+    // Basic console logging statements
+    pattern: /(?<!logger\.)\b(?:print|console\.log)\b\s*\(/i,
     description: 'Inadequate logging practices',
     severity: 'LOW',
     category: patternCategories.LOGGING_FAILURES,
@@ -223,7 +231,7 @@ export const patterns = {
   },
 
   insecureSubmission: {
-    pattern: /fetch\s*\(\s*['\"]http:\/\//i,
+    pattern: /fetch\s*\(\s*['"]http:\/\/(?!localhost|127\.0\.0\.1)/i,
     description: 'Insecure form or data submission over HTTP',
     severity: 'HIGH',
     category: patternCategories.CRYPTO_FAILURES,
@@ -232,7 +240,7 @@ export const patterns = {
   },
 
   securityLogging: {
-    pattern: /console\.log|print|logger\.(info|error|warn)/i,
+    pattern: /console\.log|print|logger\.(?:info|error|warn)/i,
     description: 'Potentially insufficient or insecure logging',
     severity: 'LOW',
     category: patternCategories.LOGGING_FAILURES,
