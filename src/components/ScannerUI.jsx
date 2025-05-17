@@ -174,6 +174,8 @@ const ScannerUI = () => {
     } catch (err) {
       console.error('Scan error:', err);
       setError(err.message || 'Error scanning files');
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -253,6 +255,8 @@ const ScannerUI = () => {
       if (err.status === 403) {
         setError('Rate limit exceeded. Please try again later.');
       }
+    } finally {
+      setScanning(false);
     }
   }, [urlInput, includeFirmware]);
 
@@ -296,7 +300,7 @@ const ScannerUI = () => {
 
     try {
         // Basic URL validation
-        const urlPattern = /^(https?:\/\/)?[a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}(\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=]*)?$/;
+        const urlPattern = /^(https?:\/\/)?([a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}|\d{1,3}(?:\.\d{1,3}){3}|localhost)(:\d+)?(\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=]*)?$/;
         if (!urlPattern.test(url)) {
             throw new Error('Please enter a valid website URL');
         }
@@ -358,6 +362,8 @@ const ScannerUI = () => {
     } catch (err) {
         console.error('Website scan error:', err);
         setError(err.message || 'Error scanning website. Please check the URL and try again.');
+    } finally {
+        setScanning(false);
     }
   };
 
@@ -404,6 +410,13 @@ const ScannerUI = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Scroll to results when new results are set
+  useEffect(() => {
+    if (scanResults) {
+      scanResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [scanResults]);
 
   // ------------------------------------------------------------------
   // Filter results by search & severity
@@ -661,7 +674,7 @@ const ScannerUI = () => {
                   </div>
                   
                   {/* URL Validation Message */}
-                  {websiteUrl && !websiteUrl.match(/^[a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}/) && (
+                  {websiteUrl && !websiteUrl.match(/^([a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}|\d{1,3}(?:\.\d{1,3}){3}|localhost)/) && (
                     <div className="text-yellow-400 text-sm flex items-center gap-2">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
