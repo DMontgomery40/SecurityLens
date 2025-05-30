@@ -22,7 +22,7 @@
   "dependencies": {
     "@octokit/core": "^6.1.5",
     "@octokit/plugin-rest-endpoint-methods": "^13.2.6",
-    "@octokit/rest": "^19.0.13",
+    "@octokit/rest": "^22.0.0",
     "@radix-ui/react-alert-dialog": "1.1.0",
     "@tailwindcss/typography": "^0.5.16",
     "axios": "^1.8.3",
