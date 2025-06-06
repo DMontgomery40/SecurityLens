@@ -41,7 +41,7 @@ const proactiveControlsData = {
             <ul>
               <li>HTTP verb tampering (<code>DELETE</code> → <code>GET</code>, etc.)</li>
               <li>Path traversal/encoding (<code>..%2Fadmin</code>, double slashes)</li>
-              <li>Header overrides (<code>X-Original-URL</code>, <code>X-Forwarded-For: 127.0.0.1</code>)</li>
+              <li>Header overrides (<code>X-Original-URL</code>, <code>X-Forwarded-For: '127.0.0.1'</code>)</li>
             </ul>
             Record any request that evades the control.</li>
           <li><strong>Session Fixation &amp; Prediction</strong> – With Burp Intruder, fuzz captured session cookies and monitor for collisions that return HTTP 200.</li>
@@ -154,7 +154,7 @@ location /admin {
           <li><strong>Nginx WAF</strong> – Compile ModSecurity v3 with OWASP CRS. Enable rule 941100.</li>
           <li><strong>Helmet Middleware</strong> – <code>app.use(require('helmet')({ contentSecurityPolicy: { directives: { defaultSrc:["'self'"] } } }))</code></li>
           <li><strong>Template Auto-escaping</strong> – Switch from EJS to Pug/Handlebars which encode output by default.</li>
-          <li><strong>Elastic SIEM Rule</strong> – <code>url.path : "*<script*"</code> OR <code>query : "%3Cscript%3E"</code></li>
+          <li><strong>Elastic SIEM Rule</strong> – <code>url.path : "*&lt;script*>"</code> OR <code>query : "%3Cscript%3E"</code></li>
           <li><strong>Unit Tests</strong> – Use <code>@jest/expect</code> to assert that user input appears only under <code>textContent</code>, not <code>innerHTML</code>.</li>
         </ol>
       `
@@ -187,7 +187,7 @@ location /admin {
             <ul>
               <li>HTTP verb tampering (<code>DELETE</code> → <code>GET</code>, etc.)</li>
               <li>Path traversal/encoding (<code>..%2Fadmin</code>, double slashes)</li>
-              <li>Header overrides (<code>X-Original-URL</code>, <code>X-Forwarded-For: 127.0.0.1</code>)</li>
+              <li>Header overrides (<code>X-Original-URL</code>, <code>X-Forwarded-For: '127.0.0.1'</code>)</li>
             </ul>
             Record any request that evades the control.</li>
           <li><strong>Session Fixation &amp; Prediction</strong> – With Burp Intruder, fuzz captured session cookies and monitor for collisions that return HTTP 200.</li>
@@ -288,7 +288,7 @@ Process.Start(new ProcessStartInfo {
         <h5>2. AppLocker Rules</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # PowerShell command to create AppLocker rule
-New-AppLockerPolicy -RuleType Path -PathCondition "C:\\Windows\\*" -User Everyone -Action Allow
+New-AppLockerPolicy -RuleType Path -PathCondition "C:\\Windows\\*" -User 'Everyone' -Action 'Allow'
         </code></pre>
         <h5>3. Windows Defender Application Control</h5>
         <p>Enable and configure WDAC policies to restrict executable files.</p>
@@ -421,9 +421,9 @@ chmod u-s /path/to/unnecessary/suid/binary
       blueTeamLinux: `
         <h4>Blue Team Playbook – Linux / Docker / Node</h4>
         <ol>
-          <li><strong>TLS-only Ingress</strong> – Terminate TLS at Nginx with <code>ssl_protocols TLSv1.2 TLSv1.3;</code> and <code>ssl_ciphers EECDH+AESGCM</code>.</li>
+          <li><strong>TLS-only Ingress</strong> – Terminate TLS at Nginx with <code>ssl_protocols TLSv1.2 TLSv1.3;</code> and <code>ssl_ciphers 'EECDH+AESGCM'</code>.</li>
           <li><strong>Kubernetes Secret</strong> – Mount secrets via <code>envFrom: secretRef</code>; ensure <code>fsGroup</code> is non-root.</li>
-          <li><strong>Runtime Scan</strong> – Deploy <code>trivy fs /app</code> in CI; fail build if HIGH vulns &gt; 0.</li>
+          <li><strong>Runtime Scan</strong> – Deploy <code>trivy fs /app</code> in CI; fail build if HIGH vulns > 0.</li>
           <li><strong>Elastic Alert</strong> – Watch for <code>"POST /login HTTP/1.1" 200</code> over plaintext port 80.</li>
           <li><strong>openssl Config</strong> – Disable legacy provider and weak ciphers in <code>/etc/ssl/openssl.cnf</code>.</li>
         </ol>
@@ -508,7 +508,7 @@ $xml = simplexml_load_string($xmlstr, 'SimpleXMLElement',
         <h5>2. PHP Configuration</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
 # php.ini settings
-libxml.disable_entity_loader = On
+libxml.disable_entity_loader = 'On'
         </code></pre>
       `,
       blueTeamLinux: `
@@ -583,8 +583,8 @@ SecRule REQUEST_BODY "@contains <!ENTITY" \
       blueTeamMac: `
         <h4>Blue Team Playbook – macOS / Apache + PHP</h4>
         <ol>
-          <li><strong>Disable Modules</strong> – Comment out unused modules in <code>httpd.conf</code> (<code>cgi</code>, <code>status</code>, <code>info</code>).</li>
-          <li><strong>Secure Defaults</strong> – <code>Options -Indexes</code>, <code>ServerTokens Prod</code>, <code>ServerSignature Off</code>.</li>
+          <li><strong>Disable Modules</strong> – Comment out unused modules in <code>httpd.conf</code> (<code>'cgi'</code>, <code>'status'</code>, <code>'info'</code>).</li>
+          <li><strong>Secure Defaults</strong> – <code>Options '-Indexes'</code>, <code>ServerTokens 'Prod'</code>, <code>ServerSignature 'Off'</code>.</li>
           <li><strong>mod_security CRS</strong> – Enable rules 930100-931000 (protocol violations).</li>
           <li><strong>Automated Audit</strong> – <code>lynis audit system --tests-from-group apache,php</code>; fix score &lt; 80.</li>
           <li><strong>Log Rotation &amp; Monitoring</strong> – Use <code>fail2ban</code> jail <code>apache-badbots</code> and ship logs to Wazuh.</li>
@@ -786,7 +786,7 @@ server {
         </code></pre>
         <h5>2. HSTS Header</h5>
         <pre class="bg-gray-900 p-2 text-gray-100 rounded"><code>
-Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+'Strict-Transport-Security: max-age=31536000; includeSubDomains; preload'
         </code></pre>
       `
     },
@@ -973,7 +973,7 @@ tail -f /var/log/auth.log
         <ol>
           <li><strong>Trivy in CI</strong> – <code>trivy image --severity HIGH,CRITICAL myapp:latest</code>.</li>
           <li><strong>Snyk Monitor</strong> – <code>snyk monitor --org=myteam</code>; receive email alerts on new CVEs.</li>
-          <li><strong>Base-Image Hygiene</strong> – Use <code>FROM node:18-slim</code> not <code>latest</code>. Apply weekly rebuilds.</li>
+          <li><strong>Base-Image Hygiene</strong> – Use <code>FROM node:18-slim</code> not <code>'latest'</code>. Apply weekly rebuilds.</li>
           <li><strong>Readonly Root FS</strong> – In Kubernetes set <code>readOnlyRootFilesystem: true</code> to limit malicious package writes.</li>
           <li><strong>CVE Patch Window</strong> – Policy: deploy patch within 7 days (critical) / 30 days (high).</li>
         </ol>
