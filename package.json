@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
     "start": "node src/cli/index.js",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
