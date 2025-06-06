@@ -66,10 +66,16 @@ const VulnerabilityCard = ({ vuln, isExpanded, onToggleExpand, cardId }) => {
     'commandexecution': 'commandExecution',
     'insecuresubmission': 'insecureSubmission',
     'insecuretransmission': 'insecureSubmission',
-    // Add more aliases as needed
+    'nosqlinjection': 'noSqlInjection',
+    'hardcodedsecret': 'hardcodedSecret',
+    'weakcrypto': 'weakCrypto',
+    'insecurecryptousage': 'insecureCryptoUsage',
+    'openredirect': 'openRedirect',
+    'pathtraversal': 'pathTraversal',
   };
-  const normalizedType = vulnerabilityGuideKeyMap[vuln.type.toLowerCase().replace(/\s+/g, '')] || vuln.type;
-  const rec = recommendations[normalizedType];
+  const baseKey = vuln.type.toLowerCase().replace(/\s+/g, '');
+  const normalizedType = vulnerabilityGuideKeyMap[baseKey] || vuln.type;
+  const rec = recommendations[normalizedType] || recommendations[vuln.type];
   const matchedPattern = patterns[normalizedType] ? patterns[normalizedType].pattern.toString() : '';
   
   // Red/Blue Team data
@@ -404,6 +410,11 @@ const ScanResults = ({
         max-width: 100%;
         box-sizing: border-box;
       }
+      #scanResults .prose p { margin:0.6rem 0; line-height:1.7; }
+      #scanResults .prose { font-size:0.95rem; }
+      #scanResults .prose li { margin-bottom:0.4rem; }
+      #scanResults .prose a { color:#3b82f6; text-decoration:underline; }
+      #scanResults .prose a:hover { color:#60a5fa; }
     `;
     document.head.appendChild(style);
     return () => { document.head.removeChild(style); };

@@ -247,6 +247,16 @@ export const patterns = {
     subcategory: '778',
     cwe: '778'
   },
+
+  insecureDesign: {
+    // Detect client-side manipulation of pricing or trust in user-provided business-logic data
+    pattern: /(totalPrice|price|amount)\s*=\s*(?:req\.(?:body|query|params)|document\.getElementById|\$\(|this\.state)\b/i,
+    description: 'Potential insecure design – trusting client-side price/amount input',
+    severity: 'MEDIUM',
+    category: patternCategories.INSECURE_DESIGN,
+    subcategory: '509',
+    cwe: '509'
+  },
 };
 
 // Recommendations for each pattern (used in normal "CVE Details" view)
@@ -720,6 +730,21 @@ $ npm audit fix
     cwe: '937'
   },
 
+  suspiciousDependency: {
+    recommendation: recommendations.knownVulnComponents ? recommendations.knownVulnComponents.recommendation : `Replace outdated dependencies promptly`,
+    references: [
+      {
+        title: 'A06 Vulnerable and Outdated Components',
+        url: 'https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/'
+      },
+      {
+        title: 'CWE-937: Use of Components with Known Vulnerabilities',
+        url: 'https://cwe.mitre.org/data/definitions/937.html'
+      }
+    ],
+    cwe: '937'
+  },
+
   insufficientLogging: {
     recommendation: `
 Why it Matters: A09:2021 - Security Logging and Monitoring Failures moves up from #10 in 2017. Without proper logging, breaches cannot be detected or investigated.
@@ -843,6 +868,38 @@ logger.error('Authentication failed', { reason: error.code, timestamp: new Date(
       }
     ],
     cwe: '778'
+  },
+
+  insecureDesign: {
+    recommendation: `
+Why it Matters: Insecure design flaws are baked into the architecture—no patch can save you without redesign.
+
+What to Do:
+1. Perform formal threat modeling early and every sprint.
+2. Treat security requirements equal to functional requirements.
+3. Add abuse-case user stories and negative unit tests.
+4. Enforce central authorization and idempotency checks for critical workflows.
+
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad"><code>
+// Trusts client-provided price
+const charge = req.body.price; // attacker changes to 0.01
+order.total = charge;
+  </code></pre>
+
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good"><code>
+// Server calculates authoritative price
+const charge = calculatePrice(cartItems); // ignores client price
+order.total = charge;
+  </code></pre>
+</div>`,
+    references: [
+      { title: 'A04 Insecure Design', url: 'https://owasp.org/Top10/A04_2021-Insecure_Design/' },
+      { title: 'OWASP Cheat Sheet – Threat Modeling', url: 'https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html' }
+    ],
+    cwe: '509'
   },
 };
 

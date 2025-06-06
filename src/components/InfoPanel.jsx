@@ -1,11 +1,91 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { vulnerabilityGuides } from '../lib/proactiveControlsData';
 
 const InfoPanel = ({ selectedVulnerability, isScanning, onBackToResults, isMobile }) => {
+  const [showAllGuides, setShowAllGuides] = useState(false);
+
+  // Helper to toggle guide list
+  const handleToggleGuides = () => setShowAllGuides(!showAllGuides);
+
+  // Ensure long code blocks wrap & scroll within InfoPanel
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById('info-panel-wrap-style')) return; // already added
+
+    const style = document.createElement('style');
+    style.id = 'info-panel-wrap-style';
+    style.innerHTML = `
+      #infoPanel .prose pre, 
+      #infoPanel .prose code, 
+      #infoPanel pre, 
+      #infoPanel code {
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+        overflow-x: auto !important;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      #infoPanel hr { border-color: #334155; margin: 1.5rem 0; }
+      #infoPanel a { color:#3b82f6; text-decoration: underline; }
+      #infoPanel a:hover { color:#60a5fa; }
+      #infoPanel .prose p { margin:0.6rem 0; line-height:1.7; }
+      #infoPanel .prose { font-size:0.95rem; }
+      #infoPanel .prose li { margin-bottom:0.4rem; }
+      #infoPanel .prose strong { display:inline-block; margin-top:0.6rem; }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+
   // If no vulnerability is selected, show an overview
   if (!selectedVulnerability) {
+    if (showAllGuides) {
+      return (
+        <div id="infoPanel" style={{ resize: 'horizontal', overflow: 'auto', minWidth: '260px', maxWidth: '750px' }} className="bg-gray-800 rounded-lg p-6 overflow-y-auto max-h-[80vh] sticky top-4">
+          <button
+            onClick={handleToggleGuides}
+            className="mb-4 text-blue-400 hover:text-blue-300 text-sm underline"
+          >
+            ← Back to Overview
+          </button>
+          <h2 className="text-2xl font-bold mb-4 text-blue-300">All Protection Guides</h2>
+          <div className="space-y-4">
+            {Object.entries(vulnerabilityGuides).map(([key, guide]) => (
+              <details key={key} className="border border-gray-700 rounded-lg">
+                <summary className="cursor-pointer select-none px-4 py-2 bg-gray-700/50 hover:bg-gray-700 font-medium">
+                  {guide.title || key}
+                </summary>
+                <div className="p-4 space-y-6 bg-gray-800/50">
+                  {guide.content && (
+                    <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: guide.content }} />
+                  )}
+                  {guide.redTeam && (
+                    <div className="prose prose-invert max-w-none border border-red-500/30 rounded p-4" dangerouslySetInnerHTML={{ __html: guide.redTeam }} />
+                  )}
+                  {(guide.blueTeamWindows || guide.blueTeamMac || guide.blueTeamLinux) && (
+                    <div className="space-y-3">
+                      {guide.blueTeamWindows && (
+                        <div className="prose prose-invert max-w-none border border-blue-500/20 rounded p-4" dangerouslySetInnerHTML={{ __html: guide.blueTeamWindows }} />
+                      )}
+                      {guide.blueTeamMac && (
+                        <div className="prose prose-invert max-w-none border border-blue-500/20 rounded p-4" dangerouslySetInnerHTML={{ __html: guide.blueTeamMac }} />
+                      )}
+                      {guide.blueTeamLinux && (
+                        <div className="prose prose-invert max-w-none border border-blue-500/20 rounded p-4" dangerouslySetInnerHTML={{ __html: guide.blueTeamLinux }} />
+                      )}
+                    </div>
+                  )}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="bg-gray-800 rounded-lg p-6 sticky top-4">
+      <div id="infoPanel" style={{ resize: 'horizontal', overflow: 'auto', minWidth: '260px', maxWidth: '750px' }} className="bg-gray-800 rounded-lg p-6 sticky top-4">
         <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
           Your Journey into Security Starts Here! 🚀
         </h2>
@@ -59,13 +139,19 @@ const InfoPanel = ({ selectedVulnerability, isScanning, onBackToResults, isMobil
             </ul>
           </section>
         </div>
+        <button
+          onClick={handleToggleGuides}
+          className="mt-4 inline-block text-blue-400 hover:text-blue-300 underline text-sm"
+        >
+          Browse All Protection Guides
+        </button>
       </div>
     );
   }
 
   // If a vulnerability is selected, you could show minimal content or something else
   return (
-    <div className="bg-gray-800 rounded-lg p-6 sticky top-4">
+    <div style={{ resize: 'horizontal', overflow: 'auto', minWidth: '260px', maxWidth: '750px' }} className="bg-gray-800 rounded-lg p-6 sticky top-4">
       {isMobile && (
         <button
           onClick={onBackToResults}
