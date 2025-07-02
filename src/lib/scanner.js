@@ -540,45 +540,62 @@ class VulnerabilityScanner {
         lineCount: f.lineNumbers.length
       })));
 
-      // Add scan type to findings
+      // Add scan type to findings and generate code lines for all scan types
       findings.forEach(finding => {
         finding.scanType = options.scanType || 'local';
         
-        if (options.scanType === 'web' && options.sourceContent) {
-          const lines = options.sourceContent.split('\n');
-          finding.codeLines = finding.lineNumbers.map(lineNum => {
-            const code = lines[lineNum - 1] || '';
-            const matchDetails = finding.matchInfo.get(lineNum);
+        // Generate codeLines for ALL scan types, showing the actual matched snippet
+        finding.codeLines = finding.lineNumbers.map(lineNum => {
+          const code = lines[lineNum - 1] || '';
+          const matchDetails = finding.matchInfo.get(lineNum);
+          
+          // For web scans with minified code, show context around match
+          if (options.scanType === 'web' && code.length > 500 && matchDetails) {
+            const contextSize = 50; // Characters of context to show
+            const start = Math.max(0, matchDetails.matchIndex - contextSize);
+            const end = Math.min(code.length, matchDetails.matchIndex + matchDetails.length + contextSize);
             
-            // Check if this is likely minified code
-            if (code.length > 500) {
-              if (matchDetails) {
-                const contextSize = 50; // Characters of context to show
-                const start = Math.max(0, matchDetails.matchIndex - contextSize);
-                const end = Math.min(code.length, matchDetails.matchIndex + matchDetails.length + contextSize);
-                
-                // Extract the relevant portion and highlight the match
-                const before = code.substring(start, matchDetails.matchIndex);
-                const matched = code.substring(matchDetails.matchIndex, matchDetails.matchIndex + matchDetails.length);
-                const after = code.substring(matchDetails.matchIndex + matchDetails.length, end);
-                
-                return {
-                  line: lineNum,
-                  code: `...${before}<mark class="bg-yellow-500/20 text-white px-1 rounded">${matched}</mark>${after}...`,
-                  isMinified: true,
-                  isHtml: true
-                };
-              }
-            }
+            // Extract the relevant portion and highlight the match
+            const before = code.substring(start, matchDetails.matchIndex);
+            const matched = code.substring(matchDetails.matchIndex, matchDetails.matchIndex + matchDetails.length);
+            const after = code.substring(matchDetails.matchIndex + matchDetails.length, end);
             
             return {
               line: lineNum,
-              code: code.trim() || '',
+              code: `...${before}<mark class="bg-yellow-500/20 text-white px-1 rounded">${matched}</mark>${after}...`,
+              isMinified: true,
+              isHtml: true
+            };
+          }
+          
+          // For all other cases, show the line with the matched text highlighted
+          if (matchDetails) {
+            const fullLine = code.trim();
+            const matchedText = matchDetails.matchText;
+            
+            // Highlight the matched portion within the line
+            const highlightedLine = fullLine.replace(
+              new RegExp(matchedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+              `**${matchedText}**`
+            );
+            
+            return {
+              line: lineNum,
+              code: highlightedLine,
+              matchedText: matchedText, // Include the specific matched text
               isMinified: false,
               isHtml: false
             };
-          });
-        }
+          }
+          
+          // Fallback - show the full line
+          return {
+            line: lineNum,
+            code: code.trim() || '',
+            isMinified: false,
+            isHtml: false
+          };
+        });
       });
 
       this.updateProgress('analyzing', 1, 1, { currentFile: filePath });

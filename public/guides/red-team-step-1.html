@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Red Team Step 1 – Build Your Kali Lab</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background:#0f172a; color:#e2e8f0; margin:0; padding:2rem; line-height:1.6; }
+      h1 { color:#38bdf8; }
+      h2 { color:#a78bfa; }
+      code { background:#1e293b; padding:2px 4px; border-radius:4px; }
+      pre { background:#1e293b; padding:1rem; border-radius:6px; overflow:auto; }
+      a { color:#38bdf8; }
+      ul,ol{ margin-left:1.5rem; }
+      section{ margin-bottom:2rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Red Team Step&nbsp;1 – Build Your Kali&nbsp;Lab</h1>
+
+    <section>
+      <h2>⚠️  Legal &amp; Ethical Notice</h2>
+      <p>This content is for <strong>authorized security research only</strong>. You must have <u>written permission</u> to test any system you do not own. Breaking into systems without permission is illegal.</p>
+    </section>
+
+    <section>
+      <h2>1. Choose Your Environment</h2>
+      <ol>
+        <li>
+          <strong>Virtual Machine (recommended)</strong>
+          <ul>
+            <li>Install <a href="https://www.virtualbox.org/" target="_blank">VirtualBox</a> or <a href="https://www.vmware.com/" target="_blank">VMware Workstation/Fusion</a>.</li>
+            <li>Download the latest <a href="https://www.kali.org/get-kali/" target="_blank">Kali&nbsp;Linux ISO or VM image</a>.</li>
+            <li>Create a VM with at least <code>4&nbsp;GB</code> RAM and <code>40&nbsp;GB</code> disk.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Container (lightweight)</strong>
+          <ul>
+            <li>Install Docker Desktop.</li>
+            <li>Run <code>docker pull kalilinux/kali-rolling</code>.</li>
+            <li>Start an interactive container: <code>docker run -it --name kali kali-rolling bash</code>.</li>
+            <li>Note: GUI tools require either X-forwarding or VNC setup.</li>
+          </ul>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>2. Initial Update</h2>
+      <pre><code># Login as root (or use sudo)
+apt update && apt full-upgrade -y
+reboot</code></pre>
+    </section>
+
+    <section>
+      <h2>3. Essential Toolkit</h2>
+      <pre><code># Community repos
+apt install -y kali-linux-large
+# Extras
+apt install -y terminator neovim openssh-server docker.io</code></pre>
+      <p>GUI versions of ZAP and Burp Community are included in <code>kali-linux-large</code>.</p>
+    </section>
+
+    <section>
+      <h2>4. Create an Isolated Target</h2>
+      <ul>
+        <li><strong>OWASP Juice Shop</strong>: <code>docker run --rm -p 3000:3000 bkimminich/juice-shop</code></li>
+        <li><strong>DVWA</strong>: <code>docker run --rm -p 80:80 vulnerables/web-dvwa</code></li>
+        <li>These run only on <code>localhost</code>—safe for practice.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. Snapshots &amp; Restore Points</h2>
+      <p>Take a VM snapshot (or commit your Docker container) <em>before</em> starting tests so you can roll back quickly.</p>
+    </section>
+
+    <section>
+      <h2>6. Next Steps</h2>
+      <ul>
+        <li>Move on to Step&nbsp;2 in each Red-Team walkthrough (SQLi, XSS, BAC, etc.).</li>
+        <li>Create dedicated throw-away user accounts for target apps.</li>
+        <li>Keep your host firewall enabled; bridge networking only when needed.</li>
+      </ul>
+    </section>
+
+    <p style="text-align:center; margin-top:3rem;">Happy hacking — stay legal! 🐉</p>
+  </body>
+</html> 

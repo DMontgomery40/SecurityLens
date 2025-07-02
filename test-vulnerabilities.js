@@ -139,7 +139,7 @@ function openAccess(req, res) {
 // CWE-285: Improper Authorization
 function improperAuthorization(req, res) {
   if (req.user) {
-    // Only checks that a user is logged in, not that they’re an admin
+    // Only checks that a user is logged in, not that they're an admin
     return handleAdminAction();
   }
   res.send('Not authorized');
@@ -408,7 +408,7 @@ const pkgJSON = `
 
 // You have a good example test suite already. We'll just show it again with a few more lines
 describe('Vulnerability Tests', () => {
-  // We’ll simulate a “scanner” or use a dummy function that returns possible CWEs
+  // We'll simulate a "scanner" or use a dummy function that returns possible CWEs
   function dummyScan(codeString) {
     const found = [];
 
@@ -551,3 +551,24 @@ describe('Vulnerability Tests', () => {
     expect(dummyScan(code)).toContain('937');
   });
 });
+
+// ---------------------------------------------------
+// DEV HELPER: Print all Protection Guides
+// ---------------------------------------------------
+if (require.main === module && process.argv.includes('--guides')) {
+  (async () => {
+    const { vulnerabilityGuides } = await import('./src/lib/proactiveControlsData.js');
+    const stripHtml = (html = '') => html.replace(/<[^>]+>/g, '').trim();
+
+    Object.entries(vulnerabilityGuides).forEach(([key, guide]) => {
+      console.log('='.repeat(80));
+      console.log(`${guide.title || key}`);
+      console.log('-'.repeat(80));
+      console.log('RED TEAM:\n', stripHtml(guide.redTeam));
+      console.log('\nBLUE TEAM WINDOWS:\n', stripHtml(guide.blueTeamWindows));
+      console.log('\nBLUE TEAM MAC:\n', stripHtml(guide.blueTeamMac));
+      console.log('\nBLUE TEAM LINUX:\n', stripHtml(guide.blueTeamLinux));
+      console.log('\n');
+    });
+  })();
+}

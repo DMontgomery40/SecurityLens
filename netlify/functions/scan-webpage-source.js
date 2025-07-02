@@ -72,6 +72,12 @@ export const handler = async (event) => {
         const scanner = new VulnerabilityScanner({});
         const scriptContents = [];
 
+        // Add the HTML content itself to be scanned
+        scriptContents.push({
+            filename: 'page.html',
+            content: html
+        });
+
         // Process scripts
         for (const script of scripts) {
             if (script.type === 'inline') {

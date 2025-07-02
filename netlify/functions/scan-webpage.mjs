@@ -18941,11 +18941,11 @@ var require_util2 = __commonJS({
     var { isUint8Array } = __require("node:util/types");
     var { webidl } = require_webidl();
     var supportedHashes = [];
-    var crypto;
+    var crypto2;
     try {
-      crypto = __require("node:crypto");
+      crypto2 = __require("node:crypto");
       const possibleRelevantHashes = ["sha256", "sha384", "sha512"];
-      supportedHashes = crypto.getHashes().filter((hash) => possibleRelevantHashes.includes(hash));
+      supportedHashes = crypto2.getHashes().filter((hash) => possibleRelevantHashes.includes(hash));
     } catch {
     }
     function responseURL(response) {
@@ -19207,7 +19207,7 @@ var require_util2 = __commonJS({
       }
     }
     function bytesMatch(bytes, metadataList) {
-      if (crypto === void 0) {
+      if (crypto2 === void 0) {
         return true;
       }
       const parsedMetadata = parseMetadata(metadataList);
@@ -19222,7 +19222,7 @@ var require_util2 = __commonJS({
       for (const item of metadata) {
         const algorithm = item.algo;
         const expectedValue = item.hash;
-        let actualValue = crypto.createHash(algorithm).update(bytes).digest("base64");
+        let actualValue = crypto2.createHash(algorithm).update(bytes).digest("base64");
         if (actualValue[actualValue.length - 1] === "=") {
           if (actualValue[actualValue.length - 2] === "=") {
             actualValue = actualValue.slice(0, -2);
@@ -31310,13 +31310,13 @@ var require_frame = __commonJS({
     "use strict";
     var { maxUnsigned16Bit } = require_constants5();
     var BUFFER_SIZE = 16386;
-    var crypto;
+    var crypto2;
     var buffer = null;
     var bufIdx = BUFFER_SIZE;
     try {
-      crypto = __require("node:crypto");
+      crypto2 = __require("node:crypto");
     } catch {
-      crypto = {
+      crypto2 = {
         // not full compatibility, but minimum.
         randomFillSync: function randomFillSync(buffer2, _offset, _size) {
           for (let i = 0; i < buffer2.length; ++i) {
@@ -31329,7 +31329,7 @@ var require_frame = __commonJS({
     function generateMask() {
       if (bufIdx === BUFFER_SIZE) {
         bufIdx = 0;
-        crypto.randomFillSync(buffer ??= Buffer.allocUnsafe(BUFFER_SIZE), 0, BUFFER_SIZE);
+        crypto2.randomFillSync(buffer ??= Buffer.allocUnsafe(BUFFER_SIZE), 0, BUFFER_SIZE);
       }
       return [buffer[bufIdx++], buffer[bufIdx++], buffer[bufIdx++], buffer[bufIdx++]];
     }
@@ -31401,9 +31401,9 @@ var require_connection = __commonJS({
     var { Headers, getHeadersList } = require_headers();
     var { getDecodeSplit } = require_util2();
     var { WebsocketFrameSend } = require_frame();
-    var crypto;
+    var crypto2;
     try {
-      crypto = __require("node:crypto");
+      crypto2 = __require("node:crypto");
     } catch {
     }
     function establishWebSocketConnection(url2, protocols, client, ws, onEstablish, options) {
@@ -31423,7 +31423,7 @@ var require_connection = __commonJS({
         const headersList = getHeadersList(new Headers(options.headers));
         request2.headersList = headersList;
       }
-      const keyValue = crypto.randomBytes(16).toString("base64");
+      const keyValue = crypto2.randomBytes(16).toString("base64");
       request2.headersList.append("sec-websocket-key", keyValue);
       request2.headersList.append("sec-websocket-version", "13");
       for (const protocol of protocols) {
@@ -31453,7 +31453,7 @@ var require_connection = __commonJS({
             return;
           }
           const secWSAccept = response.headersList.get("Sec-WebSocket-Accept");
-          const digest = crypto.createHash("sha1").update(keyValue + uid).digest("base64");
+          const digest = crypto2.createHash("sha1").update(keyValue + uid).digest("base64");
           if (secWSAccept !== digest) {
             failWebsocketConnection(ws, "Incorrect hash received in Sec-WebSocket-Accept header.");
             return;
@@ -33795,21 +33795,6 @@ var noop = () => {
 var toFiniteNumber = (value, defaultValue) => {
   return value != null && Number.isFinite(value = +value) ? value : defaultValue;
 };
-var ALPHA = "abcdefghijklmnopqrstuvwxyz";
-var DIGIT = "0123456789";
-var ALPHABET = {
-  DIGIT,
-  ALPHA,
-  ALPHA_DIGIT: ALPHA + ALPHA.toUpperCase() + DIGIT
-};
-var generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
-  let str = "";
-  const { length } = alphabet;
-  while (size--) {
-    str += alphabet[Math.random() * length | 0];
-  }
-  return str;
-};
 function isSpecCompliantForm(thing) {
   return !!(thing && isFunction(thing.append) && thing[Symbol.toStringTag] === "FormData" && thing[Symbol.iterator]);
 }
@@ -33908,8 +33893,6 @@ var utils_default = {
   findKey,
   global: _global,
   isContextDefined,
-  ALPHABET,
-  generateString,
   isSpecCompliantForm,
   toJSONObject,
   isAsyncFn,
@@ -34247,11 +34230,31 @@ var transitional_default = {
   clarifyTimeoutError: false
 };
 
+// node_modules/axios/lib/platform/node/index.js
+import crypto from "crypto";
+
 // node_modules/axios/lib/platform/node/classes/URLSearchParams.js
 import url from "url";
 var URLSearchParams_default = url.URLSearchParams;
 
 // node_modules/axios/lib/platform/node/index.js
+var ALPHA = "abcdefghijklmnopqrstuvwxyz";
+var DIGIT = "0123456789";
+var ALPHABET = {
+  DIGIT,
+  ALPHA,
+  ALPHA_DIGIT: ALPHA + ALPHA.toUpperCase() + DIGIT
+};
+var generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
+  let str = "";
+  const { length } = alphabet;
+  const randomValues = new Uint32Array(size);
+  crypto.randomFillSync(randomValues);
+  for (let i = 0; i < size; i++) {
+    str += alphabet[randomValues[i] % length];
+  }
+  return str;
+};
 var node_default = {
   isNode: true,
   classes: {
@@ -34259,6 +34262,8 @@ var node_default = {
     FormData: FormData_default,
     Blob: typeof Blob !== "undefined" && Blob || null
   },
+  ALPHABET,
+  generateString,
   protocols: ["http", "https", "file", "data"]
 };
 
@@ -34784,8 +34789,9 @@ function combineURLs(baseURL, relativeURL) {
 }
 
 // node_modules/axios/lib/core/buildFullPath.js
-function buildFullPath(baseURL, requestedURL) {
-  if (baseURL && !isAbsoluteURL(requestedURL)) {
+function buildFullPath(baseURL, requestedURL, allowAbsoluteUrls) {
+  let isRelativeUrl = !isAbsoluteURL(requestedURL);
+  if (baseURL && isRelativeUrl || allowAbsoluteUrls == false) {
     return combineURLs(baseURL, requestedURL);
   }
   return requestedURL;
@@ -34800,7 +34806,7 @@ import util2 from "util";
 import zlib from "zlib";
 
 // node_modules/axios/lib/env/data.js
-var VERSION = "1.7.9";
+var VERSION = "1.8.3";
 
 // node_modules/axios/lib/helpers/parseProtocol.js
 function parseProtocol(url2) {
@@ -34978,7 +34984,7 @@ var readBlob = async function* (blob) {
 var readBlob_default = readBlob;
 
 // node_modules/axios/lib/helpers/formDataToStream.js
-var BOUNDARY_ALPHABET = utils_default.ALPHABET.ALPHA_DIGIT + "-_";
+var BOUNDARY_ALPHABET = platform_default.ALPHABET.ALPHA_DIGIT + "-_";
 var textEncoder = typeof TextEncoder === "function" ? new TextEncoder() : new util.TextEncoder();
 var CRLF = "\r\n";
 var CRLF_BYTES = textEncoder.encode(CRLF);
@@ -35021,7 +35027,7 @@ var formDataToStream = (form, headersHandler, options) => {
   const {
     tag = "form-data-boundary",
     size = 25,
-    boundary = tag + "-" + utils_default.generateString(size, BOUNDARY_ALPHABET)
+    boundary = tag + "-" + platform_default.generateString(size, BOUNDARY_ALPHABET)
   } = options || {};
   if (!utils_default.isFormData(form)) {
     throw TypeError("FormData instance required");
@@ -35338,7 +35344,7 @@ var http_default = isHttpAdapterSupported && function httpAdapter(config) {
         config.signal.aborted ? abort() : config.signal.addEventListener("abort", abort);
       }
     }
-    const fullPath = buildFullPath(config.baseURL, config.url);
+    const fullPath = buildFullPath(config.baseURL, config.url, config.allowAbsoluteUrls);
     const parsed = new URL(fullPath, platform_default.hasBrowserEnv ? platform_default.origin : void 0);
     const protocol = parsed.protocol || supportedProtocols[0];
     if (protocol === "data:") {
@@ -35830,7 +35836,7 @@ var resolveConfig_default = (config) => {
   const newConfig = mergeConfig({}, config);
   let { data: data2, withXSRFToken, xsrfHeaderName, xsrfCookieName, headers, auth: auth2 } = newConfig;
   newConfig.headers = headers = AxiosHeaders_default.from(headers);
-  newConfig.url = buildURL(buildFullPath(newConfig.baseURL, newConfig.url), config.params, config.paramsSerializer);
+  newConfig.url = buildURL(buildFullPath(newConfig.baseURL, newConfig.url, newConfig.allowAbsoluteUrls), config.params, config.paramsSerializer);
   if (auth2) {
     headers.set(
       "Authorization",
@@ -36491,6 +36497,12 @@ var Axios = class {
         }, true);
       }
     }
+    if (config.allowAbsoluteUrls !== void 0) {
+    } else if (this.defaults.allowAbsoluteUrls !== void 0) {
+      config.allowAbsoluteUrls = this.defaults.allowAbsoluteUrls;
+    } else {
+      config.allowAbsoluteUrls = true;
+    }
     validator_default.assertOptions(config, {
       baseUrl: validators2.spelling("baseURL"),
       withXsrfToken: validators2.spelling("withXSRFToken")
@@ -36561,7 +36573,7 @@ var Axios = class {
   }
   getUri(config) {
     config = mergeConfig(this.defaults, config);
-    const fullPath = buildFullPath(config.baseURL, config.url);
+    const fullPath = buildFullPath(config.baseURL, config.url, config.allowAbsoluteUrls);
     return buildURL(fullPath, config.params, config.paramsSerializer);
   }
 };
@@ -51296,9 +51308,9 @@ function addQueryParameters(url2, parameters) {
     return `${name}=${encodeURIComponent(parameters[name])}`;
   }).join("&");
 }
-var urlVariableRegex = /\{[^}]+\}/g;
+var urlVariableRegex = /\{[^{}}]+\}/g;
 function removeNonChars(variableName) {
-  return variableName.replace(/^\W+|\W+$/g, "").split(/,/);
+  return variableName.replace(/(?:^\W+)|(?:(?<!\W)\W+$)/g, "").split(/,/);
 }
 function extractUrlVariableNames(url2) {
   const matches = url2.match(urlVariableRegex);
@@ -51478,7 +51490,7 @@ function parse8(options) {
     }
     if (url2.endsWith("/graphql")) {
       if (options.mediaType.previews?.length) {
-        const previewsFromAcceptHeader = headers.accept.match(/[\w-]+(?=-preview)/g) || [];
+        const previewsFromAcceptHeader = headers.accept.match(/(?<![\w-])[\w-]+(?=-preview)/g) || [];
         headers.accept = previewsFromAcceptHeader.concat(options.mediaType.previews).map((preview) => {
           const format = options.mediaType.format ? `.${options.mediaType.format}` : "+json";
           return `application/vnd.github.${preview}-preview${format}`;
@@ -51556,7 +51568,7 @@ var RequestError = class extends Error {
     if (options.request.headers.authorization) {
       requestCopy.headers = Object.assign({}, options.request.headers, {
         authorization: options.request.headers.authorization.replace(
-          / .*$/,
+          /(?<! ) .*$/,
           " [REDACTED]"
         )
       });
@@ -51647,7 +51659,7 @@ async function fetchWrapper(requestOptions) {
     data: ""
   };
   if ("deprecation" in responseHeaders) {
-    const matches = responseHeaders.link && responseHeaders.link.match(/<([^>]+)>; rel="deprecation"/);
+    const matches = responseHeaders.link && responseHeaders.link.match(/<([^<>]+)>; rel="deprecation"/);
     const deprecationLink = matches && matches.pop();
     log.warn(
       `[@octokit/request] "${requestOptions.method} ${requestOptions.url}" is deprecated. It is scheduled to be removed on ${responseHeaders.sunset}${deprecationLink ? `. See ${deprecationLink}` : ""}`
@@ -51688,7 +51700,7 @@ async function getResponseData(response) {
     return response.text().catch(() => "");
   }
   const mimetype = (0, import_fast_content_type_parse.safeParse)(contentType);
-  if (mimetype.type === "application/json") {
+  if (isJSONResponse(mimetype)) {
     let text3 = "";
     try {
       text3 = await response.text();
@@ -51701,6 +51713,9 @@ async function getResponseData(response) {
   } else {
     return response.arrayBuffer().catch(() => new ArrayBuffer(0));
   }
+}
+function isJSONResponse(mimetype) {
+  return mimetype.type === "application/json" || mimetype.type === "application/scim+json";
 }
 function toErrorMessage(data2) {
   if (typeof data2 === "string") {
@@ -51769,7 +51784,8 @@ var NON_VARIABLE_OPTIONS = [
   "headers",
   "request",
   "query",
-  "mediaType"
+  "mediaType",
+  "operationName"
 ];
 var FORBIDDEN_VARIABLE_OPTIONS = ["query", "method", "url"];
 var GHES_V3_SUFFIX_REGEX = /\/api\/v3\/?$/;
@@ -51892,7 +51908,7 @@ var createTokenAuth = function createTokenAuth2(token) {
 };
 
 // node_modules/@octokit/core/dist-src/version.js
-var VERSION6 = "6.1.2";
+var VERSION6 = "6.1.5";
 
 // node_modules/@octokit/core/dist-src/index.js
 var noop2 = () => {
@@ -54197,7 +54213,7 @@ var RepositoryCache = class {
 };
 var repoCache = new RepositoryCache();
 
-// src/lib/patterns/index.js
+// src/lib/patterns.js
 var patternCategories = {
   ACCESS_CONTROL: "264",
   // A01:2021 - Broken Access Control
@@ -54217,103 +54233,240 @@ var patternCategories = {
   // A08:2021 - Software & Data Integrity
   LOGGING_FAILURES: "778",
   // A09:2021 - Security Logging Failures
-  SSRF: "918"
+  SSRF: "918",
   // A10:2021 - SSRF
+  SESSION_MANAGEMENT: "384",
+  // Session management issues
+  API_SECURITY: "920",
+  // API Security issues
+  SUPPLY_CHAIN: "1104"
+  // Supply chain attacks
 };
 var patterns = {
-  // SQL & Command Injection
+  // --- Injection ---
   sqlInjection: {
-    pattern: /\b(?:select|insert|update|delete|drop|alter|create)\b[^;]*\b(?:from|into|where)\b/i,
-    description: "A03:2021 - Injection - SQL injection allowing direct data access or system compromise",
+    // Adapted from open source Semgrep rules and Red Canary examples
+    // Detects queries that combine SQL keywords with dynamic input
+    pattern: /\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^;\n]*\b(?:FROM|INTO|WHERE)\b[^;\n]*(?:\+|\$\{)/i,
+    description: "Possible SQL injection via string concatenation in query",
     severity: "CRITICAL",
     category: patternCategories.INJECTION,
     subcategory: "89",
     cwe: "89"
   },
-  commandExecution: {
-    pattern: /\b(?:exec|eval|system|os\.popen|subprocess\.call)\b/i,
-    description: "A03:2021 - Injection - Command execution allowing system compromise",
+  commandInjection: {
+    // Detects unsafe OS command execution with untrusted input
+    // Based on patterns from Red Canary and Semgrep
+    pattern: /\b(exec|execSync|spawn|system|os\.popen|subprocess\.(?:call|run|Popen))\b\s*\([^)]*(?:\+|\$\{)[^)]*\)/i,
+    description: "Possible command injection via dynamic input",
     severity: "CRITICAL",
     category: patternCategories.INJECTION,
     subcategory: "77",
     cwe: "77"
   },
-  // Authentication & Access
-  brokenAuth: {
-    pattern: /\b(?:password|passwd|admin|login)\b/i,
-    description: "Potential authentication vulnerability",
-    severity: "HIGH",
-    category: patternCategories.AUTH_FAILURES,
-    subcategory: "287",
-    cwe: "287"
-  },
-  sensitiveExposure: {
-    pattern: /\b(?:apikey|secretkey|password|credentials)\b/i,
-    description: "A02:2021 - Cryptographic Failures - Exposure of sensitive data",
-    severity: "HIGH",
-    category: patternCategories.CRYPTO_FAILURES,
-    subcategory: "200",
-    cwe: "200"
-  },
-  // XXE & XSS
-  xxeVulnerability: {
-    pattern: /\b<!ENTITY\b/i,
-    description: "A05:2021 - Security Misconfiguration - XML parsing vulnerabilities",
-    severity: "MEDIUM",
-    category: patternCategories.INJECTION,
-    subcategory: "611",
-    cwe: "611"
-  },
   xssVulnerability: {
-    pattern: /<\s*script\b[^>]*>[^<]*<\s*\/\s*script\s*>|\b(?:alert|document\.write|eval\(|javascript:|<\s*img\b[^>]*\sonerror\b)/i,
-    description: "A03:2021 - Injection - Cross-site scripting enabling client-side attacks",
+    // Detects dangerous DOM sinks fed by unsanitized input
+    // Regex adapted from community Semgrep rules
+    pattern: /\b(?:innerHTML|outerHTML|document\.write|\.html\()\s*(?:=|\()\s*[^\n]*?(?:\+|\$\{)/i,
+    description: "Potential XSS via dangerous DOM sink",
     severity: "HIGH",
     category: patternCategories.INJECTION,
     subcategory: "79",
     cwe: "79"
   },
-  // Access Control & Configuration
+  noSqlInjection: {
+    // Detects NoSQL queries that include unescaped user input
+    // Pattern derived from Semgrep community rules
+    pattern: /\$where\s*:\s*(?:['"].*['"]|\$\{[^}]+\}|[^,]*\+)/i,
+    description: "Potential NoSQL injection vulnerability",
+    severity: "CRITICAL",
+    category: patternCategories.INJECTION,
+    subcategory: "943",
+    cwe: "943"
+  },
+  xxeVulnerability: {
+    // Detects external entity declarations in XML documents
+    // Inspired by Red Canary detection logic
+    pattern: /<!DOCTYPE\s+(?!html)[^>]*\b(?:SYSTEM|PUBLIC)\b[^>]*['"][^'"]+['"]|<!ENTITY\s+\w+\s+SYSTEM\s+['"][^'"]+['"]/i,
+    description: "Potential XXE (XML External Entity) vulnerability",
+    severity: "MEDIUM",
+    category: patternCategories.INJECTION,
+    subcategory: "611",
+    cwe: "611"
+  },
+  // --- Authentication & Access ---
+  hardcodedSecret: {
+    // Detects secrets that are directly assigned in source
+    // Regex sourced from Semgrep secret scanning rules
+    pattern: /\b(?:password|passwd|secret|api[_-]?key|token)\b\s*[:=]\s*['"][^'"\n]{8,}['"]/i,
+    description: "Hardcoded secret or credential assignment",
+    severity: "CRITICAL",
+    category: patternCategories.AUTH_FAILURES,
+    subcategory: "798",
+    cwe: "798"
+  },
+  brokenAuth: {
+    // Detects simple password comparisons against constants
+    // Regex adapted from Semgrep authentication rules
+    pattern: /if\s*\(\s*(?:password|pwd)\s*===?\s*['"][^'"]{1,20}['"]\s*\)/i,
+    description: "Potential weak authentication check",
+    severity: "HIGH",
+    category: patternCategories.AUTH_FAILURES,
+    subcategory: "287",
+    cwe: "287"
+  },
   brokenAccessControl: {
-    pattern: /\b(?:admin=true|role=admin|isAdmin|auth\.check|permissions|authorize)\b/i,
-    description: "A01:2021 - Broken Access Control - Unauthorized access to protected functionality",
+    // Detects client-side only admin checks
+    pattern: /if\s*\(\s*(?:user\.isAdmin|role\s*===?\s*['"]admin['"])\s*\)/i,
+    description: "Potential broken access control (client-side check)",
     severity: "HIGH",
     category: patternCategories.ACCESS_CONTROL,
     subcategory: "264",
     cwe: "264"
   },
-  securityMisconfig: {
-    pattern: /\b(?:debug=True|verbose=True)\b/i,
-    description: "A05:2021 - Security Misconfiguration - Insecure configuration settings",
+  // --- Cryptography ---
+  weakCrypto: {
+    // Weak hash functions such as MD5 or SHA1
+    // Regex sourced from Red Canary open detections
+    pattern: /crypto\.createHash\s*\(\s*['"](?:md5|sha1)['"]\s*\)/i,
+    description: "Use of weak cryptographic hash function",
+    severity: "HIGH",
+    category: patternCategories.CRYPTO_FAILURES,
+    subcategory: "326",
+    cwe: "326"
+  },
+  insecureCryptoUsage: {
+    // Deprecated or insecure crypto primitives
+    pattern: /crypto\.(?:createCipher(?:iv)?|createDecipher(?:iv)?)\s*\(/i,
+    description: "Use of deprecated cryptographic functions",
+    severity: "HIGH",
+    category: patternCategories.CRYPTO_FAILURES,
+    subcategory: "327",
+    cwe: "327"
+  },
+  // --- Data Exposure ---
+  sensitiveExposure: {
+    // Detects plaintext credentials or keys in code
+    pattern: /\b(?:apikey|secretkey|password|credentials)\b\s*[:=]\s*['"][^'"\n]{8,}['"]/i,
+    description: "Exposure of sensitive data in code",
+    severity: "HIGH",
+    category: patternCategories.CRYPTO_FAILURES,
+    subcategory: "200",
+    cwe: "200"
+  },
+  insecureTransmission: {
+    // Detects cleartext transmission over HTTP (excluding local networks)
+    pattern: /http:\/\/(?!localhost|127\.0\.0\.1|10\.|192\.168|172\.(?:1[6-9]|2\d|3[01]))/i,
+    description: "Potential insecure data transmission",
+    severity: "MEDIUM",
+    category: patternCategories.CRYPTO_FAILURES,
+    subcategory: "319",
+    cwe: "319"
+  },
+  // --- SSRF ---
+  ssrf: {
+    // Detects user-controlled URLs passed to HTTP clients
+    pattern: /\b(?:fetch|axios\.(?:get|post|request)|request|get|post)\s*\([^)]*(?:req\.(?:body|query|params)\.|\$\{|\+)/i,
+    description: "Potential SSRF: user input used in server-side request",
+    severity: "HIGH",
+    category: patternCategories.SSRF,
+    subcategory: "918",
+    cwe: "918"
+  },
+  // --- Open Redirect ---
+  openRedirect: {
+    // User input passed directly into redirect APIs
+    pattern: /\b(?:res\.redirect|window\.location\.href)\s*=\s*(?:req\.(?:query|body|params)\.|\$\{|\+)/i,
+    description: "Potential open redirect using user input",
     severity: "MEDIUM",
     category: patternCategories.SECURITY_MISCONFIG,
-    subcategory: "16",
-    cwe: "16"
+    subcategory: "601",
+    cwe: "601"
   },
-  // Deserialization & Components
+  // --- Path Traversal ---
+  pathTraversal: {
+    // Directory traversal sequences in paths
+    pattern: /(?:\.\.[/\\])+[^\s]/,
+    description: "Potential path traversal vulnerability",
+    severity: "HIGH",
+    category: patternCategories.INJECTION,
+    subcategory: "23",
+    cwe: "23"
+  },
+  // --- Insecure Deserialization ---
   insecureDeserialization: {
-    pattern: /\b(?:pickle|cPickle|unpickle|pyYAML|yaml\.load)\b/i,
-    description: "A08:2021 - Software and Data Integrity Failures - Unsafe deserialization of data",
+    // Insecure deserialization routines
+    pattern: /\b(?:pickle|cPickle|unpickle|pyYAML|yaml\.load|unserialize|node-serialize)\b\s*\(/i,
+    description: "Unsafe deserialization of data",
     severity: "MEDIUM",
     category: patternCategories.INTEGRITY_FAILURES,
     subcategory: "502",
     cwe: "502"
   },
-  knownVulnComponents: {
-    pattern: /\b(?:django|flask|rails|struts|phpmyadmin)\b/i,
-    description: "A06:2021 - Vulnerable Components - Potentially outdated dependencies",
-    severity: "LOW",
-    category: patternCategories.VULNERABLE_COMPONENTS,
-    subcategory: "937",
-    cwe: "937"
+  // --- Session Fixation ---
+  sessionFixation: {
+    // Session identifiers set from user-controlled data
+    pattern: /req\.sessionID?\s*=\s*req\.(?:query|body)\./i,
+    description: "Potential session fixation vulnerability",
+    severity: "HIGH",
+    category: patternCategories.SESSION_MANAGEMENT,
+    subcategory: "384",
+    cwe: "384"
   },
-  // Logging
+  // --- API Security ---
+  missingObjectAuth: {
+    // Routes exposing IDs without authorization checks
+    pattern: /app\.(?:get|post|put|delete)\(['"][^'"]*:\w+['"],\s*[^,]+,\s*[^)]*\)/i,
+    description: "API endpoint may lack object-level authorization",
+    severity: "HIGH",
+    category: patternCategories.API_SECURITY,
+    subcategory: "284",
+    cwe: "284"
+  },
+  // --- Supply Chain ---
+  suspiciousDependency: {
+    // Dependencies pulled from external URLs
+    pattern: /"(?:dependencies|devDependencies)"\s*:\s*\{[^\}]*https?:\/\/[^\}]*\}/i,
+    description: "Suspicious dependency (URL-based) in package.json",
+    severity: "MEDIUM",
+    category: patternCategories.SUPPLY_CHAIN,
+    subcategory: "1104",
+    cwe: "1104"
+  },
+  // --- Logging ---
   insufficientLogging: {
-    pattern: /\b(?:print|console\.log)\b/i,
-    description: "A09:2021 - Security Logging and Monitoring Failures - Inadequate logging practices",
+    // Basic console logging statements
+    pattern: /(?<!logger\.)\b(?:print|console\.log)\b\s*\(/i,
+    description: "Inadequate logging practices",
     severity: "LOW",
     category: patternCategories.LOGGING_FAILURES,
     subcategory: "778",
     cwe: "778"
+  },
+  insecureSubmission: {
+    pattern: /fetch\s*\(\s*['"]http:\/\/(?!localhost|127\.0\.0\.1)/i,
+    description: "Insecure form or data submission over HTTP",
+    severity: "HIGH",
+    category: patternCategories.CRYPTO_FAILURES,
+    subcategory: "319",
+    cwe: "319"
+  },
+  securityLogging: {
+    pattern: /console\.log|print|logger\.(?:info|error|warn)/i,
+    description: "Potentially insufficient or insecure logging",
+    severity: "LOW",
+    category: patternCategories.LOGGING_FAILURES,
+    subcategory: "778",
+    cwe: "778"
+  },
+  insecureDesign: {
+    // Detect client-side manipulation of pricing or trust in user-provided business-logic data
+    pattern: /(totalPrice|price|amount)\s*=\s*(?:req\.(?:body|query|params)|document\.getElementById|\$\(|this\.state)\b/i,
+    description: "Potential insecure design \u2013 trusting client-side price/amount input",
+    severity: "MEDIUM",
+    category: patternCategories.INSECURE_DESIGN,
+    subcategory: "509",
+    cwe: "509"
   }
 };
 var recommendations = {
@@ -54333,7 +54486,7 @@ What to Do:
 const userId = '123';  // Example user input
 query("SELECT * FROM users WHERE id = " + userId);    // Direct concatenation
 query(\`SELECT * FROM users WHERE id = \${userId}\`);  // Template literals still vulnerable
-  </code>
+    </code>
   </pre>
 
   <div class="example-label">\u2705 Safe:</div>
@@ -54465,6 +54618,8 @@ What to Do:
 1. Never hardcode sensitive data in source code
 2. Use environment variables or secure vaults
 3. Implement proper encryption for sensitive data storage
+4. Use secrets scanning tools (e.g., GitGuardian, TruffleHog) to detect accidental leaks
+5. Consider cloud KMS (Key Management Services) for managing secrets at scale
 
 <div class="example-block">
   <div class="example-label">\u274C Vulnerable:</div>
@@ -54547,7 +54702,7 @@ Why it Matters: Cross-Site Scripting allows attackers to execute malicious scrip
 What to Do:
 1. Use content security policy (CSP)
 2. Encode/escape all user input
-3. Use safe JavaScript frameworks/libraries
+3. Use safe JavaScript frameworks/libraries (modern frameworks like React, Vue, and Angular are safer by default, as they escape content automatically)
 
 <div class="example-block">
   <div class="example-label">\u274C Vulnerable:</div>
@@ -54556,7 +54711,7 @@ What to Do:
 const userInput = '<script>alert("xss")</script>';  // Example malicious input
 element.innerHTML = userInput;           // Direct DOM manipulation
 document.write(data);                    // Unsafe document writing
-  </code>
+    </code>
 </pre>
 
   <div class="example-label">\u2705 Safe:</div>
@@ -54649,7 +54804,7 @@ SHOW_ERRORS=True
     
 // Default/weak configurations
 app.use(cors());               // Allow all origins
-app.use(helmet());            // Without customization
+app.use(helmet());             // Without customization
     </code>
   </pre>
 
@@ -54706,7 +54861,7 @@ const config = require(userProvidedPath);
 // Safe alternatives
 const data = JSON.parse(userInput);        // Use JSON instead
 const obj = yaml.safeLoad(untrustedYaml);  // Safe YAML loading
-const config = validateConfig(userInput);   // Validate all input
+const config = validateConfig(userInput);  // Validate all input
     </code>
   </pre>
 </div>`,
@@ -54724,12 +54879,13 @@ const config = validateConfig(userInput);   // Validate all input
   },
   knownVulnComponents: {
     recommendation: `
-Why it Matters: A06:2021 - Vulnerable and Outdated Components was previously titled Using Components with Known Vulnerabilities and #2 in Top 10 2017.
+Why it Matters: A06:2021 - Vulnerable and Outdated Components was previously titled "Using Components with Known Vulnerabilities" and was #2 in Top 10 2017.
 
 What to Do:
 1. Remove unused dependencies
 2. Continuously inventory versions of all components
 3. Monitor security databases for vulnerabilities
+4. Use Software Composition Analysis (SCA) tools (e.g., Snyk, Dependabot, npm audit) to automate detection of vulnerable dependencies
 
 <div class="example-block">
   <div class="example-label">\u274C Vulnerable:</div>
@@ -54775,12 +54931,13 @@ $ npm audit fix
   },
   insufficientLogging: {
     recommendation: `
-Why it Matters: A09:2021 - Security Logging and Monitoring Failures moves up from #10 in 2017. Without proper logging, breaches cannot be detected.
+Why it Matters: A09:2021 - Security Logging and Monitoring Failures moves up from #10 in 2017. Without proper logging, breaches cannot be detected or investigated.
 
 What to Do:
 1. Ensure all login, access control, and server-side input validation failures are logged
 2. Ensure logs are in a format suitable for log management solutions
 3. Implement proper log retention and backup
+4. Use log management and monitoring platforms (e.g., ELK, Splunk, Datadog) for centralized log aggregation and alerting
 
 <div class="example-block">
   <div class="example-label">\u274C Vulnerable:</div>
@@ -54794,9 +54951,8 @@ console.log(error);                     // Insufficient error details
   <div class="example-label">\u2705 Safe:</div>
   <pre class="code-block good">
     <code>
-const user = { id: '123' };  // Example user object
-const attempt = { ip: '1.2.3.4' };  // Example attempt object
-const error = { code: 'AUTH_FAILED' };  // Example error object
+const user = { id: '123' };        // Example user object
+const error = { code: 'AUTH_FAILED' };  
 
 logger.info('Authentication success', {
   userId: user.id,
@@ -54805,7 +54961,6 @@ logger.info('Authentication success', {
 });
 
 logger.error('Authentication failed', {
-  attempt: attempt,
   reason: error.code,
   timestamp: new Date()
 });
@@ -54823,6 +54978,390 @@ logger.error('Authentication failed', {
       }
     ],
     cwe: "778"
+  },
+  insecureSubmission: {
+    recommendation: `
+Why it Matters: Submitting sensitive data over insecure channels (HTTP) exposes it to interception and tampering.
+
+What to Do:
+1. Always use HTTPS for form submissions and API calls
+2. Implement HSTS headers to enforce HTTPS
+3. Educate users to look for secure connections
+
+<div class="example-block">
+  <div class="example-label">\u274C Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+fetch('http://example.com/api/submit', { method: 'POST', body: data });
+    </code>
+  </pre>
+  <div class="example-label">\u2705 Safe:</div>
+  <pre class="code-block good">
+    <code>
+fetch('https://example.com/api/submit', { method: 'POST', body: data });
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: "A02 Cryptographic Failures",
+        url: "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      },
+      {
+        title: "CWE-319: Cleartext Transmission of Sensitive Information",
+        url: "https://cwe.mitre.org/data/definitions/319.html"
+      }
+    ],
+    cwe: "319"
+  },
+  securityLogging: {
+    recommendation: `
+Why it Matters: Insufficient logging and monitoring can prevent detection of breaches and hinder incident response.
+
+What to Do:
+1. Log all authentication, access control, and input validation failures
+2. Use centralized log management and monitoring
+3. Ensure logs are protected from tampering and are retained appropriately
+
+<div class="example-block">
+  <div class="example-label">\u274C Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+console.log('User logged in');
+console.log(error);
+    </code>
+  </pre>
+  <div class="example-label">\u2705 Safe:</div>
+  <pre class="code-block good">
+    <code>
+logger.info('Authentication success', { userId: user.id, timestamp: new Date(), ipAddress: req.ip });
+logger.error('Authentication failed', { reason: error.code, timestamp: new Date() });
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: "A09 Security Logging and Monitoring Failures",
+        url: "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
+      },
+      {
+        title: "CWE-778: Insufficient Logging",
+        url: "https://cwe.mitre.org/data/definitions/778.html"
+      }
+    ],
+    cwe: "778"
+  },
+  insecureDesign: {
+    recommendation: `
+Why it Matters: Insecure design flaws are baked into the architecture\u2014no patch can save you without redesign.
+
+What to Do:
+1. Perform formal threat modeling early and every sprint.
+2. Treat security requirements equal to functional requirements.
+3. Add abuse-case user stories and negative unit tests.
+4. Enforce central authorization and idempotency checks for critical workflows.
+
+<div class="example-block">
+  <div class="example-label">\u274C Vulnerable:</div>
+  <pre class="code-block bad"><code>
+// Trusts client-provided price
+const charge = req.body.price; // attacker changes to 0.01
+order.total = charge;
+  </code></pre>
+
+  <div class="example-label">\u2705 Safe:</div>
+  <pre class="code-block good"><code>
+// Server calculates authoritative price
+const charge = calculatePrice(cartItems); // ignores client price
+order.total = charge;
+  </code></pre>
+</div>`,
+    references: [
+      { title: "A04 Insecure Design", url: "https://owasp.org/Top10/A04_2021-Insecure_Design/" },
+      { title: "OWASP Cheat Sheet \u2013 Threat Modeling", url: "https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html" }
+    ],
+    cwe: "509"
+  },
+  hardcodedSecret: {
+    recommendation: `
+Why it Matters: Hardcoded credentials in source code can be found by attackers, giving direct access to privileged resources.
+
+What to Do:
+1. Never hardcode sensitive data in source code
+2. Use environment variables or secure vaults
+3. Implement proper encryption for sensitive data storage
+4. Use secrets scanning tools (e.g., GitGuardian, TruffleHog) to detect accidental leaks
+
+<div class="example-block">
+  <div class="example-label">\u274C Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const apiKey = "sk-1234567890abcdef";     // Hardcoded credentials
+const password = "secretPassword123";      // Plaintext secrets
+    </code>
+  </pre>
+
+  <div class="example-label">\u2705 Safe:</div>
+  <pre class="code-block good">
+    <code>
+const apiKey = process.env.API_KEY;        // Environment variable
+const password = await vault.getSecret();   // Secure storage
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: "CWE-798: Use of Hard-coded Credentials",
+        url: "https://cwe.mitre.org/data/definitions/798.html"
+      },
+      {
+        title: "A02 Cryptographic Failures",
+        url: "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      }
+    ],
+    cwe: "798"
+  },
+  noSqlInjection: {
+    recommendation: `
+Why it Matters: NoSQL injection can allow attackers to bypass authentication, extract data, or modify database contents.
+
+What to Do:
+1. Use parameterized queries and proper input validation
+2. Implement proper access controls and authentication
+3. Sanitize all user input before database operations
+
+<div class="example-block">
+  <div class="example-label">\u274C Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+// Direct user input in query
+const query = { $where: userInput };
+db.collection.find(query);
+
+// String concatenation
+const filter = "this.name == '" + username + "'";
+    </code>
+  </pre>
+
+  <div class="example-label">\u2705 Safe:</div>
+  <pre class="code-block good">
+    <code>
+// Parameterized query
+const query = { name: username };
+db.collection.find(query);
+
+// Input validation
+const sanitizedInput = validator.escape(userInput);
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: "CWE-943: NoSQL Injection",
+        url: "https://cwe.mitre.org/data/definitions/943.html"
+      },
+      {
+        title: "OWASP NoSQL Injection Prevention",
+        url: "https://cheatsheetseries.owasp.org/cheatsheets/Injection_Prevention_Cheat_Sheet.html"
+      }
+    ],
+    cwe: "943"
+  },
+  weakCrypto: {
+    recommendation: `
+Why it Matters: Weak cryptographic algorithms can be broken by attackers, exposing sensitive data.
+
+What to Do:
+1. Use strong, modern cryptographic algorithms (SHA-256, AES-256)
+2. Avoid deprecated algorithms like MD5 and SHA-1
+3. Keep cryptographic libraries up to date
+
+<div class="example-block">
+  <div class="example-label">\u274C Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const hash = crypto.createHash('md5').update(password).digest('hex');
+const weakHash = crypto.createHash('sha1').update(data).digest('hex');
+    </code>
+  </pre>
+
+  <div class="example-label">\u2705 Safe:</div>
+  <pre class="code-block good">
+    <code>
+const hash = crypto.createHash('sha256').update(password).digest('hex');
+const strongHash = await bcrypt.hash(password, 12);
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: "CWE-326: Inadequate Encryption Strength",
+        url: "https://cwe.mitre.org/data/definitions/326.html"
+      },
+      {
+        title: "A02 Cryptographic Failures",
+        url: "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      }
+    ],
+    cwe: "326"
+  },
+  insecureCryptoUsage: {
+    recommendation: `
+Why it Matters: Using deprecated or insecure cryptographic functions can expose data to attacks.
+
+What to Do:
+1. Replace deprecated crypto functions with modern alternatives
+2. Use authenticated encryption modes
+3. Follow current cryptographic best practices
+
+<div class="example-block">
+  <div class="example-label">\u274C Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const cipher = crypto.createCipher('aes192', password);
+const decipher = crypto.createDecipher('aes192', password);
+    </code>
+  </pre>
+
+  <div class="example-label">\u2705 Safe:</div>
+  <pre class="code-block good">
+    <code>
+const cipher = crypto.createCipherGCM('aes-256-gcm', key, iv);
+const decipher = crypto.createDecipherGCM('aes-256-gcm', key, iv);
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: "CWE-327: Broken or Risky Crypto Algorithm",
+        url: "https://cwe.mitre.org/data/definitions/327.html"
+      },
+      {
+        title: "A02 Cryptographic Failures",
+        url: "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/"
+      }
+    ],
+    cwe: "327"
+  },
+  pathTraversal: {
+    recommendation: `
+Why it Matters: Path traversal attacks can allow attackers to access files outside the intended directory.
+
+What to Do:
+1. Validate and sanitize all file path inputs
+2. Use whitelists of allowed file names and paths
+3. Implement proper access controls
+
+<div class="example-block">
+  <div class="example-label">\u274C Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const filePath = req.params.file;
+fs.readFile('/uploads/' + filePath);  // Allows ../../../etc/passwd
+    </code>
+  </pre>
+
+  <div class="example-label">\u2705 Safe:</div>
+  <pre class="code-block good">
+    <code>
+const path = require('path');
+const safePath = path.normalize(req.params.file).replace(/^(..[/\\])+/, '');
+const fullPath = path.join('/uploads/', safePath);
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: "CWE-23: Relative Path Traversal",
+        url: "https://cwe.mitre.org/data/definitions/23.html"
+      },
+      {
+        title: "OWASP Path Traversal",
+        url: "https://owasp.org/www-community/attacks/Path_Traversal"
+      }
+    ],
+    cwe: "23"
+  },
+  openRedirect: {
+    recommendation: `
+Why it Matters: Open redirects can be used in phishing attacks to redirect users to malicious sites.
+
+What to Do:
+1. Validate redirect URLs against a whitelist
+2. Use relative URLs instead of absolute ones
+3. Implement proper URL validation
+
+<div class="example-block">
+  <div class="example-label">\u274C Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const redirectUrl = req.query.redirect;
+res.redirect(redirectUrl);  // Can redirect to evil.com
+    </code>
+  </pre>
+
+  <div class="example-label">\u2705 Safe:</div>
+  <pre class="code-block good">
+    <code>
+const allowedUrls = ['/dashboard', '/profile', '/settings'];
+if (allowedUrls.includes(redirectUrl)) {
+  res.redirect(redirectUrl);
+}
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: "CWE-601: URL Redirection to Untrusted Site",
+        url: "https://cwe.mitre.org/data/definitions/601.html"
+      },
+      {
+        title: "OWASP Unvalidated Redirects and Forwards",
+        url: "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"
+      }
+    ],
+    cwe: "601"
+  },
+  ssrf: {
+    recommendation: `
+Why it Matters: Server-Side Request Forgery can allow attackers to make requests from your server to internal systems.
+
+What to Do:
+1. Validate and whitelist allowed URLs
+2. Implement network segmentation
+3. Use deny lists for private IP ranges
+
+<div class="example-block">
+  <div class="example-label">\u274C Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const url = req.body.webhookUrl;
+fetch(url);  // Can access internal services
+    </code>
+  </pre>
+
+  <div class="example-label">\u2705 Safe:</div>
+  <pre class="code-block good">
+    <code>
+const allowedHosts = ['api.example.com', 'webhook.trusted.com'];
+const parsedUrl = new URL(url);
+if (allowedHosts.includes(parsedUrl.hostname)) {
+  fetch(url);
+}
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: "CWE-918: Server-Side Request Forgery (SSRF)",
+        url: "https://cwe.mitre.org/data/definitions/918.html"
+      },
+      {
+        title: "A10 Server-Side Request Forgery",
+        url: "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/"
+      }
+    ],
+    cwe: "918"
   }
 };
 
@@ -54878,6 +55417,60 @@ var GitHubAuthManager = class {
   // etc...
 };
 var authManager = new GitHubAuthManager();
+
+// netlify/functions/utils/progressHandler.js
+var ProgressHandler = class {
+  constructor(callback) {
+    this.callback = callback;
+    this.total = 0;
+    this.current = 0;
+    this.phase = "initializing";
+    this.details = {};
+  }
+  setTotal(total) {
+    this.total = total;
+    this.emitProgress();
+  }
+  increment() {
+    this.current++;
+    this.emitProgress();
+  }
+  emitProgress() {
+    if (this.callback) {
+      this.callback({
+        phase: this.phase,
+        current: this.current,
+        total: this.total,
+        details: this.details,
+        // Keep existing fields for backward compatibility
+        status: this.phase,
+        message: this.getProgressMessage()
+      });
+    }
+  }
+  complete() {
+    this.phase = "complete";
+    this.current = this.total;
+    this.emitProgress();
+  }
+  setPhase(phase, details = {}) {
+    this.phase = phase;
+    this.details = { ...this.details, ...details };
+    this.emitProgress();
+  }
+  getProgressMessage() {
+    switch (this.phase) {
+      case "fetching":
+        return `Fetching files (${this.current}/${this.total})`;
+      case "analyzing":
+        return `Analyzing ${this.details.currentFile || ""} (${this.current}/${this.total})`;
+      case "complete":
+        return "Scan complete";
+      default:
+        return `Scanning file ${this.current} of ${this.total}`;
+    }
+  }
+};
 
 // src/lib/scanner.js
 var MyOctokit = Octokit.plugin(restEndpointMethods);
@@ -54959,6 +55552,7 @@ var VulnerabilityScanner = class {
       // 5 minutes for entire scan
       ...config
     };
+    this.progressHandler = new ProgressHandler(this.config.onProgress);
     const token = authManager.getToken();
     if (token) {
       this.config.octokit = new MyOctokit({
@@ -54982,6 +55576,18 @@ var VulnerabilityScanner = class {
     });
     console.log(`Scanner initialized with ${validPatterns} valid patterns`);
     this.rateLimitInfo = null;
+  }
+  updateProgress(phase, current, total, details = {}) {
+    if (this.progressHandler) {
+      this.progressHandler.setPhase(phase, details);
+      if (total !== void 0) {
+        this.progressHandler.setTotal(total);
+      }
+      if (current !== void 0) {
+        this.progressHandler.current = current;
+        this.progressHandler.emitProgress();
+      }
+    }
   }
   /**
    * Fetch rate limit information from GitHub
@@ -55103,6 +55709,7 @@ var VulnerabilityScanner = class {
     if (octokitInstance) {
       this.config.octokit = octokitInstance;
     }
+    this.updateProgress("fetching", 0, 0);
     const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/(?:tree|blob)\/([^/]+))?(\/.*)?/;
     const match = url2.match(githubRegex);
     if (!match) {
@@ -55114,6 +55721,7 @@ var VulnerabilityScanner = class {
     const cacheKey = `${owner}/${repo}/${branch}/${cleanPath}`;
     const cachedData = repoCache.get(cacheKey);
     if (cachedData) {
+      this.updateProgress("analyzing", 0, 1, { currentFile: cacheKey });
       return { ...cachedData, fromCache: true };
     }
     try {
@@ -55169,6 +55777,7 @@ var VulnerabilityScanner = class {
       console.log(`Successfully fetched ${filesWithContent.length} files`);
       const result = { files: filesWithContent };
       repoCache.set(cacheKey, result);
+      this.updateProgress("analyzing", 0, filesWithContent.length);
       return { ...result, fromCache: false };
     } catch (error) {
       console.error("Error fetching repository files:", error);
@@ -55180,13 +55789,16 @@ var VulnerabilityScanner = class {
    * @param {Array<File>} files - Array of uploaded files
    */
   async scanLocalFiles(files) {
+    this.updateProgress("initializing", 0, files.length);
     const findings = [];
     let processedFiles = 0;
     const totalFiles = files.length;
     if (this.config.onProgress) {
       this.config.onProgress({ current: 0, total: totalFiles });
     }
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      this.updateProgress("analyzing", i, files.length, { currentFile: file.name });
       try {
         const content = await file.text();
         const fileFindings = await this.scanFile(content, file.name);
@@ -55203,6 +55815,7 @@ var VulnerabilityScanner = class {
     if (this.config.onProgress) {
       this.config.onProgress({ current: totalFiles, total: totalFiles });
     }
+    this.progressHandler.complete();
     return this.generateReport(findings);
   }
   /**
@@ -55211,8 +55824,10 @@ var VulnerabilityScanner = class {
    * @param {string} filePath - Path of the file
    */
   async scanFile(fileContent, filePath, options = {}) {
+    this.updateProgress("analyzing", 0, 1, { currentFile: filePath });
     if (this.shouldIgnoreScript(fileContent, filePath)) {
       console.debug("Skipping third-party script:", filePath);
+      this.updateProgress("analyzing", 1, 1, { currentFile: filePath });
       return [];
     }
     console.log(`Scanning file: ${filePath}`, {
@@ -55222,16 +55837,19 @@ var VulnerabilityScanner = class {
     });
     if (!fileContent || typeof fileContent !== "string") {
       console.error("Invalid file content provided to scanner");
+      this.updateProgress("analyzing", 1, 1, { currentFile: filePath });
       return [];
     }
     const contentSize = new Blob([fileContent]).size;
     if (contentSize > this.config.maxFileSize) {
       console.warn(`File ${filePath} exceeds size limit of ${this.config.maxFileSize} bytes`);
+      this.updateProgress("analyzing", 1, 1, { currentFile: filePath });
       return [];
     }
     const findings = [];
     if (!this.vulnerabilityPatterns || Object.keys(this.vulnerabilityPatterns).length === 0) {
       console.error("No vulnerability patterns loaded");
+      this.updateProgress("analyzing", 1, 1, { currentFile: filePath });
       return findings;
     }
     try {
@@ -55297,36 +55915,48 @@ var VulnerabilityScanner = class {
       })));
       findings.forEach((finding) => {
         finding.scanType = options.scanType || "local";
-        if (options.scanType === "web" && options.sourceContent) {
-          const lines2 = options.sourceContent.split("\n");
-          finding.codeLines = finding.lineNumbers.map((lineNum) => {
-            const code = lines2[lineNum - 1] || "";
-            const matchDetails = finding.matchInfo.get(lineNum);
-            if (code.length > 500) {
-              if (matchDetails) {
-                const contextSize = 50;
-                const start = Math.max(0, matchDetails.matchIndex - contextSize);
-                const end2 = Math.min(code.length, matchDetails.matchIndex + matchDetails.length + contextSize);
-                const before2 = code.substring(start, matchDetails.matchIndex);
-                const matched = code.substring(matchDetails.matchIndex, matchDetails.matchIndex + matchDetails.length);
-                const after2 = code.substring(matchDetails.matchIndex + matchDetails.length, end2);
-                return {
-                  line: lineNum,
-                  code: `...${before2}<mark class="bg-yellow-500/20 text-white px-1 rounded">${matched}</mark>${after2}...`,
-                  isMinified: true,
-                  isHtml: true
-                };
-              }
-            }
+        finding.codeLines = finding.lineNumbers.map((lineNum) => {
+          const code = lines[lineNum - 1] || "";
+          const matchDetails = finding.matchInfo.get(lineNum);
+          if (options.scanType === "web" && code.length > 500 && matchDetails) {
+            const contextSize = 50;
+            const start = Math.max(0, matchDetails.matchIndex - contextSize);
+            const end2 = Math.min(code.length, matchDetails.matchIndex + matchDetails.length + contextSize);
+            const before2 = code.substring(start, matchDetails.matchIndex);
+            const matched = code.substring(matchDetails.matchIndex, matchDetails.matchIndex + matchDetails.length);
+            const after2 = code.substring(matchDetails.matchIndex + matchDetails.length, end2);
             return {
               line: lineNum,
-              code: code.trim() || "",
+              code: `...${before2}<mark class="bg-yellow-500/20 text-white px-1 rounded">${matched}</mark>${after2}...`,
+              isMinified: true,
+              isHtml: true
+            };
+          }
+          if (matchDetails) {
+            const fullLine = code.trim();
+            const matchedText = matchDetails.matchText;
+            const highlightedLine = fullLine.replace(
+              new RegExp(matchedText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+              `**${matchedText}**`
+            );
+            return {
+              line: lineNum,
+              code: highlightedLine,
+              matchedText,
+              // Include the specific matched text
               isMinified: false,
               isHtml: false
             };
-          });
-        }
+          }
+          return {
+            line: lineNum,
+            code: code.trim() || "",
+            isMinified: false,
+            isHtml: false
+          };
+        });
       });
+      this.updateProgress("analyzing", 1, 1, { currentFile: filePath });
       return findings;
     } catch (error) {
       console.error(`Error scanning file ${filePath}:`, error);
@@ -55335,6 +55965,7 @@ var VulnerabilityScanner = class {
         patternCount: this.vulnerabilityPatterns ? Object.keys(this.vulnerabilityPatterns).length : 0,
         fileSize: fileContent ? fileContent.length : 0
       });
+      this.updateProgress("analyzing", 1, 1, { currentFile: filePath });
       throw error;
     }
   }
@@ -55392,7 +56023,8 @@ var VulnerabilityScanner = class {
       MEDIUM: { uniqueCount: 0, instanceCount: 0 },
       LOW: { uniqueCount: 0, instanceCount: 0 }
     });
-    return {
+    this.updateProgress("analyzing", 0, 1, { currentFile: "report generation" });
+    const report = {
       findings: processedFindings,
       summary: {
         totalIssues: processedFindings.length,
@@ -55406,6 +56038,10 @@ var VulnerabilityScanner = class {
         lowInstances: severityStats.LOW.instanceCount
       }
     };
+    report.rateLimit = this.rateLimitInfo;
+    report.fromCache = false;
+    this.updateProgress("analyzing", 1, 1, { currentFile: "report generation" });
+    return report;
   }
   /**
    * Generate recommendations based on findings
@@ -55491,6 +56127,10 @@ var handler2 = async (event) => {
     });
     const scanner = new scanner_default({});
     const scriptContents = [];
+    scriptContents.push({
+      filename: "page.html",
+      content: html3
+    });
     for (const script of scripts) {
       if (script.type === "inline") {
         scriptContents.push({

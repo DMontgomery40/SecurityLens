@@ -11,7 +11,7 @@ import axios from 'axios';
 
 export const scanWebPage = async (url) => {
     try {
-        const response = await fetch('/.netlify/functions/scan-webpage-source', {
+        const response = await fetch('/.netlify/functions/scan-webpage', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
