@@ -730,21 +730,6 @@ $ npm audit fix
     cwe: '937'
   },
 
-  suspiciousDependency: {
-    recommendation: recommendations.knownVulnComponents ? recommendations.knownVulnComponents.recommendation : `Replace outdated dependencies promptly`,
-    references: [
-      {
-        title: 'A06 Vulnerable and Outdated Components',
-        url: 'https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/'
-      },
-      {
-        title: 'CWE-937: Use of Components with Known Vulnerabilities',
-        url: 'https://cwe.mitre.org/data/definitions/937.html'
-      }
-    ],
-    cwe: '937'
-  },
-
   insufficientLogging: {
     recommendation: `
 Why it Matters: A09:2021 - Security Logging and Monitoring Failures moves up from #10 in 2017. Without proper logging, breaches cannot be detected or investigated.
@@ -900,6 +885,294 @@ order.total = charge;
       { title: 'OWASP Cheat Sheet – Threat Modeling', url: 'https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html' }
     ],
     cwe: '509'
+  },
+
+  hardcodedSecret: {
+    recommendation: `
+Why it Matters: Hardcoded credentials in source code can be found by attackers, giving direct access to privileged resources.
+
+What to Do:
+1. Never hardcode sensitive data in source code
+2. Use environment variables or secure vaults
+3. Implement proper encryption for sensitive data storage
+4. Use secrets scanning tools (e.g., GitGuardian, TruffleHog) to detect accidental leaks
+
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const apiKey = "sk-1234567890abcdef";     // Hardcoded credentials
+const password = "secretPassword123";      // Plaintext secrets
+    </code>
+  </pre>
+
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good">
+    <code>
+const apiKey = process.env.API_KEY;        // Environment variable
+const password = await vault.getSecret();   // Secure storage
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: 'CWE-798: Use of Hard-coded Credentials',
+        url: 'https://cwe.mitre.org/data/definitions/798.html'
+      },
+      {
+        title: 'A02 Cryptographic Failures',
+        url: 'https://owasp.org/Top10/A02_2021-Cryptographic_Failures/'
+      }
+    ],
+    cwe: '798'
+  },
+
+  noSqlInjection: {
+    recommendation: `
+Why it Matters: NoSQL injection can allow attackers to bypass authentication, extract data, or modify database contents.
+
+What to Do:
+1. Use parameterized queries and proper input validation
+2. Implement proper access controls and authentication
+3. Sanitize all user input before database operations
+
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+// Direct user input in query
+const query = { $where: userInput };
+db.collection.find(query);
+
+// String concatenation
+const filter = "this.name == '" + username + "'";
+    </code>
+  </pre>
+
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good">
+    <code>
+// Parameterized query
+const query = { name: username };
+db.collection.find(query);
+
+// Input validation
+const sanitizedInput = validator.escape(userInput);
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: 'CWE-943: NoSQL Injection',
+        url: 'https://cwe.mitre.org/data/definitions/943.html'
+      },
+      {
+        title: 'OWASP NoSQL Injection Prevention',
+        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Injection_Prevention_Cheat_Sheet.html'
+      }
+    ],
+    cwe: '943'
+  },
+
+  weakCrypto: {
+    recommendation: `
+Why it Matters: Weak cryptographic algorithms can be broken by attackers, exposing sensitive data.
+
+What to Do:
+1. Use strong, modern cryptographic algorithms (SHA-256, AES-256)
+2. Avoid deprecated algorithms like MD5 and SHA-1
+3. Keep cryptographic libraries up to date
+
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const hash = crypto.createHash('md5').update(password).digest('hex');
+const weakHash = crypto.createHash('sha1').update(data).digest('hex');
+    </code>
+  </pre>
+
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good">
+    <code>
+const hash = crypto.createHash('sha256').update(password).digest('hex');
+const strongHash = await bcrypt.hash(password, 12);
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: 'CWE-326: Inadequate Encryption Strength',
+        url: 'https://cwe.mitre.org/data/definitions/326.html'
+      },
+      {
+        title: 'A02 Cryptographic Failures',
+        url: 'https://owasp.org/Top10/A02_2021-Cryptographic_Failures/'
+      }
+    ],
+    cwe: '326'
+  },
+
+  insecureCryptoUsage: {
+    recommendation: `
+Why it Matters: Using deprecated or insecure cryptographic functions can expose data to attacks.
+
+What to Do:
+1. Replace deprecated crypto functions with modern alternatives
+2. Use authenticated encryption modes
+3. Follow current cryptographic best practices
+
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const cipher = crypto.createCipher('aes192', password);
+const decipher = crypto.createDecipher('aes192', password);
+    </code>
+  </pre>
+
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good">
+    <code>
+const cipher = crypto.createCipherGCM('aes-256-gcm', key, iv);
+const decipher = crypto.createDecipherGCM('aes-256-gcm', key, iv);
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: 'CWE-327: Broken or Risky Crypto Algorithm',
+        url: 'https://cwe.mitre.org/data/definitions/327.html'
+      },
+      {
+        title: 'A02 Cryptographic Failures',
+        url: 'https://owasp.org/Top10/A02_2021-Cryptographic_Failures/'
+      }
+    ],
+    cwe: '327'
+  },
+
+  pathTraversal: {
+    recommendation: `
+Why it Matters: Path traversal attacks can allow attackers to access files outside the intended directory.
+
+What to Do:
+1. Validate and sanitize all file path inputs
+2. Use whitelists of allowed file names and paths
+3. Implement proper access controls
+
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const filePath = req.params.file;
+fs.readFile('/uploads/' + filePath);  // Allows ../../../etc/passwd
+    </code>
+  </pre>
+
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good">
+    <code>
+const path = require('path');
+const safePath = path.normalize(req.params.file).replace(/^(\.\.[\/\\])+/, '');
+const fullPath = path.join('/uploads/', safePath);
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: 'CWE-23: Relative Path Traversal',
+        url: 'https://cwe.mitre.org/data/definitions/23.html'
+      },
+      {
+        title: 'OWASP Path Traversal',
+        url: 'https://owasp.org/www-community/attacks/Path_Traversal'
+      }
+    ],
+    cwe: '23'
+  },
+
+  openRedirect: {
+    recommendation: `
+Why it Matters: Open redirects can be used in phishing attacks to redirect users to malicious sites.
+
+What to Do:
+1. Validate redirect URLs against a whitelist
+2. Use relative URLs instead of absolute ones
+3. Implement proper URL validation
+
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const redirectUrl = req.query.redirect;
+res.redirect(redirectUrl);  // Can redirect to evil.com
+    </code>
+  </pre>
+
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good">
+    <code>
+const allowedUrls = ['/dashboard', '/profile', '/settings'];
+if (allowedUrls.includes(redirectUrl)) {
+  res.redirect(redirectUrl);
+}
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: 'CWE-601: URL Redirection to Untrusted Site',
+        url: 'https://cwe.mitre.org/data/definitions/601.html'
+      },
+      {
+        title: 'OWASP Unvalidated Redirects and Forwards',
+        url: 'https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html'
+      }
+    ],
+    cwe: '601'
+  },
+
+  ssrf: {
+    recommendation: `
+Why it Matters: Server-Side Request Forgery can allow attackers to make requests from your server to internal systems.
+
+What to Do:
+1. Validate and whitelist allowed URLs
+2. Implement network segmentation
+3. Use deny lists for private IP ranges
+
+<div class="example-block">
+  <div class="example-label">❌ Vulnerable:</div>
+  <pre class="code-block bad">
+    <code>
+const url = req.body.webhookUrl;
+fetch(url);  // Can access internal services
+    </code>
+  </pre>
+
+  <div class="example-label">✅ Safe:</div>
+  <pre class="code-block good">
+    <code>
+const allowedHosts = ['api.example.com', 'webhook.trusted.com'];
+const parsedUrl = new URL(url);
+if (allowedHosts.includes(parsedUrl.hostname)) {
+  fetch(url);
+}
+    </code>
+  </pre>
+</div>`,
+    references: [
+      {
+        title: 'CWE-918: Server-Side Request Forgery (SSRF)',
+        url: 'https://cwe.mitre.org/data/definitions/918.html'
+      },
+      {
+        title: 'A10 Server-Side Request Forgery',
+        url: 'https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/'
+      }
+    ],
+    cwe: '918'
   },
 };
 

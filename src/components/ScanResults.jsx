@@ -11,20 +11,33 @@ import { Shield } from 'lucide-react';
 const FileLineNumbers = ({ vuln, file }) => {
   const [expanded, setExpanded] = React.useState(false);
   
-  // If it's a "web" type vulnerability with actual code lines
-  if (vuln.scanType === 'web' && vuln.codeLines) {
+  // Show code lines for ALL scan types if available
+  if (vuln.codeLines && vuln.codeLines.length > 0) {
     const visibleLines = expanded ? vuln.codeLines : vuln.codeLines.slice(0, 3);
     return (
       <div className="mt-2 space-y-2 bg-gray-800 p-3 rounded">
-        {visibleLines.map(({ line, code, isMinified, isHtml }) => (
+        {visibleLines.map(({ line, code, isMinified, isHtml, matchedText }) => (
           <div key={line} className="flex items-start space-x-2">
             <span className="text-gray-500 select-none w-12 text-right font-mono">{line}</span>
-            <pre
-              className={`text-gray-300 overflow-x-auto font-mono text-sm whitespace-pre-wrap flex-1 ${
-                isMinified ? 'bg-gray-900/50 p-2 rounded' : ''
-              }`}
-              {...(isHtml ? { dangerouslySetInnerHTML: { __html: code } } : { children: code })}
-            />
+            <div className="flex-1">
+              {isHtml ? (
+                <pre
+                  className={`text-gray-300 overflow-x-auto font-mono text-sm whitespace-pre-wrap ${
+                    isMinified ? 'bg-gray-900/50 p-2 rounded' : ''
+                  }`}
+                  dangerouslySetInnerHTML={{ __html: code }}
+                />
+              ) : (
+                <pre className="text-gray-300 overflow-x-auto font-mono text-sm whitespace-pre-wrap">
+                  {code.replace(/\*\*(.*?)\*\*/g, '→ $1 ←')}
+                </pre>
+              )}
+              {matchedText && (
+                <div className="text-xs text-yellow-400 mt-1">
+                  Suspicious pattern: <code className="bg-gray-900 px-1 rounded">{matchedText}</code>
+                </div>
+              )}
+            </div>
           </div>
         ))}
         {!expanded && vuln.codeLines.length > 3 && (
@@ -39,7 +52,7 @@ const FileLineNumbers = ({ vuln, file }) => {
     );
   }
 
-  // For local/GitHub scans, just show "Lines: X"
+  // Fallback for old format - show line numbers only
   const lines = vuln.allLineNumbers[file];
   if (!lines || lines.length === 0) return null;
   

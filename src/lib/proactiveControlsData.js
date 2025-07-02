@@ -154,7 +154,7 @@ location /admin {
           <li><strong>Nginx WAF</strong> – Compile ModSecurity v3 with OWASP CRS. Enable rule 941100.</li>
           <li><strong>Helmet Middleware</strong> – <code>app.use(require('helmet')({ contentSecurityPolicy: { directives: { defaultSrc:["'self'"] } } }))</code></li>
           <li><strong>Template Auto-escaping</strong> – Switch from EJS to Pug/Handlebars which encode output by default.</li>
-          <li><strong>Elastic SIEM Rule</strong> – <code>url.path : "*&lt;script*>"</code> OR <code>query : "%3Cscript%3E"</code></li>
+          <li><strong>Elastic SIEM Rule</strong> – <code>url.path : "*&lt;script*&gt;"</code> OR <code>query : "%3Cscript%3E"</code></li>
           <li><strong>Unit Tests</strong> – Use <code>@jest/expect</code> to assert that user input appears only under <code>textContent</code>, not <code>innerHTML</code>.</li>
         </ol>
       `
@@ -978,7 +978,267 @@ tail -f /var/log/auth.log
           <li><strong>CVE Patch Window</strong> – Policy: deploy patch within 7 days (critical) / 30 days (high).</li>
         </ol>
       `
-    }
+    },
+
+    // Add missing vulnerability guides
+    hardcodedSecret: {
+      title: "A02:2021 - Hardcoded Credentials",
+      content: `
+        <h3>Hardcoded Credentials Overview</h3>
+        <p>
+          Hardcoded credentials in source code can be discovered by attackers, providing direct access to systems and data.
+        </p>
+        <ul>
+          <li>Never store secrets directly in source code</li>
+          <li>Use environment variables or secure vaults</li>
+          <li>Implement proper secrets management</li>
+        </ul>
+      `,
+      redTeam: `
+        <h4>Red Team Walkthrough</h4>
+        <p>Start with <a href="/guides/red-team-step-1.html" target="_blank" rel="noopener noreferrer">Red Team Step 1 – Build Your Kali Lab</a> to create an isolated VM / container with the required tooling.</p>
+        <p><strong>Read this first:</strong> These instructions are provided <em>only</em> for educational use on systems you own or have explicit written permission to test.</p>
+        <ol>
+          <li><strong>Source Code Review</strong> – Search for patterns like <code>password=</code>, <code>api_key=</code>, <code>secret=</code> in repos</li>
+          <li><strong>Git History Mining</strong> – Use <code>git log --grep="password\\|key\\|secret" -p</code> to find secrets in commit history</li>
+          <li><strong>Automated Scanning</strong> – Run <code>truffleHog</code> or <code>gitleaks</code> against target repositories</li>
+          <li><strong>Config File Analysis</strong> – Check <code>.env</code>, <code>config.js</code>, <code>settings.py</code> files</li>
+          <li><strong>Binary Analysis</strong> – Use <code>strings</code> command on compiled binaries to extract hardcoded secrets</li>
+        </ol>
+      `,
+      blueTeamWindows: `
+        <h4>Blue Team Playbook – Windows</h4>
+        <ol>
+          <li><strong>Azure Key Vault</strong> – Store secrets in Azure Key Vault, access via managed identity</li>
+          <li><strong>PowerShell SecretManagement</strong> – Use <code>Microsoft.PowerShell.SecretManagement</code> module</li>
+          <li><strong>Git Hooks</strong> – Implement pre-commit hooks to scan for secrets</li>
+          <li><strong>Code Scanning</strong> – Enable GitHub Advanced Security or Azure DevOps credential scanner</li>
+        </ol>
+      `,
+      blueTeamLinux: `
+        <h4>Blue Team Playbook – Linux</h4>
+        <ol>
+          <li><strong>Environment Variables</strong> – Store secrets in <code>/etc/environment</code> or systemd service files</li>
+          <li><strong>HashiCorp Vault</strong> – Deploy Vault for centralized secrets management</li>
+          <li><strong>Git Hooks</strong> – Install <code>detect-secrets</code> pre-commit hook</li>
+          <li><strong>Container Secrets</strong> – Use Kubernetes secrets or Docker secrets</li>
+        </ol>
+      `
+    },
+
+    noSqlInjection: {
+      title: "A03:2021 - NoSQL Injection",
+      content: `
+        <h3>NoSQL Injection Overview</h3>
+        <p>
+          NoSQL injection occurs when untrusted data is inserted into NoSQL queries without proper validation.
+        </p>
+        <ul>
+          <li>Use parameterized queries</li>
+          <li>Validate and sanitize all input</li>
+          <li>Implement proper access controls</li>
+        </ul>
+      `,
+      redTeam: `
+        <h4>Red Team Walkthrough</h4>
+        <p>Start with <a href="/guides/red-team-step-1.html" target="_blank" rel="noopener noreferrer">Red Team Step 1 – Build Your Kali Lab</a> to create an isolated VM / container with the required tooling.</p>
+        <p><strong>Read this first:</strong> Only test systems you own or have explicit permission to test.</p>
+        <ol>
+          <li><strong>Input Discovery</strong> – Find NoSQL query parameters in web apps (MongoDB, CouchDB, etc.)</li>
+          <li><strong>Boolean Injection</strong> – Try payloads like <code>{"$ne": null}</code> to bypass authentication</li>
+          <li><strong>JavaScript Injection</strong> – Test <code>$where</code> clauses with malicious JavaScript</li>
+          <li><strong>Operator Injection</strong> – Use MongoDB operators like <code>$regex</code>, <code>$gt</code>, <code>$lt</code></li>
+          <li><strong>Data Extraction</strong> – Use <code>$regex</code> for blind data extraction character by character</li>
+        </ol>
+      `,
+      blueTeamWindows: `
+        <h4>Blue Team Playbook – Windows / .NET</h4>
+        <ol>
+          <li><strong>Use Official Drivers</strong> – Use MongoDB.Driver with parameterized queries</li>
+          <li><strong>Input Validation</strong> – Validate all inputs with data annotations</li>
+          <li><strong>Query Logging</strong> – Enable MongoDB profiling and log slow queries</li>
+          <li><strong>Network Security</strong> – Restrict database access to application servers only</li>
+        </ol>
+      `,
+      blueTeamLinux: `
+        <h4>Blue Team Playbook – Linux / Node.js</h4>
+        <ol>
+          <li><strong>Mongoose Schemas</strong> – Use strict schemas to validate input types</li>
+          <li><strong>Query Sanitization</strong> – Use <code>express-mongo-sanitize</code> middleware</li>
+          <li><strong>Authentication</strong> – Enable MongoDB authentication and use minimal privileges</li>
+          <li><strong>Rate Limiting</strong> – Implement query rate limiting to prevent enumeration</li>
+        </ol>
+      `
+    },
+
+    weakCrypto: {
+      title: "A02:2021 - Weak Cryptography",
+      content: `
+        <h3>Weak Cryptography Overview</h3>
+        <p>
+          Using weak or deprecated cryptographic algorithms can expose sensitive data to attacks.
+        </p>
+        <ul>
+          <li>Use strong, modern algorithms (AES-256, SHA-256)</li>
+          <li>Avoid deprecated algorithms (MD5, SHA-1, DES)</li>
+          <li>Keep cryptographic libraries updated</li>
+        </ul>
+      `,
+      redTeam: `
+        <h4>Red Team Walkthrough</h4>
+        <p>Start with <a href="/guides/red-team-step-1.html" target="_blank" rel="noopener noreferrer">Red Team Step 1 – Build Your Kali Lab</a> to create an isolated VM / container with the required tooling.</p>
+        <p><strong>Educational purposes only.</strong></p>
+        <ol>
+          <li><strong>Algorithm Detection</strong> – Identify weak crypto algorithms in use</li>
+          <li><strong>Rainbow Tables</strong> – Use precomputed tables to crack MD5/SHA-1 hashes</li>
+          <li><strong>Hash Collision</strong> – Exploit MD5/SHA-1 collision vulnerabilities</li>
+          <li><strong>Brute Force</strong> – Use tools like <code>hashcat</code> to crack weak hashes</li>
+        </ol>
+      `,
+      blueTeamWindows: `
+        <h4>Blue Team Playbook – Windows</h4>
+        <ol>
+          <li><strong>Use .NET Crypto</strong> – Use <code>System.Security.Cryptography</code> with modern algorithms</li>
+          <li><strong>Algorithm Policy</strong> – Disable weak algorithms via Group Policy</li>
+          <li><strong>Certificate Management</strong> – Use strong certificates with SHA-256 signatures</li>
+        </ol>
+      `,
+      blueTeamLinux: `
+        <h4>Blue Team Playbook – Linux</h4>
+        <ol>
+          <li><strong>OpenSSL Config</strong> – Configure OpenSSL to disable weak ciphers</li>
+          <li><strong>TLS Settings</strong> – Use TLS 1.2+ with strong cipher suites</li>
+          <li><strong>Password Hashing</strong> – Use bcrypt, scrypt, or Argon2 for passwords</li>
+        </ol>
+      `
+    },
+
+    pathTraversal: {
+      title: "A01:2021 - Path Traversal", 
+      content: `
+        <h3>Path Traversal Overview</h3>
+        <p>
+          Path traversal attacks allow attackers to access files outside the intended directory structure.
+        </p>
+        <ul>
+          <li>Validate and sanitize file paths</li>
+          <li>Use whitelists for allowed files</li>
+          <li>Implement proper access controls</li>
+        </ul>
+      `,
+      redTeam: `
+        <h4>Red Team Walkthrough</h4>
+        <p>Start with <a href="/guides/red-team-step-1.html" target="_blank" rel="noopener noreferrer">Red Team Step 1 – Build Your Kali Lab</a> to create an isolated VM / container with the required tooling.</p>
+        <p><strong>Educational purposes only.</strong></p>
+        <ol>
+          <li><strong>Basic Traversal</strong> – Try <code>../../../etc/passwd</code> in file parameters</li>
+          <li><strong>Encoding Bypass</strong> – Use URL encoding <code>%2e%2e%2f</code> or double encoding</li>
+          <li><strong>Null Byte Injection</strong> – Append <code>%00</code> to bypass file extension checks</li>
+          <li><strong>Windows Paths</strong> – Test <code>..\\..\\windows\\system32\\drivers\\etc\\hosts</code></li>
+        </ol>
+      `,
+      blueTeamWindows: `
+        <h4>Blue Team Playbook – Windows</h4>
+        <ol>
+          <li><strong>Path Validation</strong> – Use <code>Path.GetFullPath()</code> and validate against allowed directories</li>
+          <li><strong>File System ACLs</strong> – Set restrictive NTFS permissions</li>
+          <li><strong>Code Access Security</strong> – Use <code>FileIOPermission</code> to restrict file access</li>
+        </ol>
+      `,
+      blueTeamLinux: `
+        <h4>Blue Team Playbook – Linux</h4>
+        <ol>
+          <li><strong>Path Sanitization</strong> – Use <code>path.resolve()</code> and validate against chroot</li>
+          <li><strong>File Permissions</strong> – Set restrictive file permissions (chmod 644/755)</li>
+          <li><strong>Chroot Jail</strong> – Run applications in chroot environment</li>
+        </ol>
+      `
+    },
+
+    openRedirect: {
+      title: "A01:2021 - Open Redirect",
+      content: `
+        <h3>Open Redirect Overview</h3>
+        <p>
+          Open redirects can be used in phishing attacks to redirect users to malicious websites.
+        </p>
+        <ul>
+          <li>Validate redirect URLs against whitelists</li>
+          <li>Use relative URLs when possible</li>
+          <li>Implement proper URL validation</li>
+        </ul>
+      `,
+      redTeam: `
+        <h4>Red Team Walkthrough</h4>
+        <p>Start with <a href="/guides/red-team-step-1.html" target="_blank" rel="noopener noreferrer">Red Team Step 1 – Build Your Kali Lab</a> to create an isolated VM / container with the required tooling.</p>
+        <p><strong>Educational purposes only.</strong></p>
+        <ol>
+          <li><strong>Parameter Discovery</strong> – Find redirect parameters like <code>?redirect=</code>, <code>?url=</code></li>
+          <li><strong>Direct Redirect</strong> – Test <code>?redirect=https://evil.com</code></li>
+          <li><strong>Protocol Bypass</strong> – Try <code>//evil.com</code> (protocol-relative URL)</li>
+          <li><strong>Encoding Bypass</strong> – Use URL encoding to bypass filters</li>
+        </ol>
+      `,
+      blueTeamWindows: `
+        <h4>Blue Team Playbook – Windows</h4>
+        <ol>
+          <li><strong>URL Validation</strong> – Use <code>Uri.IsWellFormedUriString()</code> with validation</li>
+          <li><strong>Whitelist Domains</strong> – Maintain allowed redirect domains list</li>
+          <li><strong>Relative URLs</strong> – Prefer relative redirects over absolute ones</li>
+        </ol>
+      `,
+      blueTeamLinux: `
+        <h4>Blue Team Playbook – Linux</h4>
+        <ol>
+          <li><strong>URL Parsing</strong> – Use proper URL parsing libraries</li>
+          <li><strong>Domain Validation</strong> – Check hostname against allowed domains</li>
+          <li><strong>HTTP Headers</strong> – Set <code>Referrer-Policy</code> headers</li>
+        </ol>
+      `
+    },
+
+    ssrf: {
+      title: "A10:2021 - Server-Side Request Forgery",
+      content: `
+        <h3>SSRF Overview</h3>
+        <p>
+          SSRF allows attackers to make requests from your server to internal or external systems.
+        </p>
+        <ul>
+          <li>Validate and whitelist allowed URLs</li>
+          <li>Implement network segmentation</li>
+          <li>Use deny lists for private IP ranges</li>
+        </ul>
+      `,
+      redTeam: `
+        <h4>Red Team Walkthrough</h4>
+        <p>Start with <a href="/guides/red-team-step-1.html" target="_blank" rel="noopener noreferrer">Red Team Step 1 – Build Your Kali Lab</a> to create an isolated VM / container with the required tooling.</p>
+        <p><strong>Educational purposes only.</strong></p>
+        <ol>
+          <li><strong>Internal Service Discovery</strong> – Try accessing <code>http://127.0.0.1:8080</code>, <code>http://localhost:3000</code></li>
+          <li><strong>Cloud Metadata</strong> – Access <code>http://169.254.169.254/latest/meta-data/</code> (AWS)</li>
+          <li><strong>Port Scanning</strong> – Use SSRF to scan internal network ports</li>
+          <li><strong>Protocol Bypass</strong> – Try <code>file://</code>, <code>gopher://</code>, <code>dict://</code> protocols</li>
+        </ol>
+      `,
+      blueTeamWindows: `
+        <h4>Blue Team Playbook – Windows</h4>
+        <ol>
+          <li><strong>URL Filtering</strong> – Block private IP ranges (RFC 1918)</li>
+          <li><strong>Network Segmentation</strong> – Isolate web servers from internal services</li>
+          <li><strong>Proxy Configuration</strong> – Use explicit proxy with filtering rules</li>
+        </ol>
+      `,
+      blueTeamLinux: `
+        <h4>Blue Team Playbook – Linux</h4>
+        <ol>
+          <li><strong>iptables Rules</strong> – Block outbound connections to private IPs</li>
+          <li><strong>DNS Filtering</strong> – Use DNS resolvers that block internal domains</li>
+          <li><strong>Application Firewall</strong> – Implement WAF rules to detect SSRF patterns</li>
+        </ol>
+      `
+    },
+
   }
 };
 
