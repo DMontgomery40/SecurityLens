@@ -208,7 +208,15 @@ const ScannerUI = () => {
       console.log('Scan results:', results);
 
       if (results.findings && results.summary) {
-        setScanResults(results);
+        // Normalize GitHub scan results to match the expected structure
+        const normalizedResults = {
+          findings: results.findings,
+          summary: results.summary,
+          rateLimit: results.rateLimit,
+          fromCache: results.fromCache
+        };
+        
+        setScanResults(normalizedResults);
         scanResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         setSeverityStats({
           CRITICAL: {

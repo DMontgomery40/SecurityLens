@@ -11,9 +11,12 @@ import { Shield } from 'lucide-react';
 const FileLineNumbers = ({ vuln, file }) => {
   const [expanded, setExpanded] = React.useState(false);
   
+  // Get code lines for this specific file from the new allCodeLines structure
+  const codeLines = vuln.allCodeLines ? vuln.allCodeLines[file] : vuln.codeLines;
+  
   // Show code lines for ALL scan types if available
-  if (vuln.codeLines && vuln.codeLines.length > 0) {
-    const visibleLines = expanded ? vuln.codeLines : vuln.codeLines.slice(0, 3);
+  if (codeLines && codeLines.length > 0) {
+    const visibleLines = expanded ? codeLines : codeLines.slice(0, 3);
     return (
       <div className="mt-2 space-y-2 bg-gray-800 p-3 rounded">
         {visibleLines.map(({ line, code, isMinified, isHtml, matchedText }) => (
@@ -40,12 +43,12 @@ const FileLineNumbers = ({ vuln, file }) => {
             </div>
           </div>
         ))}
-        {!expanded && vuln.codeLines.length > 3 && (
+        {!expanded && codeLines.length > 3 && (
           <button
             onClick={() => setExpanded(true)}
             className="text-blue-400 text-xs hover:underline mt-2"
           >
-            Show {vuln.codeLines.length - 3} more lines
+            Show {codeLines.length - 3} more lines
           </button>
         )}
       </div>

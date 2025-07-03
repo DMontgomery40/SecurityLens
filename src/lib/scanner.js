@@ -627,7 +627,7 @@ class VulnerabilityScanner {
           subcategory: finding.subcategory,
           files: [],
           allLineNumbers: {},
-          codeLines: finding.codeLines,
+          allCodeLines: {}, // Store code lines by file
           scanType: finding.scanType,
           cwe: finding.cwe
         };
@@ -639,6 +639,10 @@ class VulnerabilityScanner {
       // Aggregate line numbers by file
       if (finding.file && finding.lineNumbers) {
         acc[finding.type].allLineNumbers[finding.file] = finding.lineNumbers;
+      }
+      // Aggregate code lines by file
+      if (finding.file && finding.codeLines) {
+        acc[finding.type].allCodeLines[finding.file] = finding.codeLines;
       }
       return acc;
     }, {});
@@ -652,7 +656,7 @@ class VulnerabilityScanner {
       subcategory: data.subcategory,
       files: data.files,
       allLineNumbers: data.allLineNumbers,
-      codeLines: data.codeLines,
+      allCodeLines: data.allCodeLines, // Include all code lines grouped by file
       scanType: data.scanType,
       cwe: data.cwe
     }));
