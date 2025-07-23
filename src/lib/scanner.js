@@ -92,10 +92,21 @@ class VulnerabilityScanner {
     this.updateProgress('initializing', 0, files.length);
     const findings = [];
     let processedFiles = 0;
+    let successCount = 0;
+    let failureCount = 0;
     const totalFiles = files.length;
+    const startTime = Date.now();
 
     if (this.config.onProgress) {
-      this.config.onProgress({ current: 0, total: totalFiles });
+      this.config.onProgress({ 
+        phase: 'analyzing',
+        current: 0, 
+        total: totalFiles,
+        details: { 
+          status: 'Starting file analysis...',
+          startTime: startTime
+        }
+      });
     }
 
     for (let i = 0; i < files.length; i++) {
@@ -105,22 +116,62 @@ class VulnerabilityScanner {
         const content = await file.text();
         const fileFindings = await this.fileScanner.scanFile(content, file.name);
         findings.push(...fileFindings);
+        successCount++;
       } catch (error) {
         console.error(`Error scanning file ${file.name}:`, error);
+        failureCount++;
       } finally {
         processedFiles++;
         if (this.config.onProgress) {
-          this.config.onProgress({ current: processedFiles, total: totalFiles });
+          this.config.onProgress({ 
+            phase: 'analyzing',
+            current: processedFiles, 
+            total: totalFiles,
+            details: {
+              currentFile: file.name,
+              successCount: successCount,
+              failureCount: failureCount
+            }
+          });
         }
       }
     }
 
+    // Calculate completion statistics
+    const endTime = Date.now();
+    const duration = Math.round((endTime - startTime) / 1000 * 100) / 100;
+    const completionRate = totalFiles > 0 ? Math.round((successCount / totalFiles) * 100) : 100;
+
     if (this.config.onProgress) {
-      this.config.onProgress({ current: totalFiles, total: totalFiles });
+      this.config.onProgress({ 
+        phase: 'completed',
+        current: totalFiles, 
+        total: totalFiles,
+        details: {
+          duration: duration,
+          successCount: successCount,
+          failureCount: failureCount,
+          completionRate: completionRate,
+          totalAttempted: totalFiles,
+          summary: `Scanned ${successCount}/${totalFiles} files (${completionRate}%) in ${duration}s`
+        }
+      });
     }
 
     this.progressTracker.complete();
-    return this.reportBuilder.generateReport(findings);
+    const report = this.reportBuilder.generateReport(findings);
+    
+    // Add scan statistics to report
+    report.scanStats = {
+      duration: duration,
+      totalFiles: totalFiles,
+      successCount: successCount,
+      failureCount: failureCount,
+      completionRate: completionRate
+    };
+    report.partial = failureCount > 0;
+    
+    return report;
   }
 
   /**
@@ -192,14 +243,23 @@ export async function scanRepositoryLocally(url, onProgress = null) {
     // Test token validity
     await scanner.getRateLimitInfo();
 
-    const { files, fromCache } = await scanner.fetchRepositoryFiles(url);
+    const result = await scanner.fetchRepositoryFiles(url);
+    const { files, fromCache, scanStats, partial, errors } = result;
 
     const findings = [];
     let processedFiles = 0;
     const totalFiles = files.length;
+    const startTime = Date.now();
 
     if (scanner.config.onProgress) {
-      scanner.config.onProgress({ current: 0, total: totalFiles });
+      scanner.config.onProgress({ 
+        phase: 'analyzing',
+        current: 0, 
+        total: totalFiles,
+        details: {
+          status: 'Starting vulnerability analysis...'
+        }
+      });
     }
 
     for (const fileInfo of files) {
@@ -211,18 +271,34 @@ export async function scanRepositoryLocally(url, onProgress = null) {
       } finally {
         processedFiles++;
         if (scanner.config.onProgress) {
-          scanner.config.onProgress({ current: processedFiles, total: totalFiles });
+          scanner.config.onProgress({ 
+            phase: 'analyzing',
+            current: processedFiles, 
+            total: totalFiles,
+            details: {
+              currentFile: fileInfo.path
+            }
+          });
         }
       }
     }
 
-    if (scanner.config.onProgress) {
-      scanner.config.onProgress({ current: totalFiles, total: totalFiles });
-    }
+    const analysisTime = Math.round((Date.now() - startTime) / 1000 * 100) / 100;
 
     const report = scanner.generateReport(findings);
     report.rateLimit = scanner.rateLimitInfo;
     report.fromCache = fromCache;
+    
+    // Include scan statistics from file fetching
+    if (scanStats) {
+      report.scanStats = {
+        ...scanStats,
+        analysisTime: analysisTime,
+        totalTime: scanStats.duration + analysisTime
+      };
+    }
+    report.partial = partial;
+    report.fetchErrors = errors;
 
     return report;
   } catch (error) {
