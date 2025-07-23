@@ -1,5 +1,8 @@
 import { Octokit } from '@octokit/rest';
-import VulnerabilityScanner from '../../src/lib/scanner.js';
+import { RepositoryCrawler } from '../../src/lib/RepositoryCrawler.js';
+import { FileScanner } from '../../src/lib/FileScanner.js';
+import { ReportBuilder } from '../../src/lib/ReportBuilder.js';
+import { authManager } from '../../src/lib/githubAuth.js';
 
 
 export const handler = async (event, context) => {
@@ -92,102 +95,89 @@ export const handler = async (event, context) => {
         };
       }
 
-      // Initialize scanner
-      const scannerInstance = new VulnerabilityScanner({
+      // Set up authentication for modular components
+      authManager.setToken(token);
+      
+      // Initialize modular components with concurrency control
+      const rawConcurrency = parseInt(process.env.SCANNER_CONCURRENCY) || 10;
+      const concurrency = Math.min(Math.max(rawConcurrency, 1), 50); // Clamp between 1-50
+      const repositoryCrawler = new RepositoryCrawler({ concurrency });
+      const fileScanner = new FileScanner({
         enableNewPatterns: true,
-        enablePackageScanners: true,
-        octokit
+        enablePackageScanners: true
       });
+      const reportBuilder = new ReportBuilder();
 
-      // Recursive function to scan directory contents
-      async function scanDirectory(currentPath) {
-        const { data: contents } = await octokit.rest.repos.getContent({
-          owner,
-          repo,
-          path: currentPath,
-          ref: branch
-        });
-
-        const files = Array.isArray(contents) ? contents : [contents];
-        let findings = [];
-
-        for (const item of files) {
+      // Construct GitHub URL for the crawler
+      const githubUrl = `https://github.com/${owner}/${repo}`;
+      const fullUrl = branch !== 'main' ? `${githubUrl}/tree/${branch}` : githubUrl;
+      const scanUrl = path ? `${fullUrl}/${path}` : fullUrl;
+      
+      console.log(`Scanning repository: ${scanUrl}`);
+      
+      // Use RepositoryCrawler to get files with timeout handling
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Scan timeout - repository too large for Netlify function')), 25000);
+      });
+      
+      const scanPromise = (async () => {
+        // Get files using the modular crawler
+        const { files, rateLimit: rateLimitInfo, fromCache } = await repositoryCrawler.getFiles(scanUrl, token, false);
+        
+        console.log(`Retrieved ${files.length} files from repository${fromCache ? ' (cached)' : ''}`);
+        
+        // Scan files using FileScanner
+        let allFindings = [];
+        let processedFiles = 0;
+        
+        for (const file of files) {
           try {
-            if (item.type === 'dir') {
-              // Recursively scan subdirectories
-              const subFindings = await scanDirectory(item.path);
-              findings.push(...subFindings);
-            } else if (item.type === 'file') {
-              // Skip large files and binary files
-              if (item.size > 1024 * 1024) { // Skip files larger than 1MB
-                console.log(`Skipping large file: ${item.path} (${item.size} bytes)`);
-                continue;
-              }
-
-              // Check if file is likely binary based on path
-              const binaryExtensions = /\.(jpg|jpeg|png|gif|ico|pdf|zip|tar|gz|bin|exe|dll)$/i;
-              if (binaryExtensions.test(item.path)) {
-                console.log(`Skipping binary file: ${item.path}`);
-                continue;
-              }
-
-              const { data: content } = await octokit.rest.repos.getContent({
-                owner,
-                repo,
-                path: item.path,
-                ref: branch,
-                mediaType: {
-                  format: 'raw'
-                }
-              });
-
-              const fileContent = typeof content === 'string' ? content : Buffer.from(content).toString('utf8');
-              const fileFindings = await scannerInstance.scanFile(fileContent, item.path);
-              findings.push(...fileFindings);
+            const fileFindings = await fileScanner.scanFile(file.content, file.path);
+            if (fileFindings && fileFindings.length > 0) {
+              allFindings.push(...fileFindings);
+            }
+            processedFiles++;
+            
+            // Progress logging for large repositories
+            if (processedFiles % 50 === 0) {
+              console.log(`Processed ${processedFiles}/${files.length} files...`);
             }
           } catch (error) {
-            console.error(`Error processing ${item.path}:`, error);
+            console.error(`Error scanning file ${file.path}:`, error.message);
           }
         }
-        return findings;
-      }
-
-      // Start recursive scan from the initial path
-      const allFindings = await scanDirectory(path);
-
-      // Process findings to match client-side data structure
-      const processedFindings = allFindings.reduce((acc, finding) => {
-        const key = finding.type;
-        if (!acc[key]) {
-          acc[key] = {
-            type: finding.type,
-            severity: finding.severity || 'LOW',
-            description: finding.description || 'No description provided',
-            allLineNumbers: { [finding.file]: finding.lineNumbers || [] }
-          };
-        } else {
-          // Merge line numbers if same type
-          const file = finding.file;
-          if (!acc[key].allLineNumbers[file]) {
-            acc[key].allLineNumbers[file] = finding.lineNumbers || [];
-          } else {
-            const merged = new Set([...acc[key].allLineNumbers[file], ...finding.lineNumbers]);
-            acc[key].allLineNumbers[file] = Array.from(merged).sort((a, b) => a - b);
-          }
-        }
-        return acc;
-      }, {});
-
-      // Generate report
-      const report = scannerInstance.generateReport(allFindings);
+        
+        console.log(`Scan complete: ${allFindings.length} findings in ${processedFiles} files`);
+        
+        return { allFindings, rateLimitInfo, fromCache, filesProcessed: processedFiles };
+      })();
+      
+      // Race between scan and timeout
+      const { allFindings, rateLimitInfo, fromCache, filesProcessed } = await Promise.race([
+        scanPromise,
+        timeoutPromise
+      ]);
+      
+      // Generate report using ReportBuilder
+      const report = reportBuilder.generateReport(allFindings, { 
+        rateLimit: rateLimitInfo, 
+        fromCache,
+        filesProcessed 
+      });
+      
+      // Add recommendations
+      const recommendations = reportBuilder.generateRecommendations(allFindings);
 
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
-          findings: processedFindings,
+          findings: report.findings,
           summary: report.summary,
-          rateLimit: rateLimit.data.rate
+          recommendations,
+          rateLimit: rateLimitInfo || rateLimit.data.rate,
+          fromCache,
+          filesProcessed
         })
       };
 

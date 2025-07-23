@@ -4,7 +4,9 @@ import { program } from 'commander';
 import chalk from 'chalk';
 import { readFile, readdir, stat } from 'fs/promises';
 import { join, relative } from 'path';
-import VulnerabilityScanner from '../lib/scanner.js';
+import { RepositoryCrawler } from '../lib/RepositoryCrawler.js';
+import { FileScanner } from '../lib/FileScanner.js';
+import { ReportBuilder } from '../lib/ReportBuilder.js';
 
 function printReport(report) {
     console.log(chalk.bold('\nVulnerability Scan Report'));
@@ -76,12 +78,26 @@ function printReport(report) {
         report.findings.forEach(finding => {
             console.log(chalk.bold(`\n${finding.type} (${finding.severity})`));
             console.log(`Description: ${finding.description}`);
-            console.log(`File: ${finding.file}`);
-            if (finding.lineNumbers) {
-                console.log(`Line(s): ${finding.lineNumbers.join(', ')}`);
-            }
-            if (finding.instances > 1) {
-                console.log(`Instances: ${finding.instances}`);
+            
+            // Handle new grouped file structure
+            if (finding.files && finding.files.length > 0) {
+                finding.files.forEach(file => {
+                    console.log(`File: ${file}`);
+                    if (finding.allLineNumbers && finding.allLineNumbers[file]) {
+                        console.log(`Line(s): ${finding.allLineNumbers[file].join(', ')}`);
+                    }
+                });
+                const totalInstances = Object.values(finding.allLineNumbers || {})
+                    .reduce((sum, lines) => sum + lines.length, 0);
+                if (totalInstances > 1) {
+                    console.log(`Total Instances: ${totalInstances}`);
+                }
+            } else if (finding.file) {
+                // Fallback for old format
+                console.log(`File: ${finding.file}`);
+                if (finding.lineNumbers) {
+                    console.log(`Line(s): ${finding.lineNumbers.join(', ')}`);
+                }
             }
         });
     }
@@ -153,6 +169,17 @@ program
     .description('A security vulnerability scanner for plugin architectures')
     .version('1.0.0');
 
+// Common options configuration
+const commonOptions = {
+    enableNewPatterns: (options) => options.patterns !== false,
+    enablePackageScanners: (options) => options.packageScanners !== false,
+    createFileScanner: (options) => new FileScanner({
+        enableNewPatterns: commonOptions.enableNewPatterns(options),
+        enablePackageScanners: commonOptions.enablePackageScanners(options)
+    }),
+    createReportBuilder: () => new ReportBuilder()
+};
+
 program
     .command('scan')
     .description('Scan a file or directory for vulnerabilities')
@@ -163,14 +190,16 @@ program
     .option('--exclude <pattern>', 'Exclude files matching pattern (can be used multiple times)', [])
     .action(async (path, options) => {
         try {
-            const scanner = new VulnerabilityScanner({
-                enableNewPatterns: options.patterns !== false,
-                enablePackageScanners: options.packageScanners !== false
-            });
+            // Create modular components using consolidated config
+            const fileScanner = commonOptions.createFileScanner(options);
+            const reportBuilder = commonOptions.createReportBuilder();
 
             console.log(chalk.blue('Starting vulnerability scan...'));
-            const findings = await scanPath(path, scanner);
-            const report = scanner.generateReport(findings);
+            const findings = await scanPath(path, fileScanner);
+            const report = reportBuilder.generateReport(findings);
+            
+            // Add recommendations to match expected CLI format
+            report.recommendedFixes = reportBuilder.generateRecommendations(findings);
 
             if (options.output === 'json') {
                 console.log(JSON.stringify(report, null, 2));
@@ -200,12 +229,16 @@ program
     .option('--no-package-scanners', 'Disable package-specific scanners')
     .option('--no-patterns', 'Disable general vulnerability patterns')
     .option('-v, --verbose', 'Enable verbose output')
+    .option('-c, --concurrency <n>', 'Number of concurrent GitHub file downloads (default: 10, max: 50)', '10')
     .action(async (url, options) => {
         try {
-            const scanner = new VulnerabilityScanner({
-                enableNewPatterns: options.patterns !== false,
-                enablePackageScanners: options.packageScanners !== false
+            // Create modular components with concurrency support using consolidated config
+            const concurrency = Math.min(Math.max(parseInt(options.concurrency) || 10, 1), 50);
+            const repositoryCrawler = new RepositoryCrawler({
+                concurrency
             });
+            const fileScanner = commonOptions.createFileScanner(options);
+            const reportBuilder = commonOptions.createReportBuilder();
 
             // Load token from environment if not provided
             const token = options.token || process.env.GITHUB_TOKEN;
@@ -226,7 +259,7 @@ program
                 repoUrl = repoUrl.replace(/\/?$/, '/') + options.path.replace(/^\//, '');
             }
 
-            const { files, rateLimit, fromCache } = await scanner.fetchRepositoryFiles(repoUrl, token);
+            const { files, rateLimit, fromCache } = await repositoryCrawler.getFiles(repoUrl, token, !options.cache);
             
             if (options.verbose && fromCache) {
                 console.log(chalk.gray('Using cached repository data'));
@@ -240,7 +273,7 @@ program
                 if (options.verbose) {
                     process.stdout.write(`\r${chalk.gray(`Scanning file ${i + 1}/${files.length}: ${file.path}`)}`);
                 }
-                const fileFindings = await scanner.scanFile(file.content, file.path);
+                const fileFindings = await fileScanner.scanFile(file.content, file.path);
                 if (fileFindings && fileFindings.length > 0 && options.verbose) {
                     process.stdout.write(`\n${chalk.yellow(`Found ${fileFindings.length} issues in ${file.path}`)}\n`);
                 }
@@ -253,7 +286,10 @@ program
                 process.stdout.write('\n');
             }
 
-            const report = scanner.generateReport(findings);
+            const report = reportBuilder.generateReport(findings, { rateLimit, fromCache });
+            
+            // Add recommendations to match expected CLI format
+            report.recommendedFixes = reportBuilder.generateRecommendations(findings);
 
             if (options.output === 'json') {
                 console.log(JSON.stringify(report, null, 2));
