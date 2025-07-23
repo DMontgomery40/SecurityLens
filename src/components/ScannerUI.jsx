@@ -1,72 +1,74 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AlertTriangle, Shield } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
-import VulnerabilityScanner, { scanRepositoryLocally } from '../lib/scanner';
 import ScanResults from './ScanResults';
 import { authManager } from '../lib/githubAuth';
-import { scanWebPage } from '../lib/apiClient.js';
-import {        
+import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogHeader
 } from './ui/alert-dialog';
-import { patterns } from '../lib/patterns.js'; // Ensure patterns are exported
+import { patterns } from '../lib/patterns.js';
 import InfoPanel from './InfoPanel';
 import Header from './Header';
 import SearchSection from './SearchSection';
+import TokenManager from './TokenManager';
+import UploadArea from './UploadArea';
+import ProgressBar from './ProgressBar';
+import FilterPanel from './FilterPanel';
+import { ScanProvider, useScanContext } from '../context/ScanContext';
 
 const patternCategories = {
   CRITICAL_EXECUTION: 'Critical Execution'
 };
 
-const ScannerUI = () => {
-  // ------------------------------------------------------------------
-  // Global State
-  // ------------------------------------------------------------------
-  const [scanning, setScanning] = useState(false);
-  const [error, setError] = useState(null);
-  const [rateLimitInfo, setRateLimitInfo] = useState(null);
+const ScannerUIContent = () => {
+  // Get scan context
+  const {
+    scanning,
+    error,
+    progress,
+    scanResults,
+    usedCache,
+    successMessage,
+    rateLimitInfo,
+    selectedVulnerability,
+    severityStats,
+    viewMode,
+    searchQuery,
+    activeSeverity,
+    filteredByType,
+    filteredByFile,
+    includeFirmware,
+    firmwareMessage,
+    progressRef,
+    scanResultsRef,
+    setError,
+    setSuccessMessage,
+    setSelectedVulnerability,
+    setViewMode,
+    setIncludeFirmware,
+    scanLocalFiles,
+    scanRepository,
+    scanWebsite,
+    cancelScan
+  } = useScanContext();
+
+  // Local UI state
   const [urlInput, setUrlInput] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [progress, setProgress] = useState({
-    phase: 'initializing',
-    current: 0,
-    total: 0,
-    details: {}
-  });
-  const [scanResults, setScanResults] = useState(null);
-  const [usedCache, setUsedCache] = useState(false);
   const [githubToken, setGithubToken] = useState(authManager.getToken() || '');
   const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showLicense, setShowLicense] = useState(false);
   const [showVulnList, setShowVulnList] = useState(false);
-  const [severityStats, setSeverityStats] = useState({
-    CRITICAL: { uniqueCount: 0, instanceCount: 0 },
-    HIGH: { uniqueCount: 0, instanceCount: 0 },
-    MEDIUM: { uniqueCount: 0, instanceCount: 0 },
-    LOW: { uniqueCount: 0, instanceCount: 0 }
-  });
-  const [viewMode, setViewMode] = useState('type');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeSeverity, setActiveSeverity] = useState('ALL');
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const [filteredByType, setFilteredByType] = useState([]);
-  const [filteredByFile, setFilteredByFile] = useState([]);
-  const [selectedVulnerability, setSelectedVulnerability] = useState(null);
 
-  // ------------------------------------------------------------------
-  // Firmware / Binary State
-  // ------------------------------------------------------------------
-  const [includeFirmware, setIncludeFirmware] = useState(false);
-  const [firmwareMessage, setFirmwareMessage] = useState('');
-
-  // Add new state for tracking which section is expanded
-  const [expandedSection, setExpandedSection] = useState('all'); // 'all', 'repo', 'website', 'local', 'firmware'
-
-  // Add this with the other state declarations
+  // UI state
+  const [expandedSection, setExpandedSection] = useState('all');
   const [port, setPort] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [protocol, setProtocol] = useState('https');
 
   // Helper function to determine if a section should be shown
   const shouldShowSection = (sectionName) => {
@@ -108,80 +110,13 @@ const ScannerUI = () => {
     </div>
   );
 
-  const handleProgress = (progressData) => {
-    setProgress(progressData);
-  };
 
-  // Add a ref for the progress bar
-  const progressRef = React.useRef(null);
-
-  // Add a ref for scan results
-  const scanResultsRef = useRef(null);
-
-  // ------------------------------------------------------------------
-  // File Upload (Local)
-  // ------------------------------------------------------------------
   const handleFileUpload = async (event) => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
-
-    setScanning(true);
-    progressRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setError(null);
-    setScanResults(null);
-    setProgress({
-      phase: 'initializing',
-      current: 0,
-      total: files.length,
-      details: {}
-    });
-    setFirmwareMessage('');
-
-    try {
-      const scanner = new VulnerabilityScanner({
-        onProgress: handleProgress
-      });
-
-      const results = await scanner.scanLocalFiles(files);
-      setScanResults(results);
-      scanResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-      setSeverityStats({
-        CRITICAL: {
-          uniqueCount: results.summary.criticalIssues,
-          instanceCount: results.summary.criticalInstances
-        },
-        HIGH: {
-          uniqueCount: results.summary.highIssues,
-          instanceCount: results.summary.highInstances
-        },
-        MEDIUM: {
-          uniqueCount: results.summary.mediumIssues,
-          instanceCount: results.summary.mediumInstances
-        },
-        LOW: {
-          uniqueCount: results.summary.lowIssues,
-          instanceCount: results.summary.lowInstances
-        }
-      });
-
-      setSuccessMessage(`Successfully scanned ${files.length} files`);
-
-      // Firmware placeholder
-      if (includeFirmware) {
-        setFirmwareMessage('Firmware/Binary Analysis is coming soon!');
-      }
-    } catch (err) {
-      console.error('Scan error:', err);
-      setError(err.message || 'Error scanning files');
-    } finally {
-      setScanning(false);
-    }
+    await scanLocalFiles(files);
   };
 
-  // ------------------------------------------------------------------
-  // GitHub Repo Scan
-  // ------------------------------------------------------------------
   const handleUrlScan = useCallback(async () => {
     if (!urlInput) return;
 
@@ -190,91 +125,10 @@ const ScannerUI = () => {
       return;
     }
 
-    setScanning(true);
-    progressRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setError(null);
-    setScanResults(null);
-    setUsedCache(false);
-    setFirmwareMessage('');
-    setProgress({
-      phase: 'fetching',
-      current: 0,
-      total: 0,
-      details: { url: urlInput }
-    });
+    await scanRepository(urlInput);
+  }, [urlInput, scanRepository]);
 
-    try {
-      const results = await scanRepositoryLocally(urlInput);
-      console.log('Scan results:', results);
-
-      if (results.findings && results.summary) {
-        // Normalize GitHub scan results to match the expected structure
-        const normalizedResults = {
-          findings: results.findings,
-          summary: results.summary,
-          rateLimit: results.rateLimit,
-          fromCache: results.fromCache
-        };
-        
-        setScanResults(normalizedResults);
-        scanResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        setSeverityStats({
-          CRITICAL: {
-            uniqueCount: results.summary.criticalIssues || 0,
-            instanceCount: results.summary.criticalInstances || 0
-          },
-          HIGH: {
-            uniqueCount: results.summary.highIssues || 0,
-            instanceCount: results.summary.highInstances || 0
-          },
-          MEDIUM: {
-            uniqueCount: results.summary.mediumIssues || 0,
-            instanceCount: results.summary.mediumInstances || 0
-          },
-          LOW: {
-            uniqueCount: results.summary.lowIssues || 0,
-            instanceCount: results.summary.lowInstances || 0
-          }
-        });
-
-        setSuccessMessage(
-          `Scan complete! Found ${results.summary.totalIssues} potential vulnerabilities ` +
-          `(${results.summary.criticalIssues} critical, ` +
-          `${results.summary.highIssues} high, ` +
-          `${results.summary.mediumIssues} medium, ` +
-          `${results.summary.lowIssues} low)`
-        );
-
-        setUsedCache(results.fromCache || false);
-
-        if (includeFirmware) {
-          setFirmwareMessage('Firmware/Binary Analysis is coming soon!');
-        }
-      } else {
-        // Possibly the repo was empty or something else
-        setSuccessMessage(`Found ${results.files.length} files in repository`);
-      }
-
-      if (results.rateLimit) {
-        setRateLimitInfo(results.rateLimit);
-      }
-    } catch (err) {
-      setError(err.message);
-      if (err.status === 403) {
-        setError('Rate limit exceeded. Please try again later.');
-      }
-    } finally {
-      setScanning(false);
-    }
-  }, [urlInput, includeFirmware]);
-
-  // ------------------------------------------------------------------
-  // Website Scan (HTML + Scripts)
-  // ------------------------------------------------------------------
-  const [websiteUrl, setWebsiteUrl] = useState('');
-  const [protocol, setProtocol] = useState('https');
-
-  // Update the normalizeUrl function to include port
+  // Website scan helper
   const normalizeUrl = (url) => {
     if (!url) return '';
     
@@ -293,86 +147,7 @@ const ScannerUI = () => {
   };
 
   const handleWebsiteScan = async (url) => {
-    setScanning(true);
-    progressRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setError(null);
-    setScanResults(null);
-    setSuccessMessage('');
-    setProgress({
-      phase: 'fetching',
-      current: 0,
-      total: 0,
-      details: { url }
-    });
-    setFirmwareMessage('');
-
-    try {
-        // Basic URL validation
-        const urlPattern = /^(https?:\/\/)?([a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}|\d{1,3}(?:\.\d{1,3}){3}|localhost)(:\d+)?(\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=]*)?$/;
-        if (!urlPattern.test(url)) {
-            throw new Error('Please enter a valid website URL');
-        }
-
-        // Call the function that hits your Netlify endpoint
-        const data = await scanWebPage(url);
-
-        // Process the raw findings and report together
-        if (data.findings && data.report) {
-            // Merge the raw findings data (which has code lines) with the processed report
-            const mergedFindings = data.report.findings.map(finding => {
-                // Find matching raw finding to get code lines
-                const rawFinding = data.findings.find(f => 
-                    f.type === finding.type && f.file === finding.files[0]
-                );
-                return {
-                    ...finding,
-                    codeLines: rawFinding?.codeLines || [],
-                    scanType: 'web'
-                };
-            });
-
-            // Update the report with merged findings
-            const finalReport = {
-                ...data.report,
-                findings: mergedFindings
-            };
-
-            setScanResults(finalReport);
-            scanResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-            // Update severity stats
-            const { summary } = finalReport;
-            setSeverityStats({
-                CRITICAL: {
-                    uniqueCount: summary.criticalIssues || 0,
-                    instanceCount: summary.criticalInstances || 0
-                },
-                HIGH: {
-                    uniqueCount: summary.highIssues || 0,
-                    instanceCount: summary.highInstances || 0
-                },
-                MEDIUM: {
-                    uniqueCount: summary.mediumIssues || 0,
-                    instanceCount: summary.mediumInstances || 0
-                },
-                LOW: {
-                    uniqueCount: summary.lowIssues || 0,
-                    instanceCount: summary.lowInstances || 0
-                }
-            });
-
-            setSuccessMessage(
-                `Website scan complete! Found ${summary.totalIssues || 0} potential vulnerabilities.`
-            );
-        } else {
-            setSuccessMessage('Website scan completed, but no vulnerabilities reported.');
-        }
-    } catch (err) {
-        console.error('Website scan error:', err);
-        setError(err.message || 'Error scanning website. Please check the URL and try again.');
-    } finally {
-        setScanning(false);
-    }
+    await scanWebsite(url);
   };
 
   // ------------------------------------------------------------------
@@ -419,63 +194,12 @@ const ScannerUI = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Scroll to results when new results are set
-  useEffect(() => {
-    if (scanResults) {
-      scanResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [scanResults]);
 
-  // ------------------------------------------------------------------
-  // Filter results by search & severity
-  // ------------------------------------------------------------------
-  useEffect(() => {
-    if (!scanResults?.findings) return;
-
-    const filtered = scanResults.findings.filter((finding) => {
-      const matchesSearch =
-        searchQuery.toLowerCase() === '' ||
-        finding.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        finding.files.some((file) =>
-          file.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-
-      const matchesSeverity =
-        activeSeverity === 'ALL' || finding.severity === activeSeverity;
-
-      return matchesSearch && matchesSeverity;
-    });
-
-    // Group by type
-    setFilteredByType(filtered);
-
-    // Group by file
-    const byFile = filtered.reduce((acc, finding) => {
-      finding.files.forEach((file) => {
-        if (!acc[file]) acc[file] = [];
-        acc[file].push(finding);
-      });
-      return acc;
-    }, {});
-
-    setFilteredByFile(
-      Object.entries(byFile).map(([fileName, vulns]) => ({
-        fileName,
-        vulns
-      }))
-    );
-  }, [scanResults, searchQuery, activeSeverity]);
-
-  // ------------------------------------------------------------------
-  // Render
-  // ------------------------------------------------------------------
   const scanResultProps = {
     viewMode,
-    setViewMode,
+    setViewMode: setViewMode,
     searchQuery,
-    setSearchQuery,
-    activeSeverity,
-    setActiveSeverity,
+    setSearchQuery: () => {}, // Handled by FilterPanel
     severityStats,
     filteredByType,
     filteredByFile,
@@ -709,24 +433,10 @@ const ScannerUI = () => {
                   </svg>
                 }
               />
-              {shouldShowSection('local') && (
-                <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center">
-                  <input
-                    type="file"
-                    id="fileInput"
-                    multiple
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="fileInput"
-                    className="block cursor-pointer"
-                  >
-                    <p className="text-gray-300">Drag and drop files here, or click to select files</p>
-                    <p className="text-sm text-gray-500 mt-1">Supported files: .js, .jsx, .ts, .tsx, .py, etc.</p>
-                  </label>
-                </div>
-              )}
+              <UploadArea 
+                onFileSelected={handleFileUpload}
+                shouldShow={shouldShowSection('local')}
+              />
             </div>
 
             {/* SCAN FIRMWARE/BINARY */}
@@ -758,25 +468,12 @@ const ScannerUI = () => {
             </div>
 
             {/* PROGRESS BAR */}
-            {scanning && (
-              <div ref={progressRef} className="my-6">
-                <div className="w-full bg-gray-600 rounded-full h-3 overflow-hidden">
-                  <div
-                    className="bg-blue-400 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${progress.total ? (progress.current / progress.total) * 100 : 0}%` }}
-                  />
-                </div>
-                <div className="text-sm text-gray-300 mt-2 text-center">
-                  {progress.phase === 'fetching' && progress.total > 0
-                    ? `Fetching files (${progress.current} of ${progress.total})`
-                    : progress.phase === 'analyzing' && progress.details?.currentFile
-                    ? `Analyzing: ${progress.details.currentFile} (${progress.current} of ${progress.total})`
-                    : progress.phase === 'complete'
-                    ? 'Scan complete!'
-                    : `${progress.phase}: ${progress.current} of ${progress.total}`}
-                </div>
-              </div>
-            )}
+            <div ref={progressRef}>
+              <ProgressBar 
+                progress={progress}
+                scanning={scanning}
+              />
+            </div>
 
             {/* SUCCESS MESSAGE */}
             {successMessage && (
@@ -827,6 +524,7 @@ const ScannerUI = () => {
             {/* SCAN RESULTS */}
             {scanResults && (
               <div className="mt-6" ref={scanResultsRef}>
+                <FilterPanel />
                 <ScanResults {...scanResultProps} />
                 {firmwareMessage && (
                   <Alert className="my-4" variant="default">
@@ -836,30 +534,13 @@ const ScannerUI = () => {
               </div>
             )}
 
-            {/* GITHUB TOKEN NOTICE (if no token) */}
-            {!githubToken && (
-              <div className="bg-gray-800 p-6 rounded-lg shadow mt-6">
-                <h2 className="text-lg font-semibold text-gray-200 mb-4">GitHub Access Token</h2>
-                <p className="text-sm text-gray-400 mb-4">
-                  To scan repositories, you'll need a GitHub personal access token.
-                  This stays in your browser and is never sent to any server.
-                </p>
-                <input
-                  type="password"
-                  placeholder="GitHub token"
-                  onChange={(e) => handleTokenSubmit(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-white"
-                />
-                <a
-                  href="https://github.com/settings/tokens/new"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-400 hover:underline mt-2 inline-block"
-                >
-                  Generate a token
-                </a>
-              </div>
-            )}
+            {/* TOKEN MANAGER */}
+            <TokenManager 
+              token={githubToken}
+              onTokenChange={setGithubToken}
+              onTokenSubmit={handleTokenSubmit}
+              error={error}
+            />
           </div>
 
           {/* Info panel - make it exactly 1/3 */}
@@ -1160,5 +841,13 @@ const ScannerUI = () => {
     </div>
   );
 }
+
+const ScannerUI = () => {
+  return (
+    <ScanProvider>
+      <ScannerUIContent />
+    </ScanProvider>
+  );
+};
 
 export default ScannerUI;

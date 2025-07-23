@@ -30,15 +30,20 @@ export class GitHubAuthManager {
 
   setToken(token) {
     try {
-      if (token) {
-        localStorage.setItem(this.tokenKey, token);
-      } else {
-        localStorage.removeItem(this.tokenKey);
+      if (localStorageAvailable) {
+        if (token) {
+          localStorage.setItem(this.tokenKey, token);
+        } else {
+          localStorage.removeItem(this.tokenKey);
+        }
       }
       this.token = token;
     } catch (error) {
       console.error('Failed to save token:', error);
-      throw new Error('Unable to save GitHub token. Please check your browser settings.');
+      if (localStorageAvailable) {
+        throw new Error('Unable to save GitHub token. Please check your browser settings.');
+      }
+      // In Node.js environment, just set the token in memory
     }
   }
 

@@ -8,6 +8,8 @@ publish = "dist"
 [build.environment]
   NODE_VERSION = "18"
   AWS_LAMBDA_JS_RUNTIME = "nodejs18.x"
+  SCANNER_CONCURRENCY = "8"
+  WEBPAGE_SCRIPT_CONCURRENCY = "5"
 
 [[redirects]]
   from = "/*"
@@ -17,7 +19,7 @@ publish = "dist"
 [functions]
   node_bundler = "esbuild"
   included_files = ["src/lib/**"]
-  external_node_modules = ["@octokit/rest"]
+  external_node_modules = ["@octokit/rest", "@octokit/core", "@octokit/plugin-rest-endpoint-methods"]
 
 [functions.scan-repository]
   timeout = 30
