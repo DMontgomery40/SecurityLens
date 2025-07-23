@@ -95,6 +95,9 @@ npx securitylens scan ./path/to/project
 # Scan a public GitHub repository
 npx securitylens scan-repo https://github.com/owner/repo
 
+# Scan with custom concurrency (default: 10, max: 50)
+npx securitylens scan-repo --concurrency 2 https://github.com/owner/repo
+
 # Exit codes follow common CI conventions – the process exits with 1 when
 # CRITICAL or HIGH vulnerabilities are found so you can gate builds easily.
 ```
@@ -104,6 +107,17 @@ If you need to access private repositories remember to provide a GitHub token:
 ```bash
 GITHUB_TOKEN=ghp_... npx securitylens scan-repo https://github.com/owner/private-repo
 ```
+
+### Performance & Rate Limiting
+
+The scanner includes configurable concurrency controls to balance speed with GitHub API rate limits:
+
+- **Default concurrency**: 10 concurrent file downloads
+- **Range**: 1-50 concurrent downloads (automatically clamped)
+- **Rate limit protection**: Built-in safeguards to avoid exceeding GitHub limits
+- **Error handling**: Non-fatal errors during file downloads don't stop the scan
+
+For large repositories, consider using lower concurrency (e.g., `--concurrency 2`) to be more conservative with rate limits. For small repositories or when you have higher rate limits, you can use higher concurrency (e.g., `--concurrency 50`) for faster scanning.
 
 ---
 
@@ -143,6 +157,93 @@ docker run --rm -e GITHUB_TOKEN=$GITHUB_TOKEN securitylens \
 Because the CLI is the container's **entrypoint command**, anything that comes
 after the image name is forwarded directly to `securitylens`. Feel free to pass
 all the regular flags shown in the examples above.
+
+---
+
+## Architecture & Development
+
+### Modular Architecture
+
+SecurityLens uses a clean, modular architecture that makes it easy to extend and maintain:
+
+```
+src/
+├── lib/                      # Core scanning modules
+│   ├── RepositoryCrawler.js  # GitHub API integration with concurrency control
+│   ├── FileScanner.js        # File content analysis orchestrator  
+│   ├── ReportBuilder.js      # Report generation and formatting
+│   ├── scanner.js           # Legacy scanner (being phased out)
+│   ├── patterns/            # Vulnerability detection patterns
+│   │   ├── index.js         # Pattern registry and loader
+│   │   ├── injection.js     # SQL/Command injection patterns
+│   │   ├── authentication.js# Auth and session vulnerabilities
+│   │   ├── cryptography.js  # Crypto-related weaknesses
+│   │   ├── api.js           # API security patterns
+│   │   └── ...              # Additional pattern categories
+│   ├── cache/               # Intelligent caching system
+│   └── utils.js            # Shared utilities
+├── components/              # React UI components
+├── cli/                     # Command-line interface
+└── context/                # React state management
+```
+
+### Adding New Vulnerability Patterns
+
+SecurityLens makes it easy to add new security checks. All patterns are organized by category in `src/lib/patterns/`:
+
+1. **Choose or create a category file** (e.g., `src/lib/patterns/api.js`)
+2. **Add your pattern** following this structure:
+
+```javascript
+export const myNewPattern = {
+  id: 'myNewVulnerability',
+  name: 'My New Vulnerability',
+  description: 'Description of what this detects',
+  severity: 'HIGH', // CRITICAL, HIGH, MEDIUM, LOW
+  pattern: /your-regex-pattern/i,
+  category: 'API Security',
+  cwe: '123' // Common Weakness Enumeration ID
+};
+```
+
+3. **Export it in the category file**:
+```javascript
+export const apiPatterns = [
+  myNewPattern,
+  // ... other patterns
+];
+```
+
+4. **Register the category** in `src/lib/patterns/index.js`:
+```javascript
+import { apiPatterns } from './api.js';
+
+export const allPatterns = [
+  ...apiPatterns,
+  // ... other pattern groups
+];
+```
+
+That's it! Your new pattern will automatically be included in scans across CLI, web UI, and Netlify functions.
+
+### Performance & Concurrency
+
+SecurityLens includes intelligent performance optimizations:
+
+- **Configurable concurrency**: Control how many GitHub API requests run simultaneously
+- **Smart caching**: Repository data cached for 24 hours to reduce API calls
+- **Non-blocking errors**: Failed file downloads don't stop the entire scan
+- **Rate limit protection**: Built-in safeguards prevent hitting GitHub API limits
+- **Efficient parsing**: Patterns only applied to relevant file types
+
+### Error Handling
+
+Robust error handling ensures scans complete even when individual files fail:
+
+- **Standardized error types**: `ScanError` class with error codes, messages, and details
+- **Partial results**: Scans return results even if some files couldn't be processed
+- **Error collection**: All non-fatal errors collected and reported in scan results
+- **Graceful degradation**: Missing tokens, network issues, and rate limits handled gracefully
 
 ---
 
