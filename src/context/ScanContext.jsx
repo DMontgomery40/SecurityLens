@@ -134,7 +134,7 @@ export const ScanProvider = ({ children }) => {
     });
 
     try {
-      const results = await scanRepositoryLocally(urlInput);
+      const results = await scanRepositoryLocally(urlInput, handleProgress);
       console.log('Scan results:', results);
 
       if (results.findings && results.summary) {
@@ -166,12 +166,19 @@ export const ScanProvider = ({ children }) => {
           }
         });
 
+        // Include scan statistics in success message
+        const scanStatsMsg = results.scanStats 
+          ? ` • Scanned ${results.scanStats.successCount}/${results.scanStats.totalFiles} files (${results.scanStats.completionRate}%) in ${results.scanStats.duration}s`
+          : '';
+        
+        const partialMsg = results.partial ? ' • ⚠️ Some files failed to download' : '';
+        
         setSuccessMessage(
           `Scan complete! Found ${results.summary.totalIssues} potential vulnerabilities ` +
           `(${results.summary.criticalIssues} critical, ` +
           `${results.summary.highIssues} high, ` +
           `${results.summary.mediumIssues} medium, ` +
-          `${results.summary.lowIssues} low)`
+          `${results.summary.lowIssues} low)${scanStatsMsg}${partialMsg}`
         );
 
         setUsedCache(results.fromCache || false);
@@ -203,11 +210,16 @@ export const ScanProvider = ({ children }) => {
     setError(null);
     setScanResults(null);
     setSuccessMessage('');
+    const startTime = Date.now();
     setProgress({
       phase: 'fetching',
       current: 0,
       total: 0,
-      details: { url }
+      details: { 
+        url,
+        status: 'Fetching webpage content...',
+        startTime
+      }
     });
     setFirmwareMessage('');
 
@@ -259,11 +271,53 @@ export const ScanProvider = ({ children }) => {
           }
         });
 
+        // Calculate scan duration
+        const endTime = Date.now();
+        const duration = Math.round((endTime - startTime) / 1000 * 100) / 100;
+        
+        // Count scanned items (HTML + scripts)
+        const scriptCount = data.scriptsScanned || 0;
+        const totalScanned = scriptCount + 1; // +1 for HTML page
+        
+        // Send completion progress
+        setProgress({
+          phase: 'completed',
+          current: totalScanned,
+          total: totalScanned,
+          details: {
+            duration: duration,
+            successCount: totalScanned,
+            failureCount: 0,
+            completionRate: 100,
+            totalAttempted: totalScanned,
+            summary: `Scanned ${totalScanned} items (HTML + ${scriptCount} scripts) in ${duration}s`
+          }
+        });
+
         setSuccessMessage(
-          `Website scan complete! Found ${summary.totalIssues || 0} potential vulnerabilities.`
+          `Website scan complete! Found ${summary.totalIssues || 0} potential vulnerabilities • ` +
+          `Scanned ${totalScanned} items in ${duration}s`
         );
       } else {
-        setSuccessMessage('Website scan completed, but no vulnerabilities reported.');
+        // Calculate scan duration even for no results
+        const endTime = Date.now();
+        const duration = Math.round((endTime - startTime) / 1000 * 100) / 100;
+        
+        setProgress({
+          phase: 'completed',
+          current: 1,
+          total: 1,
+          details: {
+            duration: duration,
+            successCount: 1,
+            failureCount: 0,
+            completionRate: 100,
+            totalAttempted: 1,
+            summary: `Scanned webpage in ${duration}s`
+          }
+        });
+        
+        setSuccessMessage(`Website scan completed in ${duration}s, but no vulnerabilities reported.`);
       }
     } catch (err) {
       console.error('Website scan error:', err);

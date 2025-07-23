@@ -12,14 +12,25 @@ const ProgressBar = ({ progress, onCancel, scanning }) => {
         />
       </div>
       <div className="text-sm text-gray-300 mt-2 text-center">
-        {progress.phase === 'fetching' && progress.total > 0
+        {progress.phase === 'fetching' && progress.total > 0 && progress.details?.successCount !== undefined
+          ? `Fetching files (${progress.current}/${progress.total}) • ✓${progress.details.successCount} ✗${progress.details.failureCount}`
+          : progress.phase === 'fetching' && progress.total > 0
           ? `Fetching files (${progress.current} of ${progress.total})`
+          : progress.phase === 'analyzing' && progress.total > 0 && progress.details?.successCount !== undefined
+          ? `Analyzing files (${progress.current}/${progress.total}) • ✓${progress.details.successCount} ✗${progress.details.failureCount}`
+          : progress.phase === 'completed' && progress.details?.summary
+          ? progress.details.summary
           : progress.phase === 'analyzing' && progress.details?.currentFile
           ? `Analyzing: ${progress.details.currentFile} (${progress.current} of ${progress.total})`
           : progress.phase === 'complete'
           ? 'Scan complete!'
           : `${progress.phase}: ${progress.current} of ${progress.total}`}
       </div>
+      {progress.phase === 'completed' && progress.details?.failureCount > 0 && (
+        <div className="text-xs text-yellow-400 mt-1 text-center">
+          ⚠️ {progress.details.failureCount} files couldn't be downloaded - scan may be incomplete
+        </div>
+      )}
       {onCancel && (
         <div className="text-center mt-2">
           <button

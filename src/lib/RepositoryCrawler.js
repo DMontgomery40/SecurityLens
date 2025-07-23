@@ -298,13 +298,33 @@ export class RepositoryCrawler {
       // Get file contents with semaphore-controlled concurrency
       const blobFiles = filteredTree.filter(item => item.type === 'blob');
       const filesWithContent = [];
-      let processedFiles = 0;
       const totalFiles = blobFiles.length;
       
       this.clearErrors(); // Clear any previous errors
+      
+      // Track timing and statistics
+      const startTime = Date.now();
+      let successCount = 0;
+      let failureCount = 0;
+      
+      // Initialize progress tracking
+      if (onProgress) {
+        onProgress({
+          phase: 'fetching',
+          current: 0,
+          total: totalFiles,
+          details: { 
+            status: 'Starting file downloads...',
+            startTime: startTime
+          }
+        });
+      }
+      
+      // Track progress with atomic counter to avoid race conditions
+      let completedCount = 0;
 
       // Use semaphore to control concurrency
-      const filePromises = blobFiles.map(file => 
+      const filePromises = blobFiles.map((file, index) => 
         this.semaphore.execute(async () => {
           try {
             // Use raw content URL for better performance
@@ -319,17 +339,40 @@ export class RepositoryCrawler {
                 statusText: response.statusText,
                 filePath: file.path
               });
+              
+              // Update progress and failure count atomically
+              completedCount++;
+              failureCount++;
+              if (onProgress) {
+                onProgress({ 
+                  phase: 'fetching',
+                  current: completedCount, 
+                  total: totalFiles,
+                  details: { 
+                    currentFile: file.path,
+                    successCount: successCount,
+                    failureCount: failureCount
+                  }
+                });
+              }
               return null;
             }
             
             const content = await response.text();
-            processedFiles++;
             
+            // Update progress and success count atomically
+            completedCount++;
+            successCount++;
             if (onProgress) {
               onProgress({ 
                 phase: 'fetching',
-                current: processedFiles, 
-                total: totalFiles
+                current: completedCount, 
+                total: totalFiles,
+                details: { 
+                  currentFile: file.path,
+                  successCount: successCount,
+                  failureCount: failureCount
+                }
               });
             }
             
@@ -339,12 +382,20 @@ export class RepositoryCrawler {
               originalError: error.message,
               filePath: file.path
             });
-            processedFiles++;
+            
+            // Update progress and failure count atomically
+            completedCount++;
+            failureCount++;
             if (onProgress) {
               onProgress({ 
                 phase: 'fetching',
-                current: processedFiles, 
-                total: totalFiles
+                current: completedCount, 
+                total: totalFiles,
+                details: { 
+                  currentFile: file.path,
+                  successCount: successCount,
+                  failureCount: failureCount
+                }
               });
             }
             return null;
@@ -355,21 +406,59 @@ export class RepositoryCrawler {
       const results = await Promise.all(filePromises);
       filesWithContent.push(...results.filter(f => f !== null));
 
-      console.log(`Successfully fetched ${filesWithContent.length} files`);
+      // Calculate final statistics
+      const endTime = Date.now();
+      const duration = Math.round((endTime - startTime) / 1000 * 100) / 100; // seconds with 2 decimal places
+      const actualSuccessCount = filesWithContent.length;
+      const actualFailureCount = totalFiles - actualSuccessCount;
+      const completionRate = totalFiles > 0 ? Math.round((actualSuccessCount / totalFiles) * 100) : 100;
+
+      console.log(`Successfully fetched ${actualSuccessCount} files in ${duration}s`);
       
-      if (this.errors.length > 0) {
-        console.warn(`${this.errors.length} non-fatal errors occurred during file fetching`);
+      if (actualFailureCount > 0) {
+        console.warn(`${actualFailureCount} files failed to download`);
+      }
+      
+      // Send completion summary
+      if (onProgress) {
+        onProgress({
+          phase: 'completed',
+          current: totalFiles,
+          total: totalFiles,
+          details: {
+            duration: duration,
+            successCount: actualSuccessCount,
+            failureCount: actualFailureCount,
+            completionRate: completionRate,
+            totalAttempted: totalFiles,
+            summary: `Scanned ${actualSuccessCount}/${totalFiles} files (${completionRate}%) in ${duration}s`
+          }
+        });
       }
       
       const result = { 
         files: filesWithContent,
         errors: this.errors,
-        partial: this.errors.length > 0
+        partial: actualFailureCount > 0,
+        scanStats: {
+          duration: duration,
+          totalFiles: totalFiles,
+          successCount: actualSuccessCount,
+          failureCount: actualFailureCount,
+          completionRate: completionRate
+        }
       };
       this.cache.set(cacheKey, result, 24 * 60 * 60); // Cache for 24 hours
       
       if (onProgress) {
-        onProgress({ phase: 'analyzing', current: 0, total: filesWithContent.length });
+        onProgress({ 
+          phase: 'analyzing', 
+          current: 0, 
+          total: filesWithContent.length,
+          details: {
+            status: 'Starting vulnerability analysis...'
+          }
+        });
       }
       
       return { ...result, fromCache: false };
