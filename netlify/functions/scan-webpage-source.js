@@ -53,7 +53,9 @@ export const handler = async (event) => {
         }
 
         const html = response.data;
-        console.log('Successfully fetched HTML, parsing scripts...');
+        console.log('Successfully fetched HTML, length:', html.length);
+        console.log('HTML preview:', html.substring(0, 200));
+        console.log('Parsing scripts...');
 
         // Parse HTML with Cheerio
         const $ = cheerio.load(html);
@@ -74,6 +76,20 @@ export const handler = async (event) => {
             enableNewPatterns: true,
             enablePackageScanners: true
         });
+        
+        console.log('FileScanner initialized with patterns:', {
+            patternCount: Object.keys(fileScanner.vulnerabilityPatterns || {}).length,
+            samplePatterns: Object.keys(fileScanner.vulnerabilityPatterns || {}).slice(0, 5)
+        });
+        
+        // Additional diagnostic logging for webpage scanner
+        console.log('Webpage scanner diagnostic - Loaded patterns:', {
+            totalPatterns: Object.keys(fileScanner.vulnerabilityPatterns || {}).length,
+            firstFivePatterns: Object.keys(fileScanner.vulnerabilityPatterns || {}).slice(0, 5),
+            hasPatterns: !!fileScanner.vulnerabilityPatterns,
+            patternsType: typeof fileScanner.vulnerabilityPatterns
+        });
+        
         const reportBuilder = new ReportBuilder();
         const scriptContents = [];
 
@@ -131,15 +147,20 @@ export const handler = async (event) => {
             
             for (const { filename, content } of scriptContents) {
                 try {
+                    console.log(`Processing ${filename}: content length ${content?.length || 0}, type: ${typeof content}`);
                     if (content && typeof content === 'string' && content.trim()) {
+                        console.log(`About to scan ${filename} with content preview:`, content.substring(0, 100));
                         const fileFindings = await fileScanner.scanFile(content, filename, { 
                             scanType: 'web',
                             sourceContent: content
                         });
+                        console.log(`Scan results for ${filename}:`, fileFindings?.length || 0, 'findings');
                         if (fileFindings && fileFindings.length > 0) {
                             allFindings.push(...fileFindings);
                         }
                         scannedCount++;
+                    } else {
+                        console.log(`Skipping ${filename}: empty or invalid content`);
                     }
                 } catch (err) {
                     console.error(`Error scanning content ${filename}:`, err.message);
@@ -147,6 +168,16 @@ export const handler = async (event) => {
             }
             
             console.log(`Scan complete: ${allFindings.length} findings from ${scannedCount} scanned items`);
+            console.log('Script contents details:', scriptContents.map(s => ({
+                filename: s.filename,
+                length: s.content?.length || 0,
+                preview: s.content?.substring(0, 100) || 'No content'
+            })));
+            console.log('All findings details:', allFindings.map(f => ({
+                rule: f.rule,
+                severity: f.severity,
+                file: f.file
+            })));
             return { allFindings, scannedCount };
         })();
         

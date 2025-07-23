@@ -108,6 +108,14 @@ export const handler = async (event, context) => {
       });
       const reportBuilder = new ReportBuilder();
 
+      // Additional diagnostic logging for repository scanner
+      console.log('Repository scanner diagnostic - Loaded patterns:', {
+          totalPatterns: Object.keys(fileScanner.vulnerabilityPatterns || {}).length,
+          firstFivePatterns: Object.keys(fileScanner.vulnerabilityPatterns || {}).slice(0, 5),
+          hasPatterns: !!fileScanner.vulnerabilityPatterns,
+          patternsType: typeof fileScanner.vulnerabilityPatterns
+      });
+
       // Construct GitHub URL for the crawler
       const githubUrl = `https://github.com/${owner}/${repo}`;
       const fullUrl = branch !== 'main' ? `${githubUrl}/tree/${branch}` : githubUrl;
@@ -122,9 +130,21 @@ export const handler = async (event, context) => {
       
       const scanPromise = (async () => {
         // Get files using the modular crawler
-        const { files, rateLimit: rateLimitInfo, fromCache } = await repositoryCrawler.getFiles(scanUrl, token, false);
+        const { files, rateLimit: rateLimitInfo, fromCache, partial, scanStats } = await repositoryCrawler.getFiles(
+          token, 
+          owner, 
+          repo, 
+          branch, 
+          path,
+          (progress) => {
+            console.log(`Progress: ${progress.phase} - ${progress.current}/${progress.total}`, progress.details);
+          }
+        );
         
         console.log(`Retrieved ${files.length} files from repository${fromCache ? ' (cached)' : ''}`);
+        if (partial) {
+          console.log(`Note: This is a partial scan. ${scanStats.failureCount} files could not be downloaded.`);
+        }
         
         // Scan files using FileScanner
         let allFindings = [];
@@ -149,11 +169,11 @@ export const handler = async (event, context) => {
         
         console.log(`Scan complete: ${allFindings.length} findings in ${processedFiles} files`);
         
-        return { allFindings, rateLimitInfo, fromCache, filesProcessed: processedFiles };
+        return { allFindings, rateLimitInfo, fromCache, filesProcessed: processedFiles, partial, scanStats };
       })();
       
       // Race between scan and timeout
-      const { allFindings, rateLimitInfo, fromCache, filesProcessed } = await Promise.race([
+      const { allFindings, rateLimitInfo, fromCache, filesProcessed, partial, scanStats } = await Promise.race([
         scanPromise,
         timeoutPromise
       ]);
@@ -162,7 +182,9 @@ export const handler = async (event, context) => {
       const report = reportBuilder.generateReport(allFindings, { 
         rateLimit: rateLimitInfo, 
         fromCache,
-        filesProcessed 
+        filesProcessed,
+        partial,
+        scanStats 
       });
       
       // Add recommendations
@@ -177,7 +199,9 @@ export const handler = async (event, context) => {
           recommendations,
           rateLimit: rateLimitInfo || rateLimit.data.rate,
           fromCache,
-          filesProcessed
+          filesProcessed,
+          partial: partial || false,
+          scanStats: scanStats || null
         })
       };
 
