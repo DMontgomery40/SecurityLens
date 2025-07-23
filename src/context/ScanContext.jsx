@@ -134,7 +134,7 @@ export const ScanProvider = ({ children }) => {
     });
 
     try {
-      const results = await scanRepositoryLocally(urlInput);
+      const results = await scanRepositoryLocally(urlInput, handleProgress);
       console.log('Scan results:', results);
 
       if (results.findings && results.summary) {

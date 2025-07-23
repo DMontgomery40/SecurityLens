@@ -173,13 +173,14 @@ class VulnerabilityScanner {
 /**
  * Helper function to scan repositories locally
  * @param {string} url - GitHub repository URL
+ * @param {function} onProgress - Progress callback function
  */
-export async function scanRepositoryLocally(url) {
+export async function scanRepositoryLocally(url, onProgress = null) {
   const scanner = new VulnerabilityScanner({
-    onProgress: (progress) => {
-      // Pass progress object instead of separate values
+    onProgress: onProgress || ((progress) => {
+      // Default progress handler that just logs
       console.log(`Scanning progress:`, progress);
-    }
+    })
   });
 
   try {

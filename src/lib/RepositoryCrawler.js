@@ -298,13 +298,25 @@ export class RepositoryCrawler {
       // Get file contents with semaphore-controlled concurrency
       const blobFiles = filteredTree.filter(item => item.type === 'blob');
       const filesWithContent = [];
-      let processedFiles = 0;
       const totalFiles = blobFiles.length;
       
       this.clearErrors(); // Clear any previous errors
+      
+      // Initialize progress tracking
+      if (onProgress) {
+        onProgress({
+          phase: 'fetching',
+          current: 0,
+          total: totalFiles,
+          details: { status: 'Starting file downloads...' }
+        });
+      }
+      
+      // Track progress with atomic counter to avoid race conditions
+      let completedCount = 0;
 
       // Use semaphore to control concurrency
-      const filePromises = blobFiles.map(file => 
+      const filePromises = blobFiles.map((file, index) => 
         this.semaphore.execute(async () => {
           try {
             // Use raw content URL for better performance
@@ -319,17 +331,30 @@ export class RepositoryCrawler {
                 statusText: response.statusText,
                 filePath: file.path
               });
+              
+              // Update progress atomically
+              completedCount++;
+              if (onProgress) {
+                onProgress({ 
+                  phase: 'fetching',
+                  current: completedCount, 
+                  total: totalFiles,
+                  details: { currentFile: file.path }
+                });
+              }
               return null;
             }
             
             const content = await response.text();
-            processedFiles++;
             
+            // Update progress atomically
+            completedCount++;
             if (onProgress) {
               onProgress({ 
                 phase: 'fetching',
-                current: processedFiles, 
-                total: totalFiles
+                current: completedCount, 
+                total: totalFiles,
+                details: { currentFile: file.path }
               });
             }
             
@@ -339,12 +364,15 @@ export class RepositoryCrawler {
               originalError: error.message,
               filePath: file.path
             });
-            processedFiles++;
+            
+            // Update progress atomically
+            completedCount++;
             if (onProgress) {
               onProgress({ 
                 phase: 'fetching',
-                current: processedFiles, 
-                total: totalFiles
+                current: completedCount, 
+                total: totalFiles,
+                details: { currentFile: file.path }
               });
             }
             return null;
