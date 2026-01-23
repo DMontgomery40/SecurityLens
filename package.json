@@ -35,7 +35,7 @@
     "fs-extra": "^11.2.0",
     "jose": "^5.2.0",
     "js-yaml": "^4.1.0",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "lucide-react": "^0.263.1",
     "node-fetch": "^3.3.2",
     "octokit": "^4.0.3",
