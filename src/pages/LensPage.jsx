@@ -4,6 +4,7 @@ import LensInput from '../components/lens/LensInput.jsx';
 import Transcript from '../components/lens/Transcript.jsx';
 import VerdictPanel from '../components/lens/VerdictPanel.jsx';
 import AgentViewPanel from '../components/lens/AgentViewPanel.jsx';
+import RepoResults from '../components/lens/RepoResults.jsx';
 import { CodeBlock } from '../components/common/CopyButton.jsx';
 import { analyzeUrl, analyzeHtmlLocally } from '../lib/isp/client.js';
 import { findDemo } from '../lib/isp/demos.js';
@@ -179,7 +180,7 @@ export default function LensPage() {
           )}
         </section>
         <div ref={resultsRef} style={{ scrollMarginTop: 16 }}>
-          {report ? <Results report={report} label={label} /> : <Example onOpen={runDemo} />}
+          {report ? report.kind === 'repository' ? <RepoResults report={report} /> : <Results report={report} label={label} /> : <Example onOpen={runDemo} />}
         </div>
       </div>
       <div className="sl-wrap">

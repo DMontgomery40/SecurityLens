@@ -27,7 +27,7 @@ describe('remote MCP endpoint', () => {
   test('lists tools on a fresh request', async () => {
     const { status, body } = await rpc({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
     expect(status).toBe(200);
-    expect(body.result.tools.map((tool) => tool.name).sort()).toEqual(['check_page', 'check_policy', 'read_page', 'write_policy']);
+    expect(body.result.tools.map((tool) => tool.name).sort()).toEqual(['check_page', 'check_policy', 'check_repository', 'read_page', 'write_policy']);
   });
 
   test('calls a tool and returns structured content', async () => {

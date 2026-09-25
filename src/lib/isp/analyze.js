@@ -423,9 +423,10 @@ export function analyzeDocument({ html, url = null, headers = {}, wellKnown = nu
       addFinding({
         ...base,
         kind: 'instruction-in-untrusted',
-        severity: visibleStrength === 'strong' ? (contained ? 'medium' : 'high') : 'low',
+        severity: visibleStrength === 'strong' ? (contained || analysis.quoted ? 'medium' : 'high') : 'low',
         contained,
-        title: visibleStrength === 'strong' ? 'Instructions inside user content' : 'Instruction-like wording in user content',
+        quoted: analysis.quoted,
+        title: visibleStrength === 'strong' ? (analysis.quoted ? 'Quoted instructions inside user content' : 'Instructions inside user content') : 'Instruction-like wording in user content',
         detail: contained
           ? 'This region is declared untrusted. Agents that honor the policy treat it as information, not orders.'
           : `Someone other than the site wrote this, it tells agents what to do, and nothing on the page marks it as not the site speaking.`,

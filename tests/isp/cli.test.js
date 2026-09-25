@@ -63,7 +63,7 @@ describe('securitylens mcp', () => {
     const client = new Client({ name: 'cli-test', version: '1.0.0' });
     await client.connect(new StdioClientTransport({ command: process.execPath, args: [CLI, 'mcp'], env: { ...process.env, NODE_ENV: 'test' }, stderr: 'ignore' }));
     const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name).sort()).toEqual(['check_page', 'check_policy', 'read_page', 'write_policy']);
+    expect(tools.map((tool) => tool.name).sort()).toEqual(['check_page', 'check_policy', 'check_repository', 'read_page', 'write_policy']);
     const result = await client.callTool({ name: 'check_policy', arguments: { policy: 'untrusted .review' } });
     expect(result.structuredContent.normalized).toBe('default voice; untrusted .review');
     await client.close();

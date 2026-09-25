@@ -3,7 +3,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { lensUrl } from './lens.js';
+import { lensUrl, lensRepository } from './lens.js';
 import { FetchError } from './safeFetch.js';
 import { analyzeDocument } from '../analyze.js';
 import { toAgentView } from '../agentView.js';
@@ -69,7 +69,7 @@ export function explainPolicy(parsed) {
     .map(([key, value]) => DIRECTIVE_TEXT[key](value));
 }
 
-export function createLensMcpServer({ fetchPage = lensUrl } = {}) {
+export function createLensMcpServer({ fetchPage = lensUrl, fetchRepository = lensRepository, githubToken = null } = {}) {
   const server = new McpServer(SERVER_INFO, {
     instructions:
       'SecurityLens reads web pages and says who is speaking in each part: the site, other people, or hidden text. Use read_page instead of a plain fetch when a page may contain user-written content.'
@@ -213,6 +213,43 @@ export function createLensMcpServer({ fetchPage = lensUrl } = {}) {
           structuredContent: { policy: generated.policy, header: generated.header, meta: generated.meta, snippets: generated.snippets, check: generated.check, regions: generated.regions }
         };
       } catch (error) {
+        return errorResult(describeFailure(error));
+      }
+    }
+  );
+
+  server.registerTool(
+    'check_repository',
+    {
+      title: 'Check what a GitHub repository tells agents',
+      description:
+        'Read a public GitHub repository\'s agent instruction files (AGENTS.md, CLAUDE.md, rules, skills), agent hooks and MCP configs, open issues and pull requests, and recent comments. Returns text hidden from human reviewers, instruction files that ask agents to send data out or hide things, and orders written into issues or comments.',
+      inputSchema: {
+        url: z.string().describe('Repository URL, for example https://github.com/owner/name')
+      },
+      annotations: { title: 'Check repository', ...READ_ONLY }
+    },
+    async ({ url }) => {
+      try {
+        const report = await fetchRepository(url, { token: githubToken });
+        const serious = report.findings.filter((finding) => finding.severity !== 'info');
+        const lines = [
+          `${report.repo.owner}/${report.repo.name}: ${report.instructionFiles.length} instruction files, ${report.summary.discussions} issue and pull request threads read.`,
+          serious.length ? `${serious.length} finding${serious.length === 1 ? '' : 's'}:` : 'No findings above informational.',
+          ...serious.map((finding) => `- ${finding.severity}: ${finding.title} (${finding.location})${finding.excerpt ? ` | ${finding.excerpt}` : ''}`)
+        ];
+        return {
+          content: [{ type: 'text', text: lines.join('\n') }],
+          structuredContent: {
+            repo: report.repo,
+            instructionFiles: report.instructionFiles.map(({ path, findings }) => ({ path, findings: findings.length })),
+            configs: report.configs,
+            findings: summarizeFindings(report.findings).map((finding, index) => ({ ...finding, location: report.findings[index].location })),
+            coverage: report.coverage
+          }
+        };
+      } catch (error) {
+        if (error instanceof FetchError && error.code?.startsWith('github-')) return errorResult(error.message);
         return errorResult(describeFailure(error));
       }
     }

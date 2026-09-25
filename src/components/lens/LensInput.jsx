@@ -31,7 +31,7 @@ export default function LensInput({ busy, onUrl, onHtml, onDemo, initialUrl = ''
             inputMode="url"
             autoComplete="url"
             spellCheck="false"
-            placeholder="https://example.com/a-page-with-comments"
+            placeholder="A page URL, or a GitHub repository"
             value={url}
             onChange={(event) => setUrl(event.target.value)}
           />

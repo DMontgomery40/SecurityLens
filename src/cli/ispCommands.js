@@ -6,7 +6,7 @@ import { analyzeDocument } from '../lib/isp/analyze.js';
 import { toAgentView } from '../lib/isp/agentView.js';
 import { generatePolicy } from '../lib/isp/generate.js';
 import { parsePolicy, serializePolicy } from '../lib/isp/policy.js';
-import { lensUrl } from '../lib/isp/node/lens.js';
+import { lensUrl, lensRepository, isRepositoryUrl } from '../lib/isp/node/lens.js';
 import { FetchError } from '../lib/isp/node/safeFetch.js';
 import { createLensMcpServer, explainPolicy } from '../lib/isp/node/mcpServer.js';
 
@@ -57,6 +57,22 @@ function printTranscript(report) {
   if (report.coverage.scriptsNotExecuted) write(chalk.gray('\nScripts were not run, so content that JavaScript adds is missing.'));
 }
 
+function printRepository(report) {
+  write(chalk.bold(`${report.repo.owner}/${report.repo.name}`));
+  write(`${report.instructionFiles.length} agent instruction files, ${report.summary.discussions} issue and pull request threads, ${report.summary.comments} recent comments.`);
+  for (const config of report.configs) {
+    for (const server of config.servers) write(`MCP server ${server.name}: ${server.command || server.url} ${chalk.gray(`(${config.path})`)}`);
+    for (const hook of config.hooks) write(`${hook.event} hook: ${hook.command} ${chalk.gray(`(${config.path})`)}`);
+  }
+  write();
+  const findings = report.findings.filter((finding) => finding.severity !== 'info');
+  write(chalk.bold(findings.length ? `${findings.length} finding${findings.length === 1 ? '' : 's'}` : 'No findings above informational'));
+  for (const finding of findings) {
+    write(`  ${SEVERITY_COLOR[finding.severity](finding.severity.toUpperCase())} ${finding.title} ${chalk.gray(`(${finding.location})`)}`);
+    if (finding.excerpt) write(chalk.gray(`    ${finding.excerpt}`));
+  }
+}
+
 function exitCodeFor(report) {
   return report.findings.some((finding) => ['critical', 'high'].includes(finding.severity) && !finding.contained) ? 1 : 0;
 }
@@ -65,12 +81,19 @@ export function registerIspCommands(program) {
   program
     .command('lens')
     .description('Show who is speaking on a web page and flag text aimed at AI agents')
-    .argument('[url]', 'Public page URL')
+    .argument('[url]', 'Public page URL, or a GitHub repository URL')
     .option('--html <file>', 'Analyze a local HTML file instead of fetching')
     .option('--policy <policy>', 'Apply a draft Instruction Security Policy')
     .option('-f, --format <format>', 'transcript, agent, or json', 'transcript')
     .action(async (url, options) => {
       try {
+        if (url && !options.html && isRepositoryUrl(url)) {
+          const repoReport = await lensRepository(url, { token: process.env.GITHUB_TOKEN || null });
+          if (options.format === 'json') write(JSON.stringify(repoReport, null, 2));
+          else printRepository(repoReport);
+          process.exitCode = exitCodeFor(repoReport);
+          return;
+        }
         const report = await loadReport(url, options);
         if (options.format === 'json') write(JSON.stringify(report, null, 2));
         else if (options.format === 'agent') write(toAgentView(report).text);

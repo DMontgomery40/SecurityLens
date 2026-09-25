@@ -14,6 +14,7 @@ const CLIENTS = [
 const TOOLS = [
   ['read_page', 'Fetches a URL and returns its text grouped by speaker: the site, other people, and hidden. Hidden text and invisible characters are removed, and every untrusted block sits inside a boundary its text cannot close.'],
   ['check_page', 'Returns the findings for a URL or HTML: instructions hidden from people, orders inside user content, poisoned tool descriptions, and the page’s policy status.'],
+  ['check_repository', 'Reads a GitHub repository’s agent instruction files, hooks, MCP configs, open issues, and recent comments, and flags text hidden from reviewers or orders written into issues.'],
   ['check_policy', 'Parses an Instruction Security Policy and explains each directive, with errors and warnings.'],
   ['write_policy', 'Drafts a policy for a page from the user content the lens finds on it.']
 ];

@@ -3,6 +3,8 @@
 import { safeFetch, FetchError } from './safeFetch.js';
 import { analyzeDocument } from '../analyze.js';
 import { WELL_KNOWN_PATH } from '../policy.js';
+import { analyzeRepository, parseGitHubRepoUrl } from '../repo.js';
+import { fetchRepository } from './repoFetch.js';
 
 const HTML_TYPES = new Set(['text/html', 'application/xhtml+xml']);
 
@@ -50,6 +52,17 @@ export async function lensUrl(url, { fetchOptions = {}, includeWellKnown = true,
     policyOverride: typeof policyOverride === 'string'
   };
   return report;
+}
+
+export function isRepositoryUrl(url) {
+  return parseGitHubRepoUrl(url) !== null;
+}
+
+export async function lensRepository(url, { token = null, fetchImpl } = {}) {
+  const target = parseGitHubRepoUrl(url);
+  if (!target) throw new FetchError('invalid-url', 'Enter a repository URL such as https://github.com/owner/name.', 400);
+  const fetched = await fetchRepository(target, { token, ...(fetchImpl ? { fetchImpl } : {}) });
+  return analyzeRepository(fetched);
 }
 
 export { FetchError };

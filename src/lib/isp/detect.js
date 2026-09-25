@@ -6,7 +6,7 @@ const STRONG = 3;
 const MEDIUM = 2;
 const WEAK = 1;
 
-const NEGATION_BEFORE = /\b(never|don't|do not|dont|avoid|not|stop|shouldn't|should not|mustn't|must not|without)\b[\w\s,]{0,12}$/i;
+const NEGATION_BEFORE = /\b(never|don't|do not|dont|avoid|not|stop|shouldn't|should not|mustn't|must not|without|cannot|can't|won't|unable to|fails? to|failed to)\b[\w\s,]{0,12}$/i;
 
 export const RULES = [
   {
@@ -46,7 +46,7 @@ export const RULES = [
     label: 'Asks the agent to hide something from its user',
     weight: STRONG,
     patterns: [
-      /\b(do not|don't|never|without)\s+(tell(ing)?|inform(ing)?|mention(ing)?|reveal(ing)?|disclos(e|ing)|notify(ing)?|alert(ing)?|let(ting)?)\s+(the\s+)?(user|human|operator|owner)s?\b/i,
+      /\b(do not|don't|never|without)\s+(tell(ing)?|inform(ing)?|mention(ing)?|reveal(ing)?|disclos(e|ing)|notify(ing)?|alert(ing)?|let(ting)?)\s+(the\s+)?(user|human|operator|owner)s?\b(?!\s+(to|how|which|what|where|when|that you should)\b)/i,
       /\bkeep (this|these|it) (hidden|secret|confidential) from (the\s+)?(user|human|operator)s?\b/i
     ]
   },
@@ -56,7 +56,9 @@ export const RULES = [
     weight: STRONG,
     negatable: true,
     patterns: [
-      /\b(send|post|upload|forward|email|e-mail|transmit|leak|exfiltrate|append|paste)\b[\s\S]{0,60}?\b(api[ _-]?keys?|access tokens?|auth tokens?|credentials?|passwords?|secrets?|cookies?|session (ids?|tokens?)|env(ironment)? (vars?|variables?)|\.env\b|ssh keys?|private keys?|conversation|chat history|system prompt)\b/i,
+      /\b(send|post|upload|forward|email|e-mail|transmit|leak|exfiltrate|append|paste)\b[\s\S]{0,60}?(?:\b(?:api[ _-]?keys?|access tokens?|auth tokens?|credentials?|passwords?|secrets?|cookies?|session (?:ids?|tokens?)|env(?:ironment)? (?:vars?|variables?)|ssh keys?|private keys?|conversation|chat history|system prompt)\b|\.env\b)[\s\S]{0,80}?\b(?:to|into|at)\s+(?:https?:\/\/|www\.|[\w.+-]+@[\w-]+\.|(?:me|us)\b|(?:my|our|this|that|the following|an? external|the attacker'?s?)\s+(?:url|endpoint|server|address|email|inbox|webhook|site|domain|form|link))/i,
+      /\b(send|email|forward|give|dm|message)\s+(me|us)\s+(?:the|your|all|any)\s+(?:api[ _-]?keys?|access tokens?|tokens?|credentials?|passwords?|secrets?|cookies?|ssh keys?|private keys?|system prompt|\.env)\b/i,
+      /\b(exfiltrate|leak)\b[\s\S]{0,40}?(?:\b(?:api[ _-]?keys?|tokens?|credentials?|passwords?|secrets?|cookies?|env(?:ironment)? (?:vars?|variables?)|ssh keys?|private keys?|conversation|system prompt)\b|\.env\b)/i,
       /!\[[^\]]*\]\(\s*https?:\/\/[^)\s]*(\{|%7B|\$\{)[^)]*\)/i
     ]
   },
@@ -114,10 +116,15 @@ export const RULES = [
 
 const INVISIBLE_FOR_MATCHING = /[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uFE00-\uFE0F]|[\u{E0000}-\u{E007F}]|[\u{E0100}-\u{E01EF}]/gu;
 
+// A line that opens with a label addressed to agents ("Maintainer bots:")
+// starts a new sentence even though newlines collapse below.
+const LABEL_AT_LINE_START = /\n\s*(?=(?:[A-Za-z]+\s+)?(?:bots?|agents?|assistants?|llms?|crawlers?)\s*:)/gi;
+
 export function normalizeForMatching(text) {
   return String(text || '')
     .normalize('NFKC')
     .replace(INVISIBLE_FOR_MATCHING, '')
+    .replace(LABEL_AT_LINE_START, '. ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -126,6 +133,17 @@ function excerptAround(text, index, length) {
   const start = Math.max(0, index - 60);
   const end = Math.min(text.length, index + length + 60);
   return `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`;
+}
+
+// True when the match sits inside quotation marks or inline code, as in a
+// bug report quoting a prompt. Quoted text still counts, but less.
+function isQuoted(text, index) {
+  const before = text.slice(Math.max(0, index - 300), index);
+  const straight = (before.match(/"/g) || []).length;
+  const backticks = (before.match(/`/g) || []).length;
+  const curlyOpen = (before.match(/[\u201C\u00AB]/g) || []).length;
+  const curlyClose = (before.match(/[\u201D\u00BB]/g) || []).length;
+  return straight % 2 === 1 || backticks % 2 === 1 || curlyOpen > curlyClose;
 }
 
 export function detectInstructions(text) {
@@ -142,7 +160,8 @@ export function detectInstructions(text) {
         label: rule.label,
         weight: rule.weight,
         match: match[0].slice(0, 160),
-        excerpt: excerptAround(normalized, match.index, match[0].length)
+        excerpt: excerptAround(normalized, match.index, match[0].length),
+        quoted: isQuoted(normalized, match.index)
       });
       break;
     }
@@ -154,7 +173,8 @@ export function detectInstructions(text) {
   if (hasStrongRule || score >= STRONG) strength = 'strong';
   else if (score >= WEAK) strength = 'weak';
 
-  return { strength, score, matches };
+  const quoted = matches.length > 0 && matches.every((match) => match.quoted);
+  return { strength, score, matches, quoted };
 }
 
 // ---------------------------------------------------------------------------
@@ -347,5 +367,6 @@ export function analyzeText(text) {
     for (const match of layer.result.matches) matches.push({ ...match, via: layer.via });
   }
 
-  return { strength, score, matches, smuggling, base64 };
+  const quoted = layers[0].result.quoted && layers.slice(1).every((layer) => layer.result.strength === 'none');
+  return { strength, score, matches, smuggling, base64, quoted };
 }

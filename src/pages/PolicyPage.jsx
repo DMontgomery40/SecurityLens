@@ -299,7 +299,9 @@ function Checker() {
 }
 
 export default function PolicyPage() {
-  const { report, input, setResult } = useLens();
+  const lens = useLens();
+  const { input, setResult } = lens;
+  const report = lens.report?.kind === 'repository' ? null : lens.report;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 

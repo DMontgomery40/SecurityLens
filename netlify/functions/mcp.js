@@ -39,7 +39,7 @@ export default async (req, context) => {
     return jsonRpcError(429, -32000, 'Too many requests. Try again in a minute.');
   }
 
-  const server = createLensMcpServer();
+  const server = createLensMcpServer({ githubToken: globalThis.Netlify?.env?.get?.('GITHUB_TOKEN') || null });
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
 
   try {

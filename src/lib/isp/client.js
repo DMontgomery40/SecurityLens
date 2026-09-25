@@ -1,10 +1,19 @@
 // Browser entry points for the lens. URL analysis runs on the server because
 // browsers cannot fetch other sites; pasted HTML never leaves the browser.
 
+function storedGitHubToken() {
+  try {
+    return window.localStorage.getItem('security_lens_gh_token') || null; // key used by githubAuth.js
+  } catch {
+    return null;
+  }
+}
+
 export async function analyzeUrl(url, { policy } = {}) {
+  const token = storedGitHubToken();
   const response = await fetch('/api/lens', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(token ? { 'x-github-token': token } : {}) },
     body: JSON.stringify(policy ? { url, policy } : { url })
   });
   let body = null;

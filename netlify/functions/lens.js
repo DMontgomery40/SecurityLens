@@ -2,7 +2,7 @@
 // view=report (default) returns the full analysis, view=agent the agent
 // view, view=policy a generated policy. format=text returns plain text.
 
-import { lensUrl, FetchError } from '../../src/lib/isp/node/lens.js';
+import { lensUrl, lensRepository, isRepositoryUrl, FetchError } from '../../src/lib/isp/node/lens.js';
 import { analyzeDocument } from '../../src/lib/isp/analyze.js';
 import { toAgentView } from '../../src/lib/isp/agentView.js';
 import { generatePolicy } from '../../src/lib/isp/generate.js';
@@ -90,6 +90,10 @@ export default async (req, context) => {
     }
 
     if (!input.url) return problem('missing-url', 'Provide a url, or html to analyze.', 400);
+    if (isRepositoryUrl(input.url)) {
+      const token = req.headers.get('x-github-token') || globalThis.Netlify?.env?.get?.('GITHUB_TOKEN') || null;
+      return json(await lensRepository(input.url, { token }));
+    }
     const report = await lensUrl(input.url, { policyOverride: input.policy ?? null });
     return render(report, input.view, input.format);
   } catch (error) {
