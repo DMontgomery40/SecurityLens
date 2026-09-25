@@ -371,7 +371,9 @@ export function analyzeDocument({ html, url = null, headers = {}, wellKnown = nu
       : visibleMatches.length
         ? 'weak'
         : 'none';
+    const decodedBase64 = analysis.base64.find((entry) => analysis.matches.some((match) => match.via === 'base64' && entry.decoded.includes(match.match.slice(0, 20))));
     const base = {
+      ...(decodedBase64 ? { decoded: decodedBase64.decoded.slice(0, 600), decodedFrom: 'base64' } : {}),
       zone: segment.zone,
       regionId: segment.regionId,
       segmentId: segment.id,
@@ -389,6 +391,7 @@ export function analyzeDocument({ html, url = null, headers = {}, wellKnown = nu
         title: 'Invisible text payload',
         detail: `${payloads.map((kind) => kind.label).join(' and ')} carry a message people can't see${instructive ? ', and it gives agents instructions' : ''}.`,
         decoded: analysis.smuggling.decoded.slice(0, 600),
+        decodedFrom: 'invisible-unicode',
         remediation: 'Strip invisible Unicode from user input before storing or rendering it.'
       });
     }
@@ -420,12 +423,12 @@ export function analyzeDocument({ html, url = null, headers = {}, wellKnown = nu
       addFinding({
         ...base,
         kind: 'instruction-in-untrusted',
-        severity: visibleStrength === 'strong' ? 'high' : 'low',
+        severity: visibleStrength === 'strong' ? (contained ? 'medium' : 'high') : 'low',
         contained,
         title: visibleStrength === 'strong' ? 'Instructions inside user content' : 'Instruction-like wording in user content',
         detail: contained
           ? 'This region is declared untrusted. Agents that honor the policy treat it as information, not orders.'
-          : `${region?.label || 'User content'} on this page tells agents what to do, and nothing tells agents it isn't the site speaking.`,
+          : `Someone other than the site wrote this, it tells agents what to do, and nothing on the page marks it as not the site speaking.`,
         remediation: contained ? 'Moderate or remove the content.' : `Declare the region untrusted, for example "untrusted ${region?.suggestedSelector || region?.selector || '…'}".`
       });
     } else if (segment.zone === 'voice' && visibleStrength === 'strong') {
@@ -523,7 +526,7 @@ export function analyzeDocument({ html, url = null, headers = {}, wellKnown = nu
       regionId: null,
       title: 'No Instruction Security Policy',
       detail: inferredCount
-        ? `Agents have to guess who is speaking. This page has ${inferredCount} region${inferredCount === 1 ? '' : 's'} that look like user content.`
+        ? `Agents have to guess who is speaking. ${inferredCount === 1 ? 'One region looks' : `${inferredCount} regions look`} like user content.`
         : 'Agents have to guess who is speaking on this page.',
       remediation: 'Generate a policy from this analysis and send it as a header.'
     });

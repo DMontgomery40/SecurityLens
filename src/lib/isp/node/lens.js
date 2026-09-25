@@ -20,7 +20,7 @@ async function fetchWellKnown(origin, fetchOptions) {
   }
 }
 
-export async function lensUrl(url, { fetchOptions = {}, includeWellKnown = true } = {}) {
+export async function lensUrl(url, { fetchOptions = {}, includeWellKnown = true, policyOverride = null } = {}) {
   let origin = null;
   try {
     origin = new URL(url).origin;
@@ -37,7 +37,8 @@ export async function lensUrl(url, { fetchOptions = {}, includeWellKnown = true 
   const finalOrigin = new URL(page.url).origin;
   if (includeWellKnown && finalOrigin !== origin) wellKnown = await fetchWellKnown(finalOrigin, fetchOptions);
 
-  const report = analyzeDocument({ html: page.body, url: page.url, headers: page.headers, wellKnown, source: 'server-html' });
+  const headers = typeof policyOverride === 'string' ? { ...page.headers, 'instruction-security-policy': policyOverride } : page.headers;
+  const report = analyzeDocument({ html: page.body, url: page.url, headers, wellKnown, source: 'server-html' });
   report.fetch = {
     requestedUrl: url,
     finalUrl: page.url,
@@ -45,7 +46,8 @@ export async function lensUrl(url, { fetchOptions = {}, includeWellKnown = true 
     redirects: page.redirects,
     bytes: page.bytes,
     contentType: page.contentType,
-    wellKnown: wellKnown !== null
+    wellKnown: wellKnown !== null,
+    policyOverride: typeof policyOverride === 'string'
   };
   return report;
 }

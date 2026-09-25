@@ -38,7 +38,7 @@ function problem(code, message, status) {
 async function readInput(req) {
   if (req.method === 'GET') {
     const params = new URL(req.url).searchParams;
-    return { url: params.get('url'), html: null, view: params.get('view'), format: params.get('format') };
+    return { url: params.get('url'), html: null, policy: null, view: params.get('view'), format: params.get('format') };
   }
 
   const text = await req.text();
@@ -54,6 +54,7 @@ async function readInput(req) {
     url: typeof body.url === 'string' ? body.url : null,
     html: typeof body.html === 'string' ? body.html : null,
     headers: body.headers && typeof body.headers === 'object' ? body.headers : {},
+    policy: typeof body.policy === 'string' ? body.policy.slice(0, 8192) : null,
     view: body.view || params.get('view'),
     format: body.format || params.get('format')
   };
@@ -83,12 +84,13 @@ export default async (req, context) => {
 
     if (input.html !== null) {
       if (input.html.length > MAX_HTML_BYTES) return problem('too-large', 'HTML must be 2 MB or smaller.', 413);
-      const report = analyzeDocument({ html: input.html, url: input.url || null, headers: input.headers, source: 'submitted-html' });
+      const headers = input.policy !== null ? { ...input.headers, 'instruction-security-policy': input.policy } : input.headers;
+      const report = analyzeDocument({ html: input.html, url: input.url || null, headers, source: 'submitted-html' });
       return render(report, input.view, input.format);
     }
 
     if (!input.url) return problem('missing-url', 'Provide a url, or html to analyze.', 400);
-    const report = await lensUrl(input.url);
+    const report = await lensUrl(input.url, { policyOverride: input.policy ?? null });
     return render(report, input.view, input.format);
   } catch (error) {
     if (error instanceof FetchError) return problem(error.code, error.message, error.status || 502);

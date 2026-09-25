@@ -92,5 +92,11 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "exports": {
+    ".": "./src/index.js",
+    "./isp": "./src/lib/isp/index.js",
+    "./isp/node": "./src/lib/isp/node/index.js",
+    "./package.json": "./package.json"
+  }
 }

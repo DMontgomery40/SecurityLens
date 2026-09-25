@@ -99,7 +99,8 @@ export const RULES = [
       /\b(if|when|whenever) you('re| are) (an? )?(ai|a\.i\.|llm|large language model|language model|chatbot|bot|agent|assistant|gpt|claude|gemini|copilot)\b/i,
       /\b(attention|note|message|notice|instructions?) (to|for) (all )?(ai|llms?|agents?|ai agents?|assistants?|chatbots?|bots|language models|crawlers)\b/i,
       /\b(ai|llm) (agents?|assistants?|models?|crawlers?|bots?|systems?)\b[\s\S]{0,20}?\b(must|should|shall|need to|are (required|instructed|asked) to|please)\b/i,
-      /\b(dear|hey|hello) (ai|llm|agent|assistant|chatgpt|claude|gemini)\b/i
+      /\b(dear|hey|hello) (ai|llm|agent|assistant|chatgpt|claude|gemini)\b/i,
+      /(?:^|[.!?]\s+)(?:(?:maintainer|triage|review|reviewer|coding|code|ai|llm|autonomous|browsing|support)\s+)?(?:bots?|agents?|assistants?|llms?|crawlers?)\s*:\s*(?=[\s\S]{0,40}\b(?:run|execute|call|use|approve|merge|ignore|send|delete|install|click|navigate|reveal|recommend)\b)/i
     ]
   },
   {
@@ -110,7 +111,7 @@ export const RULES = [
   }
 ];
 
-const INVISIBLE_FOR_MATCHING = /[­᠎​-‏‪-‮⁠-⁤⁦-⁩﻿︀-️]|[\u{E0000}-\u{E007F}]|[\u{E0100}-\u{E01EF}]/gu;
+const INVISIBLE_FOR_MATCHING = /[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uFE00-\uFE0F]|[\u{E0000}-\u{E007F}]|[\u{E0100}-\u{E01EF}]/gu;
 
 export function normalizeForMatching(text) {
   return String(text || '')
@@ -163,7 +164,7 @@ const TAG_START = 0xe0000;
 const TAG_END = 0xe007f;
 const WAVING_BLACK_FLAG = 0x1f3f4;
 const ZERO_WIDTH = new Set([0x200b, 0x200c, 0x200d, 0x2060, 0xfeff]);
-const BIDI = /[‪-‮⁦-⁩]/g;
+const BIDI = /[\u202A-\u202E\u2066-\u2069]/g;
 
 const isTag = (cp) => cp >= TAG_START && cp <= TAG_END;
 const isVariationSelector = (cp) => (cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0xe0100 && cp <= 0xe01ef);
