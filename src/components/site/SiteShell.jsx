@@ -6,6 +6,7 @@ const NAV = [
   { to: '/policy', label: 'Policy' },
   { to: '/spec', label: 'Spec' },
   { to: '/agents', label: 'For agents' },
+  { to: '/rearview', label: 'Rearview' },
   { to: '/scanner', label: 'Code scanner' }
 ];
 

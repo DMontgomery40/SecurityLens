@@ -22,6 +22,7 @@ SecurityLens shows which words on a page belong to the site, which belong to oth
 - **Instruction Security Policy.** A draft standard, like Content Security Policy but for prompt injection. The [spec](docs/spec/instruction-security-policy.md) is short, and the analyzer here is its reference implementation.
 - **Policy tools.** Draft a policy from what the lens found, test it against the live page, copy the header for your server, check an existing policy, and create a report endpoint for agents to send violations to.
 - **For agents.** A remote MCP server at `/mcp`, the same tools over stdio, an HTTP API, and an isomorphic library that harnesses can embed.
+- **Rearview.** Open your Claude Code and Codex session logs in the browser and see what your agents ran, what left your machine, which secrets passed through the model, and every consequential action taken right after untrusted content gave instructions. The logs are parsed in a Web Worker in the tab and never uploaded.
 - **Code scanner.** The original educational vulnerability scanner still lives at `/scanner`.
 
 ## Instruction Security Policy in one minute

@@ -10,6 +10,7 @@ import SpecPage from './pages/SpecPage.jsx';
 import AgentsPage from './pages/AgentsPage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
 import ScannerPage from './pages/ScannerPage.jsx';
+import RearviewPage from './pages/RearviewPage.jsx';
 import { createLogger, createRequestId } from './lib/logger.js';
 
 const logger = createLogger({
@@ -60,6 +61,7 @@ function App() {
             <Route path="/spec" element={<SiteShell><SpecPage /></SiteShell>} />
             <Route path="/agents" element={<SiteShell><AgentsPage /></SiteShell>} />
             <Route path="/reports/:id" element={<SiteShell><ReportsPage /></SiteShell>} />
+            <Route path="/rearview" element={<SiteShell><RearviewPage /></SiteShell>} />
             <Route path="/scanner" element={<SiteShell><ScannerPage /></SiteShell>} />
             <Route path="/secret" element={<Decoder />} />
             <Route path="*" element={<Navigate to="/" replace />} />
