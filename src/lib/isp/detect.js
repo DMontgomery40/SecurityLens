@@ -75,7 +75,8 @@ export const RULES = [
     patterns: [
       /\b(when|if|while) (summari[sz]|describ|review|evaluat|rank|rat|analy[sz])\w*\s+(this|the) (page|article|document|site|website|post|repo|repository|product|candidate|resume|cv|application|listing|review)\b/i,
       /\bin your (summary|response|answer|review|evaluation|output),? (say|state|mention|include|claim|write|note)\b/i,
-      /\b(recommend|endorse|rank|rate|score) (this|our|the following) (product|candidate|applicant|company|service|app|listing)\b/i,
+      /(?:^|[.!?:;,]\s*)(?:please\s+)?(?:always\s+)?(recommend|endorse|rank|rate|score|promote|praise) (this|our|the following) (product|candidate|applicant|company|service|app|listing|plugin|extension|package|library|tool|vendor|site|website|course|book|hotel|restaurant|model|kettle|brand)\b/i,
+      /\b(recommend|praise|promote|endorse|claim|say|state)\b[\s\S]{0,60}?\bin your (summary|response|answer|review|output|report)\b/i,
       /\b(give|rate) (this|the) (candidate|applicant|product|ad|review|app) (a )?(\d+|five|ten|perfect|highest|top)\b/i,
       /\b(approve|merge|accept) (this|the) (pull request|transaction|payment|application|candidate|ad)\b/i
     ]

@@ -10,6 +10,7 @@ import { FileScanner } from '../lib/FileScanner.js';
 import { ReportBuilder } from '../lib/ReportBuilder.js';
 import { getErrorMetadata, normalizeError, SecurityLensError } from '../lib/errors.js';
 import { createLogger, createRequestId, withLogContext } from '../lib/logger.js';
+import { registerIspCommands } from './ispCommands.js';
 
 const cliLogger = createLogger({
   component: 'cli'
@@ -447,6 +448,8 @@ program
       process.exitCode = reportCommandError(logger, error, 'Repository scan failed');
     }
   });
+
+registerIspCommands(program);
 
 program.parseAsync().catch((error) => {
   process.exitCode = reportCommandError(cliLogger, error, 'CLI execution failed');
