@@ -133,7 +133,9 @@ export class FileScanner {
     console.log(`Scanning file: ${filePath}`, {
       contentProvided: !!fileContent,
       contentLength: fileContent ? fileContent.length : 0,
-      activePatterns: Object.keys(this.vulnerabilityPatterns).length
+      activePatterns: Object.keys(this.vulnerabilityPatterns).length,
+      scanType: options.scanType || 'default',
+      patternKeys: Object.keys(this.vulnerabilityPatterns).slice(0, 5)
     });
 
     if (!fileContent || typeof fileContent !== 'string') {

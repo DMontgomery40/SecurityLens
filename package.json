@@ -16,8 +16,7 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "clean": "rimraf dist",
-    "test": "jest",
-    "build:functions": "esbuild netlify/functions/scan-webpage-source.js --bundle --platform=node --target=node18 --format=esm --outfile=netlify/functions/scan-webpage.mjs"
+    "test": "jest"
   },
   "dependencies": {
     "@octokit/core": "^6.1.5",

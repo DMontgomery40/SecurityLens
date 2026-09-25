@@ -1,5 +1,5 @@
 [build]
-command = "npm run build && npm run build:functions"
+command = "npm run build"
 functions = "netlify/functions"
 publish = "dist"
 
@@ -26,7 +26,7 @@ publish = "dist"
   memory = 1024
   node_bundler = "esbuild"
 
-[functions.scan-webpage]
+[functions.scan-webpage-source]
   timeout = 30
   memory = 1024
   node_bundler = "esbuild"

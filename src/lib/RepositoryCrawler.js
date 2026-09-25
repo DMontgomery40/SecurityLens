@@ -63,6 +63,10 @@ export class RepositoryCrawler {
       concurrency: 10,
       maxRetries: 3,
       retryDelay: 1000,
+      maxFileSize: 500 * 1024, // 500KB default
+      fileTimeout: 5000, // 5 seconds per file
+      maxScanTime: 25000, // 25 seconds total (under Netlify's 30s limit)
+      skipBinaryFiles: true,
       ...config
     };
     
@@ -70,6 +74,7 @@ export class RepositoryCrawler {
     this.cache = new Cache();
     this.semaphore = new Semaphore(this.config.concurrency);
     this.errors = [];
+    this.scanStartTime = null;
     
     // Initialize Octokit if we have a token
     const token = authManager.getToken();
@@ -297,40 +302,59 @@ export class RepositoryCrawler {
 
       // Get file contents with semaphore-controlled concurrency
       const blobFiles = filteredTree.filter(item => item.type === 'blob');
+      
+      // Filter out binary files and large files if configured
+      const scannableFiles = this.config.skipBinaryFiles ? 
+        blobFiles.filter(file => {
+          const ext = file.path.split('.').pop().toLowerCase();
+          const binaryExtensions = ['png', 'jpg', 'jpeg', 'gif', 'ico', 'svg', 'pdf', 'zip', 'tar', 'gz', 'rar', '7z', 'exe', 'dll', 'so', 'dylib', 'bin', 'dat', 'db', 'sqlite', 'mp3', 'mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'wav', 'flac', 'aac', 'ogg', 'woff', 'woff2', 'ttf', 'eot', 'otf'];
+          return !binaryExtensions.includes(ext);
+        }) : blobFiles;
+      
       const filesWithContent = [];
-      const totalFiles = blobFiles.length;
+      const totalFiles = scannableFiles.length;
       
       this.clearErrors(); // Clear any previous errors
       
-      // Track timing and statistics
+      // Send initial progress
       const startTime = Date.now();
-      let successCount = 0;
-      let failureCount = 0;
-      
-      // Initialize progress tracking
+      this.scanStartTime = startTime;
       if (onProgress) {
-        onProgress({
-          phase: 'fetching',
-          current: 0,
+        onProgress({ 
+          phase: 'fetching', 
+          current: 0, 
           total: totalFiles,
           details: { 
-            status: 'Starting file downloads...',
-            startTime: startTime
+            currentFile: 'Starting download...',
+            successCount: 0,
+            failureCount: 0
           }
         });
       }
       
       // Track progress with atomic counter to avoid race conditions
       let completedCount = 0;
+      let successCount = 0;
+      let failureCount = 0;
 
       // Use semaphore to control concurrency
-      const filePromises = blobFiles.map((file, index) => 
+      const filePromises = scannableFiles.map((file, index) => 
         this.semaphore.execute(async () => {
           try {
+            // Check if we're approaching the time limit
+            const elapsedTime = Date.now() - this.scanStartTime;
+            if (elapsedTime > this.config.maxScanTime) {
+              this.addError('TIME_LIMIT', `Skipping ${file.path} - approaching time limit`, {
+                filePath: file.path,
+                elapsedTime: elapsedTime
+              });
+              return null;
+            }
+            
             // Use raw content URL for better performance
             const rawUrl = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/${branch}/${file.path}`;
             const response = await fetch(rawUrl, {
-              timeout: 15000 // 15 second timeout
+              timeout: this.config.fileTimeout
             });
             
             if (!response.ok) {
@@ -359,6 +383,33 @@ export class RepositoryCrawler {
             }
             
             const content = await response.text();
+            
+            // Check file size
+            const fileSize = new Blob([content]).size;
+            if (fileSize > this.config.maxFileSize) {
+              this.addError('FILE_TOO_LARGE', `File ${file.path} exceeds size limit`, {
+                filePath: file.path,
+                fileSize: fileSize,
+                maxSize: this.config.maxFileSize
+              });
+              
+              // Update progress
+              completedCount++;
+              failureCount++;
+              if (onProgress) {
+                onProgress({ 
+                  phase: 'fetching',
+                  current: completedCount, 
+                  total: totalFiles,
+                  details: { 
+                    currentFile: file.path,
+                    successCount: successCount,
+                    failureCount: failureCount
+                  }
+                });
+              }
+              return null;
+            }
             
             // Update progress and success count atomically
             completedCount++;
