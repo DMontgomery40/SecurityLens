@@ -86,4 +86,24 @@ describe('Structured Netlify error responses', () => {
     expect(body.code).toBe('MISSING_URL');
     expect(body.requestId).toMatch(/^req-/);
   });
+
+  test.each([
+    ['http://127.0.0.1/', 403, 'URL_NOT_ALLOWED'],
+    ['http://169.254.169.254/latest/meta-data/', 403, 'URL_NOT_ALLOWED'],
+    ['http://[::ffff:127.0.0.1]/', 403, 'URL_NOT_ALLOWED'],
+    ['http://10.0.0.1:8080/admin', 403, 'URL_NOT_ALLOWED'],
+    ['file:///etc/passwd', 400, 'INVALID_URL'],
+    ['http://user:secret@example.com/', 400, 'INVALID_URL']
+  ])('scan-webpage refuses to fetch %s', async (url, status, code) => {
+    const response = await scanWebpageHandler({
+      httpMethod: 'POST',
+      headers: {},
+      body: JSON.stringify({ url })
+    });
+
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(status);
+    expect(body.code).toBe(code);
+  });
 });

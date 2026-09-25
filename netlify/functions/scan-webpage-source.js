@@ -1,5 +1,5 @@
 /* eslint-env node */
-import axios from 'axios';
+import { safeFetch, FetchError } from '../../src/lib/isp/node/safeFetch.js';
 import * as cheerio from 'cheerio';
 import { FileScanner } from '../../src/lib/FileScanner.js';
 import { ReportBuilder } from '../../src/lib/ReportBuilder.js';
@@ -26,9 +26,42 @@ function getScriptConcurrency() {
   return Math.min(rawConcurrency, 20);
 }
 
+const SCRIPT_TYPES = [
+  'application/javascript',
+  'text/javascript',
+  'application/x-javascript',
+  'application/ecmascript',
+  'text/ecmascript',
+  'text/plain'
+];
+
+const FETCH_ERROR_CODES = {
+  'blocked-address': ['URL_NOT_ALLOWED', 403],
+  'invalid-url': ['INVALID_URL', 400],
+  'unsupported-scheme': ['INVALID_URL', 400],
+  'credentials-in-url': ['INVALID_URL', 400],
+  'port-not-allowed': ['INVALID_URL', 400],
+  'dns-failure': ['URL_UNREACHABLE', 400],
+  'connection-failed': ['URL_UNREACHABLE', 400],
+  'too-many-redirects': ['URL_UNREACHABLE', 400],
+  timeout: ['SCAN_TIMEOUT', 408],
+  'too-large': ['PAGE_TOO_LARGE', 413],
+  'unsupported-content-type': ['NOT_A_WEB_PAGE', 415]
+};
+
 function mapWebpageError(error, requestId) {
   if (error instanceof SecurityLensError) {
     return normalizeError(error, { requestId });
+  }
+
+  if (error instanceof FetchError) {
+    const [code, status] = FETCH_ERROR_CODES[error.code] || ['URL_UNREACHABLE', 400];
+    return new SecurityLensError(error.message, {
+      code,
+      status,
+      requestId,
+      userMessage: error.message
+    });
   }
 
   if (error?.code === 'ENOTFOUND' || error?.code === 'ECONNREFUSED') {
@@ -89,12 +122,13 @@ export const handler = async (event) => {
       'Starting webpage scan'
     );
 
-    const response = await axios.get(url, {
-      timeout: 10000,
-      maxContentLength: 1024 * 1024
+    const response = await safeFetch(url, {
+      timeoutMs: 10000,
+      maxBytes: 1024 * 1024,
+      allowedTypes: ['text/html', 'application/xhtml+xml']
     });
 
-    const html = response.data;
+    const html = response.body;
     const $ = cheerio.load(html);
     const scripts = [];
 
@@ -147,15 +181,16 @@ export const handler = async (event) => {
             }
 
             try {
-              const absoluteUrl = new URL(script.src, url).href;
-              const scriptResponse = await axios.get(absoluteUrl, {
-                timeout: 5000,
-                maxContentLength: 1024 * 1024
+              const absoluteUrl = new URL(script.src, response.url).href;
+              const scriptResponse = await safeFetch(absoluteUrl, {
+                timeoutMs: 5000,
+                maxBytes: 1024 * 1024,
+                allowedTypes: SCRIPT_TYPES
               });
 
               return {
                 filename: absoluteUrl,
-                content: scriptResponse.data
+                content: scriptResponse.body
               };
             } catch (error) {
               logger.warn(
