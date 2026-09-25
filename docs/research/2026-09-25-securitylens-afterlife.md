@@ -2,6 +2,8 @@
 
 Research proposal · September 25, 2026 · implementation has not started
 
+**Status: superseded as the product direction.** The user clarified that SecurityLens must deliver immediate value as an in-browser tool, like the existing site. This proposal was written before hands-on exploration of the live app and does not satisfy that product constraint. Retained as research background, not an implementation plan.
+
 ## Recommendation
 
 Rebuild SecurityLens around the lifetime of agent-created software and its external effects.

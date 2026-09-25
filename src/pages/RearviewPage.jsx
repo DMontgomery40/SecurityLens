@@ -296,7 +296,7 @@ export default function RearviewPage() {
         <p className="sl-small" style={{ margin: '14px 0 0', maxWidth: '70ch' }}>
           Claude Code keeps sessions in <span className="sl-inline-code">~/.claude/projects</span> and Codex in{' '}
           <span className="sl-inline-code">~/.codex/sessions</span>. On a Mac, press Command-Shift-Period in the folder picker to show hidden
-          folders.
+          folders. Chrome may call choosing a folder an upload. The files stay in this tab.
         </p>
         <p className="sl-visually-hidden" aria-live="polite">
           {state.status === 'reading' ? `Reading ${state.done} of ${state.total} files` : state.status === 'ready' ? 'Analysis ready.' : ''}

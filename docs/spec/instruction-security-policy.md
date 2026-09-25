@@ -74,7 +74,8 @@ Agents resolve the zone of each element from the root down.
 
 A policy that cannot be parsed cleanly must never widen trust.
 
-- If the authoritative policy has an invalid `default` or `voice` directive, or repeats either one, agents discard every `voice` grant and treat `default` as `voice` with no selectors. The `untrusted` selectors that did parse still apply.
+- If the authoritative policy has an invalid `default` or `voice` directive, or repeats either one, agents discard every `voice` grant. The `untrusted` selectors that did parse still apply.
+- After failing closed, `default` is `untrusted` if any part of the policy declared `default untrusted`, or if the `default` value could not be read. Otherwise it stays `voice`, which is what an omitted `default` means.
 - An invalid selector inside a list invalidates only that selector.
 - HTTP combines repeated header fields with commas, which splices a second policy into a selector list. A selector that begins with a directive name, such as `default untrusted`, signals combined policies, and the whole policy fails closed.
 

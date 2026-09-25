@@ -1,4 +1,4 @@
-import { createReportService, MAX_REPORTS_PER_ENDPOINT } from '../../src/lib/isp/node/reports.js';
+import { createReportService, chooseReportStore, MAX_REPORTS_PER_ENDPOINT } from '../../src/lib/isp/node/reports.js';
 
 function memoryStore() {
   const data = new Map();
@@ -84,5 +84,17 @@ describe('report endpoints', () => {
     const record = await store.get(`endpoints/${id}`, { type: 'json' });
     await store.setJSON(`endpoints/${id}`, { ...record, count: MAX_REPORTS_PER_ENDPOINT });
     expect((await service.submit(id, '{"excerpt":"one more"}')).status).toBe(429);
+  });
+});
+
+describe('chooseReportStore', () => {
+  const factories = { getStore: (name) => `global:${name}`, getDeployStore: (name) => `deploy:${name}` };
+
+  test('production uses the site-wide store', () => {
+    expect(chooseReportStore('production', factories)).toEqual({ store: 'global:isp-reports', scope: 'global' });
+  });
+
+  test.each(['deploy-preview', 'branch-deploy', 'dev', 'draft', undefined, null, ''])('%s uses a deploy-scoped store', (context) => {
+    expect(chooseReportStore(context, factories)).toEqual({ store: 'deploy:isp-reports', scope: 'deploy' });
   });
 });

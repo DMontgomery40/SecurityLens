@@ -89,7 +89,10 @@ export default function AgentsPage() {
               The analyzer is a reference implementation of the <Link to="/spec">Instruction Security Policy</Link>. It runs in Node and in
               the browser, so a harness can resolve speakers locally before a page reaches the model.
             </p>
-            <CodeBlock code={"import { analyzeDocument, toAgentView } from 'securitylens/isp';\n\nconst report = analyzeDocument({ html, url, headers });\nconst view = toAgentView(report);\n// view.blocks: [{ zone: 'site' | 'untrusted' | 'hidden', text }]"} />
+            <CodeBlock code={"// From a clone of github.com/DMontgomery40/SecurityLens\nimport { analyzeDocument, toAgentView } from './SecurityLens/src/lib/isp/index.js';\n\nconst report = analyzeDocument({ html, url, headers });\nconst view = toAgentView(report);\n// view.blocks: [{ zone: 'site' | 'untrusted' | 'hidden', text }]"} />
+            <p className="sl-small" style={{ margin: 0 }}>
+              The library is not published to npm yet.
+            </p>
           </div>
         </div>
       </section>

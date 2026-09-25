@@ -101,7 +101,7 @@ export function isSpoofableSelector(selector) {
   }
 }
 
-const CSS_IDENT = /^-?(?:[_a-zA-Z -￿]|--)[_a-zA-Z0-9 -￿-]*$/;
+const CSS_IDENT = /^-?(?:[_a-zA-Z\u00A0-\uFFFF]|--)[_a-zA-Z0-9\u00A0-\uFFFF-]*$/;
 
 function tokensAreStrict(tokens, rawHasEscape) {
   if (tokens.length === 0) return false;
@@ -134,6 +134,7 @@ export function isValidSelector(selector) {
 function parseSelectorList(value, directive, errors) {
   const selectors = [];
   let combined = false;
+  let asksUntrustedDefault = false;
 
   for (const rawSelector of splitTopLevel(value, ',')) {
     const selector = rawSelector.trim();
@@ -141,6 +142,7 @@ function parseSelectorList(value, directive, errors) {
 
     if (DIRECTIVE_AS_SELECTOR.test(selector)) {
       combined = true;
+      if (/^default\s+untrusted\b/i.test(selector)) asksUntrustedDefault = true;
       errors.push({
         code: 'combined-policies',
         directive,
@@ -160,7 +162,7 @@ function parseSelectorList(value, directive, errors) {
     }
   }
 
-  return { selectors, combined };
+  return { selectors, combined, asksUntrustedDefault };
 }
 
 function normalizeOrigin(source) {
@@ -240,6 +242,10 @@ export function parsePolicy(text) {
   const warnings = [];
   const seen = new Map();
   let failClosed = false;
+  // Failing closed must never widen trust: if any part of the policy asked
+  // for default untrusted, or the default could not be read, it stays untrusted.
+  let asksUntrusted = false;
+  let unreadableDefault = false;
 
   const pieces = splitTopLevel(raw, ';')
     .map((piece) => piece.trim())
@@ -267,6 +273,8 @@ export function parsePolicy(text) {
     const count = (seen.get(name) || 0) + 1;
     seen.set(name, count);
 
+    if (name === 'default' && value.toLowerCase() === 'untrusted') asksUntrusted = true;
+
     if (count > 1 && name !== 'untrusted') {
       errors.push({
         code: 'duplicate-directive',
@@ -284,6 +292,7 @@ export function parsePolicy(text) {
           directives.default = zone;
         } else {
           failClosed = true;
+          unreadableDefault = true;
           errors.push({
             code: 'invalid-default',
             directive: 'default',
@@ -294,8 +303,9 @@ export function parsePolicy(text) {
       }
       case 'voice':
       case 'untrusted': {
-        const { selectors, combined } = parseSelectorList(value, name, errors);
+        const { selectors, combined, asksUntrustedDefault } = parseSelectorList(value, name, errors);
         if (combined) failClosed = true;
+        if (asksUntrustedDefault) asksUntrusted = true;
         if (selectors.length === 0 && !combined) {
           errors.push({ code: 'empty-selector-list', directive: name, message: `"${name}" has no valid selectors.` });
           if (name === 'voice') failClosed = true;
@@ -351,7 +361,7 @@ export function parsePolicy(text) {
 
   if (failClosed) {
     directives.voice = [];
-    directives.default = 'voice';
+    directives.default = asksUntrusted || unreadableDefault ? 'untrusted' : 'voice';
   }
 
   return { raw, directives, errors, warnings, failedClosed: failClosed };

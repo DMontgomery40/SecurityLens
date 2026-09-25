@@ -54,13 +54,32 @@ describe('parsePolicy', () => {
     expect(codes(result.errors)).toContain('invalid-selector');
   });
 
-  test('an invalid default fails closed but keeps untrusted selectors', () => {
+  test('an unreadable default fails closed to untrusted and keeps untrusted selectors', () => {
     const result = parsePolicy('default everyone; voice #main; untrusted .comment');
     expect(result.failedClosed).toBe(true);
     expect(result.directives.voice).toEqual([]);
-    expect(result.directives.default).toBe('voice');
+    expect(result.directives.default).toBe('untrusted');
     expect(result.directives.untrusted).toEqual(['.comment']);
     expect(codes(result.errors)).toContain('invalid-default');
+  });
+
+  test.each([
+    ['a repeated voice directive', 'default untrusted; voice #a; voice #b'],
+    ['repeated defaults that disagree', 'default voice; default untrusted; voice #a'],
+    ['a second header that declares default untrusted', 'voice #main, default untrusted; untrusted .x'],
+    ['a second header combined after a default untrusted policy', 'default untrusted; voice #main, voice #side']
+  ])('failing closed never widens trust: %s', (_label, policy) => {
+    const result = parsePolicy(policy);
+    expect(result.failedClosed).toBe(true);
+    expect(result.directives.voice).toEqual([]);
+    expect(result.directives.default).toBe('untrusted');
+  });
+
+  test('failing closed keeps an omitted default as voice when nothing asked for untrusted', () => {
+    const result = parsePolicy('voice #a; voice #b; untrusted .c');
+    expect(result.failedClosed).toBe(true);
+    expect(result.directives.default).toBe('voice');
+    expect(result.directives.untrusted).toEqual(['.c']);
   });
 
   test('a repeated voice directive fails closed', () => {

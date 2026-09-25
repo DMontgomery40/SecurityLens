@@ -4,7 +4,7 @@
 //   GET  /api/reports?id=…   read reports (Authorization: Bearer <view key>)
 
 import { getStore, getDeployStore } from '@netlify/blobs';
-import { createReportService } from '../../src/lib/isp/node/reports.js';
+import { createReportService, chooseReportStore } from '../../src/lib/isp/node/reports.js';
 
 const MINTS_PER_HOUR = 20;
 const SUBMITS_PER_MINUTE = 60;
@@ -22,20 +22,20 @@ function allow(key, limit, windowMs) {
   return bucket.count <= limit;
 }
 
-function reportStore() {
-  // Keep preview and local data out of the production store.
-  const production = globalThis.Netlify?.context?.deploy?.context === 'production';
-  return production ? getStore('isp-reports') : getDeployStore('isp-reports');
-}
-
-function json(body, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+function deployContextOf(context) {
+  return context?.deploy?.context ?? globalThis.Netlify?.context?.deploy?.context ?? null;
 }
 
 export default async (req, context) => {
+  const { store, scope } = chooseReportStore(deployContextOf(context), { getStore, getDeployStore });
+  const json = (body, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-report-store': scope }
+    });
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, '') || '/';
-  const service = createReportService({ store: reportStore() });
+  const service = createReportService({ store });
   const ip = context?.ip || 'unknown';
   const id = context?.params?.id || null;
 
@@ -48,7 +48,7 @@ export default async (req, context) => {
     if (path.startsWith('/r/') && req.method === 'POST') {
       if (!allow(`submit:${ip}`, SUBMITS_PER_MINUTE, 60_000)) return json({ error: { code: 'rate-limited', message: 'Too many reports.' } }, 429);
       const result = await service.submit(id, await req.text());
-      return result.status === 204 ? new Response(null, { status: 204 }) : json({ error: { code: 'rejected', message: result.error } }, result.status);
+      return result.status === 204 ? new Response(null, { status: 204, headers: { 'x-report-store': scope } }) : json({ error: { code: 'rejected', message: result.error } }, result.status);
     }
 
     if (path === '/api/reports' && req.method === 'GET') {

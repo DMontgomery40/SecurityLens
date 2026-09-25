@@ -87,3 +87,10 @@ export function createReportService({ store, now = () => Date.now(), random = ra
     }
   };
 }
+
+// Production reports live in the site-wide store so endpoints survive new
+// deploys. Every other context (previews, drafts, branch deploys, local dev)
+// gets a deploy-scoped store so test data never reaches production.
+export function chooseReportStore(deployContext, { getStore, getDeployStore }, name = 'isp-reports') {
+  return deployContext === 'production' ? { store: getStore(name), scope: 'global' } : { store: getDeployStore(name), scope: 'deploy' };
+}
