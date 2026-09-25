@@ -1,30 +1,47 @@
+/* eslint-env node */
 import { validateGitHubToken, encryptToken } from './utils/secureToken.js';
 import { checkTokenRateLimit } from './utils/rateLimiter.js';
+import { SecurityLensError } from '../../src/lib/errors.js';
+import {
+  createFunctionContext,
+  errorResponse,
+  jsonResponse,
+  methodNotAllowedResponse,
+  optionsResponse,
+  parseJsonBody
+} from './utils/http.js';
 
-export const handler = async (event, context) => {
+export const handler = async (event) => {
+  const { headers, logger, requestId } = createFunctionContext('validate-token', event, {
+    allowMethods: 'POST, OPTIONS'
+  });
+
+  if (event.httpMethod === 'OPTIONS') {
+    return optionsResponse(headers);
+  }
+
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return methodNotAllowedResponse(headers);
   }
 
   try {
     // Get client IP for rate limiting
-    const clientIP = event.headers['x-forwarded-for'] || event.headers['client-ip'];
+    const clientIP = event.headers['x-forwarded-for'] || event.headers['client-ip'] || 'unknown';
     
     // Check rate limit
     await checkTokenRateLimit(clientIP);
 
     // Parse request body
-    const { token } = JSON.parse(event.body);
+    const { token } = parseJsonBody(event);
 
     if (!token) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Token is required' })
-      };
+      throw new SecurityLensError('Token is required', {
+        code: 'MISSING_TOKEN',
+        status: 400,
+        requestId,
+        userMessage: 'Token is required'
+      });
     }
 
     // Validate GitHub token
@@ -33,17 +50,19 @@ export const handler = async (event, context) => {
     // Encrypt token for client storage
     const encryptedToken = await encryptToken(token);
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        valid: true,
-        secureToken: encryptedToken
-      })
-    };
+    logger.info(
+      {
+        clientIP
+      },
+      'GitHub token validated'
+    );
+
+    return jsonResponse(200, headers, {
+      valid: true,
+      secureToken: encryptedToken,
+      requestId
+    });
   } catch (error) {
-    return {
-      statusCode: error.message.includes('Rate limit') ? 429 : 400,
-      body: JSON.stringify({ error: error.message })
-    };
+    return errorResponse(error, headers, logger, 'Token validation failed');
   }
 };

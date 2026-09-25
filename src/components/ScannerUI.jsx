@@ -17,16 +17,23 @@ import UploadArea from './UploadArea';
 import ProgressBar from './ProgressBar';
 import FilterPanel from './FilterPanel';
 import { ScanProvider, useScanContext } from '../context/ScanContext';
+import { createLogger } from '../lib/logger.js';
 
 const patternCategories = {
   CRITICAL_EXECUTION: 'Critical Execution'
 };
 
 const ScannerUIContent = () => {
+  const loggerRef = useRef(
+    createLogger({
+      component: 'ScannerUI'
+    })
+  );
   // Get scan context
   const {
     scanning,
     error,
+    errorMeta,
     progress,
     scanResults,
     usedCache,
@@ -172,7 +179,12 @@ const ScannerUIContent = () => {
         await handleUrlScan();
       }
     } catch (error) {
-      console.error('Token submission error:', error);
+      loggerRef.current.error(
+        {
+          err: error
+        },
+        'Token submission failed'
+      );
       setError(error.message);
       authManager.clearToken();
       setGithubToken('');
@@ -502,10 +514,17 @@ const ScannerUIContent = () => {
                       </ul>
                     </div>
                   ) : (
-                    <>
+                    <div className="space-y-2">
+                      <p>
                       <AlertTriangle className="h-4 w-4 inline-block mr-2" />
                       {error}
-                    </>
+                      </p>
+                      {errorMeta?.requestId && (
+                        <p className="text-xs text-gray-400">
+                          Reference ID: {errorMeta.requestId}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </AlertDescription>
               </Alert>

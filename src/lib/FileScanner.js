@@ -1,4 +1,6 @@
 import { patterns } from './patterns/index.js';
+import { getErrorMetadata, normalizeError } from './errors.js';
+import { createLogger, withLogContext } from './logger.js';
 
 // Constants for ignoring third-party content
 const IGNORED_DOMAINS = [
@@ -75,13 +77,15 @@ export class FileScanner {
       patternTimeout: 30000, // 30 seconds per file
       ...config
     };
+    this.logger = withLogContext(config.logger || createLogger(), {
+      component: 'FileScanner'
+    });
 
-    // Enhanced debug logging
-    console.log('Initializing scanner with patterns:', {
+    this.logger.debug({
       patternsLoaded: !!patterns,
       patternCount: patterns ? Object.keys(patterns).length : 0,
       patternTypes: patterns ? Object.keys(patterns) : []
-    });
+    }, 'Initializing vulnerability patterns');
 
     this.vulnerabilityPatterns = { ...patterns };
 
@@ -89,13 +93,24 @@ export class FileScanner {
     let validPatterns = 0;
     Object.entries(this.vulnerabilityPatterns).forEach(([key, pattern]) => {
       if (!pattern.pattern || !pattern.severity || !pattern.description) {
-        console.error(`Invalid pattern configuration for ${key}:`, pattern);
+        this.logger.warn(
+          {
+            patternKey: key,
+            pattern
+          },
+          'Ignoring invalid vulnerability pattern'
+        );
         delete this.vulnerabilityPatterns[key];
       } else {
         validPatterns++;
       }
     });
-    console.log(`Scanner initialized with ${validPatterns} valid patterns`);
+    this.logger.info(
+      {
+        validPatterns
+      },
+      'File scanner initialized'
+    );
   }
 
   /**
@@ -104,13 +119,23 @@ export class FileScanner {
   shouldIgnoreScript(content, path) {
     // First check the path/URL against ignored domains
     if (IGNORED_DOMAINS.some(pattern => pattern.test(path))) {
-      console.debug('Ignoring script from third-party domain:', path);
+      this.logger.debug(
+        {
+          filePath: path
+        },
+        'Skipping third-party script by domain'
+      );
       return true;
     }
 
     // Then check content against known third-party script patterns
     if (IGNORED_SCRIPT_CONTENT.some(pattern => pattern.test(content))) {
-      console.debug('Ignoring third-party script content:', path);
+      this.logger.debug(
+        {
+          filePath: path
+        },
+        'Skipping third-party script by content signature'
+      );
       return true;
     }
 
@@ -126,34 +151,54 @@ export class FileScanner {
   async scanFile(fileContent, filePath, options = {}) {
     // Early return if it's a third-party script
     if (this.shouldIgnoreScript(fileContent, filePath)) {
-      console.debug('Skipping third-party script:', filePath);
+      this.logger.debug(
+        {
+          filePath
+        },
+        'Skipping ignored script'
+      );
       return [];
     }
-
-    console.log(`Scanning file: ${filePath}`, {
-      contentProvided: !!fileContent,
-      contentLength: fileContent ? fileContent.length : 0,
-      activePatterns: Object.keys(this.vulnerabilityPatterns).length,
-      scanType: options.scanType || 'default',
-      patternKeys: Object.keys(this.vulnerabilityPatterns).slice(0, 5)
-    });
 
     if (!fileContent || typeof fileContent !== 'string') {
-      console.error('Invalid file content provided to scanner');
+      this.logger.warn(
+        {
+          filePath,
+          contentType: typeof fileContent
+        },
+        'Skipping file with invalid content'
+      );
       return [];
     }
+
+    this.logger.debug(
+      {
+        filePath,
+        contentLength: fileContent.length,
+        activePatterns: Object.keys(this.vulnerabilityPatterns).length,
+        scanType: options.scanType || 'default'
+      },
+      'Scanning file'
+    );
 
     // Check file size
     const contentSize = new Blob([fileContent]).size;
     if (contentSize > this.config.maxFileSize) {
-      console.warn(`File ${filePath} exceeds size limit of ${this.config.maxFileSize} bytes`);
+      this.logger.warn(
+        {
+          filePath,
+          contentSize,
+          maxFileSize: this.config.maxFileSize
+        },
+        'Skipping oversized file'
+      );
       return [];
     }
 
     const findings = [];
 
     if (!this.vulnerabilityPatterns || Object.keys(this.vulnerabilityPatterns).length === 0) {
-      console.error('No vulnerability patterns loaded');
+      this.logger.error('No vulnerability patterns loaded');
       return findings;
     }
 
@@ -165,28 +210,14 @@ export class FileScanner {
       }
       lineOffsets[lines.length] = lineOffsets[lines.length - 1] + 1;
 
-      // Log file type and first few lines for debugging
-      const fileExt = filePath.split('.').pop().toLowerCase();
-      console.log(`File type: ${fileExt}, First few lines:`, lines.slice(0, 3));
-
       for (const [vulnType, vulnInfo] of Object.entries(this.vulnerabilityPatterns)) {
         try {
-          console.log(`Checking pattern: ${vulnType}`, {
-            pattern: vulnInfo.pattern,
-            severity: vulnInfo.severity
-          });
-
           const regex = new RegExp(vulnInfo.pattern, 'g');
           const matches = new Set();
           const matchInfo = new Map(); // Store match information for each line
 
           let match;
           while ((match = regex.exec(fileContent)) !== null) {
-            console.log(`Found match for ${vulnType}:`, {
-              matchText: match[0],
-              matchIndex: match.index
-            });
-
             let lineNumber = 0;
             while (lineNumber < lineOffsets.length && lineOffsets[lineNumber] <= match.index) {
               lineNumber++;
@@ -203,7 +234,15 @@ export class FileScanner {
           }
 
           if (matches.size > 0) {
-            console.log(`Found ${matches.size} matches for ${vulnType} in ${filePath}`);
+            this.logger.debug(
+              {
+                filePath,
+                vulnType,
+                severity: vulnInfo.severity,
+                matches: matches.size
+              },
+              'Pattern matched'
+            );
             findings.push({
               type: vulnType,
               severity: vulnInfo.severity,
@@ -217,16 +256,25 @@ export class FileScanner {
             });
           }
         } catch (error) {
-          console.error(`Error processing pattern ${vulnType}:`, error);
+          this.logger.warn(
+            {
+              ...getErrorMetadata(
+                normalizeError(error, {
+                  code: 'PATTERN_SCAN_FAILED',
+                  status: 500,
+                  message: `Error processing pattern ${vulnType}`,
+                  details: {
+                    filePath,
+                    vulnType
+                  },
+                  expose: false
+                })
+              )
+            },
+            'Pattern scan failed'
+          );
         }
       }
-
-      console.log('Generated findings with categories:', findings.map(f => ({
-        type: f.type, 
-        category: f.category,
-        subcategory: f.subcategory,
-        lineCount: f.lineNumbers.length
-      })));
 
       // Add scan type to findings and generate code lines for all scan types
       findings.forEach(finding => {
@@ -286,15 +334,31 @@ export class FileScanner {
         });
       });
 
+      this.logger.debug(
+        {
+          filePath,
+          findings: findings.length
+        },
+        'File scan completed'
+      );
+
       return findings;
     } catch (error) {
-      console.error(`Error scanning file ${filePath}:`, error);
-      console.error('Scan context:', {
-        patternsLoaded: !!this.vulnerabilityPatterns,
-        patternCount: this.vulnerabilityPatterns ? Object.keys(this.vulnerabilityPatterns).length : 0,
-        fileSize: fileContent ? fileContent.length : 0
+      const normalized = normalizeError(error, {
+        code: 'FILE_SCAN_FAILED',
+        status: 500,
+        message: `Failed to scan file ${filePath}`,
+        details: {
+          filePath,
+          patternsLoaded: !!this.vulnerabilityPatterns,
+          patternCount: this.vulnerabilityPatterns ? Object.keys(this.vulnerabilityPatterns).length : 0,
+          fileSize: fileContent ? fileContent.length : 0
+        },
+        expose: false
       });
-      throw error;
+
+      this.logger.error(getErrorMetadata(normalized), 'File scan failed');
+      throw normalized;
     }
   }
 
@@ -327,7 +391,22 @@ export class FileScanner {
         const fileFindings = await this.scanFile(file.content, file.path, options);
         findings.push(...fileFindings);
       } catch (error) {
-        console.error(`Error scanning file ${file.path}:`, error);
+        this.logger.warn(
+          {
+            ...getErrorMetadata(
+              normalizeError(error, {
+                code: 'BATCH_FILE_SCAN_FAILED',
+                status: 500,
+                message: `Failed to scan ${file.path}`,
+                details: {
+                  filePath: file.path
+                },
+                expose: false
+              })
+            )
+          },
+          'Continuing after file scan failure'
+        );
       } finally {
         processedFiles++;
       }

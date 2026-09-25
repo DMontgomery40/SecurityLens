@@ -1,247 +1,258 @@
+/* eslint-env node */
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { FileScanner } from '../../src/lib/FileScanner.js';
 import { ReportBuilder } from '../../src/lib/ReportBuilder.js';
-/**
- * Netlify serverless function to scan an arbitrary webpage URL.
- * 
- * Expects a JSON body: { "url": "https://example.com" }
- */
+import { SecurityLensError, getErrorMetadata, normalizeError } from '../../src/lib/errors.js';
+import {
+  createFunctionContext,
+  errorResponse,
+  jsonResponse,
+  methodNotAllowedResponse,
+  optionsResponse,
+  parseJsonBody
+} from './utils/http.js';
+
+function getScriptConcurrency() {
+  const rawConcurrency = Number.parseInt(
+    globalThis.process?.env?.WEBPAGE_SCRIPT_CONCURRENCY || '5',
+    10
+  );
+
+  if (!Number.isFinite(rawConcurrency) || rawConcurrency < 1) {
+    return 5;
+  }
+
+  return Math.min(rawConcurrency, 20);
+}
+
+function mapWebpageError(error, requestId) {
+  if (error instanceof SecurityLensError) {
+    return normalizeError(error, { requestId });
+  }
+
+  if (error?.code === 'ENOTFOUND' || error?.code === 'ECONNREFUSED') {
+    return new SecurityLensError('Cannot reach the specified URL', {
+      code: 'URL_UNREACHABLE',
+      status: 400,
+      requestId,
+      userMessage: 'Cannot reach the specified URL'
+    });
+  }
+
+  if (error?.code === 'ECONNABORTED') {
+    return new SecurityLensError('Webpage scan timeout - webpage too complex or has too many scripts', {
+      code: 'SCAN_TIMEOUT',
+      status: 408,
+      requestId,
+      userMessage: 'Webpage scan timed out. Please try again.'
+    });
+  }
+
+  return normalizeError(error, {
+    code: 'WEBPAGE_SCAN_FAILED',
+    status: error?.status || 500,
+    message: 'Webpage scan failed',
+    requestId,
+    userMessage: 'Webpage scan failed',
+    expose: false
+  });
+}
 
 export const handler = async (event) => {
-    // Add CORS headers
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-    };
+  const { headers, logger, requestId } = createFunctionContext('scan-webpage', event);
 
-    // Handle preflight requests
-    if (event.httpMethod === 'OPTIONS') {
-        return {
-            statusCode: 204,
-            headers
-        };
+  if (event.httpMethod === 'OPTIONS') {
+    return optionsResponse(headers);
+  }
+
+  if (event.httpMethod !== 'POST') {
+    return methodNotAllowedResponse(headers);
+  }
+
+  try {
+    const { url } = parseJsonBody(event);
+
+    if (!url) {
+      throw new SecurityLensError('No URL provided', {
+        code: 'MISSING_URL',
+        status: 400,
+        requestId,
+        userMessage: 'No URL provided'
+      });
     }
 
-    try {
-        const { url } = JSON.parse(event.body || '{}');
-        if (!url) {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({ error: 'No URL provided' })
-            };
+    logger.info(
+      {
+        sourceUrl: url
+      },
+      'Starting webpage scan'
+    );
+
+    const response = await axios.get(url, {
+      timeout: 10000,
+      maxContentLength: 1024 * 1024
+    });
+
+    const html = response.data;
+    const $ = cheerio.load(html);
+    const scripts = [];
+
+    $('script').each((index, element) => {
+      const src = $(element).attr('src');
+      if (src) {
+        scripts.push({ type: 'external', src });
+      } else {
+        scripts.push({ type: 'inline', content: $(element).html() || '' });
+      }
+    });
+
+    const fileScanner = new FileScanner({
+      enableNewPatterns: true,
+      enablePackageScanners: true,
+      logger
+    });
+    const reportBuilder = new ReportBuilder();
+    const scriptContents = [
+      {
+        filename: 'page.html',
+        content: html
+      }
+    ];
+    const maxConcurrentScripts = getScriptConcurrency();
+
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new SecurityLensError('Webpage scan timeout - too many scripts or large content', {
+            code: 'SCAN_TIMEOUT',
+            status: 408,
+            requestId,
+            userMessage: 'Webpage scan timed out. Please try again.'
+          })
+        );
+      }, 25000);
+    });
+
+    const scanPromise = (async () => {
+      for (let index = 0; index < scripts.length; index += maxConcurrentScripts) {
+        const batch = scripts.slice(index, index + maxConcurrentScripts);
+        const batchResults = await Promise.all(
+          batch.map(async (script, scriptIndex) => {
+            if (script.type === 'inline') {
+              return {
+                filename: `inline-script-${index + scriptIndex}`,
+                content: script.content
+              };
+            }
+
+            try {
+              const absoluteUrl = new URL(script.src, url).href;
+              const scriptResponse = await axios.get(absoluteUrl, {
+                timeout: 5000,
+                maxContentLength: 1024 * 1024
+              });
+
+              return {
+                filename: absoluteUrl,
+                content: scriptResponse.data
+              };
+            } catch (error) {
+              logger.warn(
+                {
+                  ...getErrorMetadata(
+                    normalizeError(error, {
+                      code: 'SCRIPT_FETCH_FAILED',
+                      status: error?.response?.status || 502,
+                      message: `Failed to fetch script ${script.src}`,
+                      requestId,
+                      details: {
+                        scriptSource: script.src
+                      },
+                      expose: false
+                    })
+                  )
+                },
+                'Skipping external script fetch failure'
+              );
+
+              return null;
+            }
+          })
+        );
+
+        scriptContents.push(...batchResults.filter(Boolean));
+      }
+
+      const allFindings = [];
+      let scannedCount = 0;
+
+      for (const { filename, content } of scriptContents) {
+        if (!content || typeof content !== 'string' || !content.trim()) {
+          continue;
         }
 
-        console.log('Attempting to scan URL:', url);
-
-        // Fetch the webpage
-        let response;
         try {
-            response = await axios.get(url);
-        } catch (fetchError) {
-            console.error('Error fetching URL:', fetchError.message);
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({ 
-                    error: 'Failed to fetch URL',
-                    details: fetchError.message 
+          const fileFindings = await fileScanner.scanFile(content, filename, {
+            scanType: 'web',
+            sourceContent: content
+          });
+
+          if (fileFindings.length > 0) {
+            allFindings.push(...fileFindings);
+          }
+
+          scannedCount += 1;
+        } catch (error) {
+          logger.warn(
+            {
+              ...getErrorMetadata(
+                normalizeError(error, {
+                  code: 'WEBPAGE_CONTENT_SCAN_FAILED',
+                  status: 500,
+                  message: `Failed to scan ${filename}`,
+                  requestId,
+                  details: {
+                    filename
+                  },
+                  expose: false
                 })
-            };
+              )
+            },
+            'Skipping webpage content scan failure'
+          );
         }
+      }
 
-        const html = response.data;
-        console.log('Successfully fetched HTML, length:', html.length);
-        console.log('HTML preview:', html.substring(0, 200));
-        console.log('Parsing scripts...');
+      return { allFindings, scannedCount };
+    })();
 
-        // Parse HTML with Cheerio
-        const $ = cheerio.load(html);
-        const scripts = [];
+    const { allFindings, scannedCount } = await Promise.race([scanPromise, timeoutPromise]);
+    const report = reportBuilder.generateReport(allFindings, {
+      fromCache: false
+    });
+    const recommendations = reportBuilder.generateRecommendations(allFindings);
 
-        // Collect inline scripts and external script URLs
-        $('script').each((i, elem) => {
-            const src = $(elem).attr('src');
-            if (src) {
-                scripts.push({ type: 'external', src });
-            } else {
-                scripts.push({ type: 'inline', content: $(elem).html() });
-            }
-        });
+    logger.info(
+      {
+        sourceUrl: url,
+        scannedCount,
+        findings: report.summary.totalIssues
+      },
+      'Webpage scan completed'
+    );
 
-        // Initialize modular components
-        const fileScanner = new FileScanner({
-            enableNewPatterns: true,
-            enablePackageScanners: true
-        });
-        
-        console.log('FileScanner initialized with patterns:', {
-            patternCount: Object.keys(fileScanner.vulnerabilityPatterns || {}).length,
-            samplePatterns: Object.keys(fileScanner.vulnerabilityPatterns || {}).slice(0, 5)
-        });
-        
-        // Additional diagnostic logging for webpage scanner
-        console.log('Webpage scanner diagnostic - Loaded patterns:', {
-            totalPatterns: Object.keys(fileScanner.vulnerabilityPatterns || {}).length,
-            firstFivePatterns: Object.keys(fileScanner.vulnerabilityPatterns || {}).slice(0, 5),
-            hasPatterns: !!fileScanner.vulnerabilityPatterns,
-            patternsType: typeof fileScanner.vulnerabilityPatterns
-        });
-        
-        const reportBuilder = new ReportBuilder();
-        const scriptContents = [];
-
-        // Add the HTML content itself to be scanned
-        scriptContents.push({
-            filename: 'page.html',
-            content: html
-        });
-
-        // Set up timeout for webpage scanning (25 seconds to stay under Netlify limit)
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Webpage scan timeout - too many scripts or large content')), 25000);
-        });
-        
-        const scanPromise = (async () => {
-            // Process scripts with concurrency control
-            const maxConcurrentScripts = parseInt(process.env.WEBPAGE_SCRIPT_CONCURRENCY) || 5;
-            let processedScripts = 0;
-            
-            for (let i = 0; i < scripts.length; i += maxConcurrentScripts) {
-                const batch = scripts.slice(i, i + maxConcurrentScripts);
-                const batchPromises = batch.map(async (script) => {
-                    if (script.type === 'inline') {
-                        return { 
-                            filename: `inline-script-${processedScripts++}`, 
-                            content: script.content || ''
-                        };
-                    } else {
-                        try {
-                            const absoluteUrl = new URL(script.src, url).href;
-                            const scriptResponse = await axios.get(absoluteUrl, {
-                                timeout: 5000, // 5 second timeout per script
-                                maxContentLength: 1024 * 1024 // 1MB limit per script
-                            });
-                            return { 
-                                filename: absoluteUrl, 
-                                content: scriptResponse.data 
-                            };
-                        } catch (err) {
-                            console.error(`Failed to fetch script: ${script.src}`, err.message);
-                            return null;
-                        }
-                    }
-                });
-                
-                const batchResults = await Promise.all(batchPromises);
-                scriptContents.push(...batchResults.filter(result => result !== null));
-            }
-            
-            console.log(`Retrieved ${scriptContents.length} scripts/content for scanning`);
-            
-            // Scan scripts using FileScanner
-            const allFindings = [];
-            let scannedCount = 0;
-            
-            for (const { filename, content } of scriptContents) {
-                try {
-                    console.log(`Processing ${filename}: content length ${content?.length || 0}, type: ${typeof content}`);
-                    if (content && typeof content === 'string' && content.trim()) {
-                        console.log(`About to scan ${filename} with content preview:`, content.substring(0, 100));
-                        const fileFindings = await fileScanner.scanFile(content, filename, { 
-                            scanType: 'web',
-                            sourceContent: content
-                        });
-                        console.log(`Scan results for ${filename}:`, fileFindings?.length || 0, 'findings');
-                        if (fileFindings && fileFindings.length > 0) {
-                            allFindings.push(...fileFindings);
-                        }
-                        scannedCount++;
-                    } else {
-                        console.log(`Skipping ${filename}: empty or invalid content`);
-                    }
-                } catch (err) {
-                    console.error(`Error scanning content ${filename}:`, err.message);
-                }
-            }
-            
-            console.log(`Scan complete: ${allFindings.length} findings from ${scannedCount} scanned items`);
-            console.log('Script contents details:', scriptContents.map(s => ({
-                filename: s.filename,
-                length: s.content?.length || 0,
-                preview: s.content?.substring(0, 100) || 'No content'
-            })));
-            console.log('All findings details:', allFindings.map(f => ({
-                rule: f.rule,
-                severity: f.severity,
-                file: f.file
-            })));
-            return { allFindings, scannedCount };
-        })();
-        
-        // Race between scan and timeout
-        const { allFindings, scannedCount } = await Promise.race([scanPromise, timeoutPromise]);
-        
-        // Generate report using ReportBuilder
-        const report = reportBuilder.generateReport(allFindings, { 
-            scanType: 'webpage',
-            sourceUrl: url,
-            scriptsScanned: scannedCount
-        });
-        
-        // Generate recommendations
-        const recommendations = reportBuilder.generateRecommendations(allFindings);
-
-        return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-                message: 'Webpage scan complete',
-                sourceUrl: url,
-                scriptsScanned: scannedCount,
-                findings: report.findings,
-                summary: report.summary,
-                recommendations
-            })
-        };
-
-    } catch (err) {
-        console.error('Scan error:', err);
-        
-        // Handle timeout specifically
-        if (err.message.includes('timeout')) {
-            return {
-                statusCode: 408,
-                headers,
-                body: JSON.stringify({ 
-                    error: 'Scan timeout - webpage too complex or has too many scripts',
-                    details: err.message
-                })
-            };
-        }
-        
-        // Handle other specific errors
-        if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({ 
-                    error: 'Cannot reach the specified URL',
-                    details: `Network error: ${err.message}`
-                })
-            };
-        }
-        
-        return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ 
-                error: 'Internal server error',
-                details: err.message,
-                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-            })
-        };
-    }
+    return jsonResponse(200, headers, {
+      message: 'Webpage scan complete',
+      sourceUrl: url,
+      scriptsScanned: scannedCount,
+      findings: allFindings,
+      report,
+      summary: report.summary,
+      recommendations,
+      requestId
+    });
+  } catch (error) {
+    return errorResponse(mapWebpageError(error, requestId), headers, logger);
+  }
 };

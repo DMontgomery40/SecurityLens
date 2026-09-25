@@ -1,58 +1,111 @@
+/* eslint-env node */
 import { Octokit } from '@octokit/rest';
 import { RepositoryCrawler } from '../../src/lib/RepositoryCrawler.js';
 import { FileScanner } from '../../src/lib/FileScanner.js';
 import { ReportBuilder } from '../../src/lib/ReportBuilder.js';
 import { authManager } from '../../src/lib/githubAuth.js';
+import {
+  SecurityLensError,
+  getErrorMetadata,
+  normalizeError
+} from '../../src/lib/errors.js';
+import {
+  createFunctionContext,
+  errorResponse,
+  jsonResponse,
+  methodNotAllowedResponse,
+  optionsResponse,
+  parseJsonBody
+} from './utils/http.js';
 
+function getConcurrency() {
+  const rawConcurrency = Number.parseInt(globalThis.process?.env?.SCANNER_CONCURRENCY || '10', 10);
 
-export const handler = async (event, context) => {
-  // Enable CORS
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
-
-  // Handle preflight requests
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers
-    };
+  if (!Number.isFinite(rawConcurrency) || rawConcurrency < 1) {
+    return 10;
   }
 
-  // Only allow POST requests
+  return Math.min(rawConcurrency, 50);
+}
+
+function mapRepositoryError(error, requestId) {
+  if (error instanceof SecurityLensError) {
+    return normalizeError(error, { requestId });
+  }
+
+  if (error?.status === 401) {
+    return new SecurityLensError('Invalid GitHub token. Please check your token and try again.', {
+      code: 'AUTH_FAILED',
+      status: 401,
+      requestId,
+      userMessage: 'Invalid GitHub token. Please check your token and try again.'
+    });
+  }
+
+  if (error?.status === 403) {
+    return new SecurityLensError('Access denied or rate limit exceeded. Try again later.', {
+      code: 'RATE_LIMITED',
+      status: 403,
+      requestId,
+      userMessage: 'Access denied or rate limit exceeded. Try again later.'
+    });
+  }
+
+  if (error?.status === 404) {
+    return new SecurityLensError('Repository or path not found. Please check the URL.', {
+      code: 'REPO_NOT_FOUND',
+      status: 404,
+      requestId,
+      userMessage: 'Repository or path not found. Please check the URL.'
+    });
+  }
+
+  return normalizeError(error, {
+    code: 'REPOSITORY_SCAN_FAILED',
+    status: error?.status || 500,
+    message: 'Repository scan failed',
+    requestId,
+    userMessage: 'Repository scan failed',
+    expose: false
+  });
+}
+
+export const handler = async (event) => {
+  const { headers, logger, requestId } = createFunctionContext('scan-repository', event, {
+    allowHeaders: 'Content-Type, Authorization'
+  });
+
+  if (event.httpMethod === 'OPTIONS') {
+    return optionsResponse(headers);
+  }
+
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return methodNotAllowedResponse(headers);
   }
 
   try {
-    const { url } = JSON.parse(event.body);
+    const { url } = parseJsonBody(event);
 
     if (!url) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Repository URL is required' })
-      };
+      throw new SecurityLensError('Repository URL is required', {
+        code: 'MISSING_REPOSITORY_URL',
+        status: 400,
+        requestId,
+        userMessage: 'Repository URL is required'
+      });
     }
 
-    // Extract GitHub token from headers
-    const token = event.headers.authorization?.replace('Bearer ', '');
-    
+    const token = event.headers.authorization?.replace(/^Bearer\s+/i, '');
+
     if (!token) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'GitHub token is required' })
-      };
+      throw new SecurityLensError('GitHub token is required', {
+        code: 'MISSING_TOKEN',
+        status: 401,
+        requestId,
+        userMessage: 'GitHub token is required'
+      });
     }
 
-    // Initialize GitHub client with token
     const octokit = new Octokit({
       auth: token,
       userAgent: 'security-lens-scanner',
@@ -62,190 +115,172 @@ export const handler = async (event, context) => {
       }
     });
 
-    // Parse GitHub URL - handle both /blob/ and /tree/ paths
-    const githubRegex = /github\.com\/([^/]+)\/([^/]+)(?:\/(?:blob|tree)\/([^/]+))?\/?(.*)/;
-    const match = url.match(githubRegex);
-    
-    if (!match) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Invalid GitHub URL format' })
-      };
+    await octokit.rest.users.getAuthenticated();
+    const rateLimit = await octokit.rest.rateLimit.get();
+
+    if (rateLimit.data.rate.remaining === 0) {
+      throw new SecurityLensError('Rate limit exceeded', {
+        code: 'RATE_LIMITED',
+        status: 429,
+        requestId,
+        userMessage: 'Rate limit exceeded',
+        details: {
+          resetAt: new Date(rateLimit.data.rate.reset * 1000).toISOString()
+        }
+      });
     }
 
-    const [, owner, repo, branch = 'main', path = ''] = match;
+    authManager.setToken(token);
 
-    try {
-      // First verify the token works by getting the authenticated user
-      await octokit.rest.users.getAuthenticated();
+    const concurrency = getConcurrency();
+    const repositoryCrawler = new RepositoryCrawler({
+      concurrency,
+      logger
+    });
+    const fileScanner = new FileScanner({
+      enableNewPatterns: true,
+      enablePackageScanners: true,
+      logger
+    });
+    const reportBuilder = new ReportBuilder();
+    const { owner, repo, branch, path } = repositoryCrawler.parseGitHubUrl(url);
 
-      // Then check rate limit
-      const rateLimit = await octokit.rest.rateLimit.get();
-      console.log('Rate limit:', rateLimit.data.rate);
+    logger.info(
+      {
+        repository: `${owner}/${repo}`,
+        branch,
+        path: path || '/',
+        concurrency
+      },
+      'Starting repository scan'
+    );
 
-      if (rateLimit.data.rate.remaining === 0) {
-        return {
-          statusCode: 429,
-          headers,
-          body: JSON.stringify({
-            error: 'Rate limit exceeded',
-            resetAt: new Date(rateLimit.data.rate.reset * 1000).toISOString()
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new SecurityLensError('Scan timeout - repository too large for Netlify function', {
+            code: 'SCAN_TIMEOUT',
+            status: 408,
+            requestId,
+            userMessage: 'Repository scan timed out. Try a smaller path or try again.'
           })
-        };
-      }
-
-      // Set up authentication for modular components
-      authManager.setToken(token);
-      
-      // Initialize modular components with concurrency control
-      const rawConcurrency = parseInt(process.env.SCANNER_CONCURRENCY) || 10;
-      const concurrency = Math.min(Math.max(rawConcurrency, 1), 50); // Clamp between 1-50
-      const repositoryCrawler = new RepositoryCrawler({ concurrency });
-      const fileScanner = new FileScanner({
-        enableNewPatterns: true,
-        enablePackageScanners: true
-      });
-      const reportBuilder = new ReportBuilder();
-
-      // Additional diagnostic logging for repository scanner
-      console.log('Repository scanner diagnostic - Loaded patterns:', {
-          totalPatterns: Object.keys(fileScanner.vulnerabilityPatterns || {}).length,
-          firstFivePatterns: Object.keys(fileScanner.vulnerabilityPatterns || {}).slice(0, 5),
-          hasPatterns: !!fileScanner.vulnerabilityPatterns,
-          patternsType: typeof fileScanner.vulnerabilityPatterns
-      });
-
-      // Construct GitHub URL for the crawler
-      const githubUrl = `https://github.com/${owner}/${repo}`;
-      const fullUrl = branch !== 'main' ? `${githubUrl}/tree/${branch}` : githubUrl;
-      const scanUrl = path ? `${fullUrl}/${path}` : fullUrl;
-      
-      console.log(`Scanning repository: ${scanUrl}`);
-      
-      // Use RepositoryCrawler to get files with timeout handling
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Scan timeout - repository too large for Netlify function')), 25000);
-      });
-      
-      const scanPromise = (async () => {
-        // Get files using the modular crawler
-        const { files, rateLimit: rateLimitInfo, fromCache, partial, scanStats } = await repositoryCrawler.getFiles(
-          token, 
-          owner, 
-          repo, 
-          branch, 
-          path,
-          (progress) => {
-            console.log(`Progress: ${progress.phase} - ${progress.current}/${progress.total}`, progress.details);
-          }
         );
-        
-        console.log(`Retrieved ${files.length} files from repository${fromCache ? ' (cached)' : ''}`);
-        if (partial) {
-          console.log(`Note: This is a partial scan. ${scanStats.failureCount} files could not be downloaded.`);
-        }
-        
-        // Scan files using FileScanner
-        let allFindings = [];
-        let processedFiles = 0;
-        
-        for (const file of files) {
-          try {
-            const fileFindings = await fileScanner.scanFile(file.content, file.path);
-            if (fileFindings && fileFindings.length > 0) {
-              allFindings.push(...fileFindings);
-            }
-            processedFiles++;
-            
-            // Progress logging for large repositories
-            if (processedFiles % 50 === 0) {
-              console.log(`Processed ${processedFiles}/${files.length} files...`);
-            }
-          } catch (error) {
-            console.error(`Error scanning file ${file.path}:`, error.message);
+      }, 25000);
+    });
+
+    const scanPromise = (async () => {
+      const { files, fromCache, partial, scanStats, errors } = await repositoryCrawler.getFiles(
+        token,
+        owner,
+        repo,
+        branch,
+        path,
+        (progress) => {
+          if (
+            progress.current === 0 ||
+            progress.current === progress.total ||
+            progress.current % 50 === 0
+          ) {
+            logger.debug(
+              {
+                phase: progress.phase,
+                current: progress.current,
+                total: progress.total,
+                details: progress.details
+              },
+              'Repository fetch progress'
+            );
           }
         }
-        
-        console.log(`Scan complete: ${allFindings.length} findings in ${processedFiles} files`);
-        
-        return { allFindings, rateLimitInfo, fromCache, filesProcessed: processedFiles, partial, scanStats };
-      })();
-      
-      // Race between scan and timeout
-      const { allFindings, rateLimitInfo, fromCache, filesProcessed, partial, scanStats } = await Promise.race([
-        scanPromise,
-        timeoutPromise
-      ]);
-      
-      // Generate report using ReportBuilder
-      const report = reportBuilder.generateReport(allFindings, { 
-        rateLimit: rateLimitInfo, 
-        fromCache,
-        filesProcessed,
-        partial,
-        scanStats 
-      });
-      
-      // Add recommendations
-      const recommendations = reportBuilder.generateRecommendations(allFindings);
+      );
+
+      const allFindings = [];
+      let processedFiles = 0;
+
+      for (const file of files) {
+        try {
+          const fileFindings = await fileScanner.scanFile(file.content, file.path);
+          if (fileFindings.length > 0) {
+            allFindings.push(...fileFindings);
+          }
+        } catch (error) {
+          logger.warn(
+            {
+              ...getErrorMetadata(
+                normalizeError(error, {
+                  code: 'REPOSITORY_FILE_ANALYSIS_FAILED',
+                  status: 500,
+                  message: `Failed to scan ${file.path}`,
+                  requestId,
+                  details: {
+                    filePath: file.path
+                  },
+                  expose: false
+                })
+              )
+            },
+            'Continuing after repository file analysis failure'
+          );
+        } finally {
+          processedFiles += 1;
+
+          if (processedFiles === files.length || processedFiles % 50 === 0) {
+            logger.debug(
+              {
+                processedFiles,
+                totalFiles: files.length
+              },
+              'Repository analysis progress'
+            );
+          }
+        }
+      }
 
       return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          findings: report.findings,
-          summary: report.summary,
-          recommendations,
-          rateLimit: rateLimitInfo || rateLimit.data.rate,
-          fromCache,
-          filesProcessed,
-          partial: partial || false,
-          scanStats: scanStats || null
-        })
+        allFindings,
+        files,
+        fromCache,
+        partial,
+        scanStats,
+        errors,
+        processedFiles
       };
+    })();
 
-    } catch (error) {
-      console.error('GitHub API error:', error);
-      
-      if (error.status === 401) {
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({
-            error: 'Invalid GitHub token. Please check your token and try again.'
-          })
-        };
-      }
-      if (error.status === 403) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({
-            error: 'Access denied or rate limit exceeded. Try again later.'
-          })
-        };
-      }
-      if (error.status === 404) {
-        return {
-          statusCode: 404,
-          headers,
-          body: JSON.stringify({
-            error: 'Repository or path not found. Please check the URL.'
-          })
-        };
-      }
-      throw error;
-    }
+    const { allFindings, fromCache, partial, scanStats, errors, processedFiles } =
+      await Promise.race([scanPromise, timeoutPromise]);
+
+    const report = reportBuilder.generateReport(allFindings, {
+      rateLimit: repositoryCrawler.rateLimitInfo || rateLimit.data.rate,
+      fromCache
+    });
+
+    const recommendations = reportBuilder.generateRecommendations(allFindings);
+
+    logger.info(
+      {
+        repository: `${owner}/${repo}`,
+        findings: report.summary.totalIssues,
+        filesProcessed: processedFiles,
+        partial: partial || false,
+        fromCache
+      },
+      'Repository scan completed'
+    );
+
+    return jsonResponse(200, headers, {
+      findings: report.findings,
+      summary: report.summary,
+      recommendations,
+      rateLimit: repositoryCrawler.rateLimitInfo || rateLimit.data.rate,
+      fromCache,
+      filesProcessed: processedFiles,
+      partial: partial || false,
+      scanStats: scanStats || null,
+      fetchErrors: errors || [],
+      requestId
+    });
   } catch (error) {
-    console.error('Scan error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({
-        error: 'Internal server error',
-        details: error.message
-      })
-    };
+    return errorResponse(mapRepositoryError(error, requestId), headers, logger);
   }
 };

@@ -3,6 +3,8 @@ import { FileScanner, IGNORED_DOMAINS, IGNORED_SCRIPT_CONTENT } from './FileScan
 import { ReportBuilder } from './ReportBuilder.js';
 import { ProgressTracker } from './ProgressTracker.js';
 import { authManager } from './githubAuth.js';
+import { SecurityLensError, getErrorMetadata, normalizeError } from './errors.js';
+import { createLogger, withLogContext } from './logger.js';
 
 // Export constants for backward compatibility
 export { IGNORED_DOMAINS, IGNORED_SCRIPT_CONTENT };
@@ -21,17 +23,23 @@ class VulnerabilityScanner {
       totalScanTimeout: 300000, // 5 minutes for entire scan
       ...config
     };
+    this.logger = withLogContext(config.logger || createLogger(), {
+      component: 'VulnerabilityScanner',
+      ...(config.runId ? { runId: config.runId } : {})
+    });
 
     // Initialize modules
     this.repositoryCrawler = new RepositoryCrawler({
       concurrency: this.config.concurrency,
       maxRetries: this.config.maxRetries,
-      retryDelay: this.config.retryDelay
+      retryDelay: this.config.retryDelay,
+      logger: this.logger
     });
     
     this.fileScanner = new FileScanner({
       maxFileSize: this.config.maxFileSize,
-      patternTimeout: this.config.patternTimeout
+      patternTimeout: this.config.patternTimeout,
+      logger: this.logger
     });
     
     this.reportBuilder = new ReportBuilder();
@@ -58,8 +66,14 @@ class VulnerabilityScanner {
    * @param {string} url - GitHub repository URL
    * @param {Octokit} octokitInstance - Octokit instance with authentication (optional)
    */
-  async fetchRepositoryFiles(url, octokitInstance) {
+  async fetchRepositoryFiles(url) {
     this.updateProgress('fetching', 0, 0);
+    this.logger.info(
+      {
+        url
+      },
+      'Fetching repository files'
+    );
 
     const { owner, repo, branch, path } = this.repositoryCrawler.parseGitHubUrl(url);
     
@@ -81,6 +95,16 @@ class VulnerabilityScanner {
     this.rateLimitInfo = this.repositoryCrawler.rateLimitInfo;
     
     this.updateProgress('analyzing', 0, result.files.length);
+    this.logger.info(
+      {
+        repository: `${owner}/${repo}`,
+        branch,
+        path: path || '/',
+        files: result.files.length,
+        fromCache: result.fromCache || false
+      },
+      'Repository files fetched'
+    );
     return result;
   }
 
@@ -96,6 +120,12 @@ class VulnerabilityScanner {
     let failureCount = 0;
     const totalFiles = files.length;
     const startTime = Date.now();
+    this.logger.info(
+      {
+        totalFiles
+      },
+      'Starting local file scan'
+    );
 
     if (this.config.onProgress) {
       this.config.onProgress({ 
@@ -118,7 +148,22 @@ class VulnerabilityScanner {
         findings.push(...fileFindings);
         successCount++;
       } catch (error) {
-        console.error(`Error scanning file ${file.name}:`, error);
+        this.logger.warn(
+          {
+            ...getErrorMetadata(
+              normalizeError(error, {
+                code: 'LOCAL_FILE_SCAN_FAILED',
+                status: 500,
+                message: `Failed to scan ${file.name}`,
+                details: {
+                  fileName: file.name
+                },
+                expose: false
+              })
+            )
+          },
+          'Continuing after local file scan failure'
+        );
         failureCount++;
       } finally {
         processedFiles++;
@@ -170,6 +215,18 @@ class VulnerabilityScanner {
       completionRate: completionRate
     };
     report.partial = failureCount > 0;
+
+    this.logger.info(
+      {
+        totalFiles,
+        successCount,
+        failureCount,
+        duration,
+        findings: findings.length,
+        partial: report.partial
+      },
+      'Local file scan completed'
+    );
     
     return report;
   }
@@ -226,19 +283,43 @@ class VulnerabilityScanner {
  * @param {string} url - GitHub repository URL
  * @param {function} onProgress - Progress callback function
  */
-export async function scanRepositoryLocally(url, onProgress = null) {
+export async function scanRepositoryLocally(url, onProgress = null, options = {}) {
+  const logger = withLogContext(options.logger || createLogger(), {
+    scope: 'repository-scan',
+    ...(options.requestId ? { requestId: options.requestId } : {})
+  });
   const scanner = new VulnerabilityScanner({
     onProgress: onProgress || ((progress) => {
-      // Default progress handler that just logs
-      console.log(`Scanning progress:`, progress);
-    })
+      logger.debug(
+        {
+          phase: progress.phase,
+          current: progress.current,
+          total: progress.total
+        },
+        'Repository scan progress'
+      );
+    }),
+    logger,
+    runId: options.requestId
   });
 
   try {
     const token = authManager.getToken();
     if (!token) {
-      throw new Error('GitHub token is required');
+      throw new SecurityLensError('GitHub token is required', {
+        code: 'MISSING_TOKEN',
+        status: 401,
+        userMessage: 'GitHub token is required',
+        expose: true
+      });
     }
+
+    logger.info(
+      {
+        url
+      },
+      'Starting local repository scan'
+    );
 
     // Test token validity
     await scanner.getRateLimitInfo();
@@ -267,7 +348,22 @@ export async function scanRepositoryLocally(url, onProgress = null) {
         const fileFindings = await scanner.scanFile(fileInfo.content, fileInfo.path);
         findings.push(...fileFindings);
       } catch (error) {
-        console.error(`Error scanning file ${fileInfo.path}:`, error);
+        logger.warn(
+          {
+            ...getErrorMetadata(
+              normalizeError(error, {
+                code: 'REPOSITORY_FILE_SCAN_FAILED',
+                status: 500,
+                message: `Failed to analyze ${fileInfo.path}`,
+                details: {
+                  filePath: fileInfo.path
+                },
+                expose: false
+              })
+            )
+          },
+          'Continuing after repository file scan failure'
+        );
       } finally {
         processedFiles++;
         if (scanner.config.onProgress) {
@@ -300,10 +396,32 @@ export async function scanRepositoryLocally(url, onProgress = null) {
     report.partial = partial;
     report.fetchErrors = errors;
 
+    logger.info(
+      {
+        url,
+        findings: report.findings.length,
+        partial: report.partial,
+        fromCache: report.fromCache || false,
+        totalFiles,
+        processedFiles
+      },
+      'Local repository scan completed'
+    );
+
     return report;
   } catch (error) {
-    console.error('Local scan error:', error);
-    throw error;
+    const normalized = normalizeError(error, {
+      code: 'LOCAL_REPOSITORY_SCAN_FAILED',
+      status: error?.status || 500,
+      message: `Repository scan failed for ${url}`,
+      details: {
+        url
+      },
+      userMessage: error?.userMessage || error?.message || 'Repository scan failed'
+    });
+
+    logger.error(getErrorMetadata(normalized), 'Local repository scan failed');
+    throw normalized;
   }
 }
 

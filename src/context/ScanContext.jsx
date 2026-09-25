@@ -1,7 +1,20 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState
+} from 'react';
 import VulnerabilityScanner, { scanRepositoryLocally } from '../lib/scanner';
 import { authManager } from '../lib/githubAuth';
 import { scanWebPage } from '../lib/apiClient.js';
+import {
+  getErrorMetadata,
+  getUserFacingMessage,
+  normalizeError
+} from '../lib/errors.js';
+import { createLogger, createRequestId, withLogContext } from '../lib/logger.js';
 
 const ScanContext = createContext();
 
@@ -16,7 +29,8 @@ export const useScanContext = () => {
 export const ScanProvider = ({ children }) => {
   // Scanning state
   const [scanning, setScanning] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setErrorState] = useState(null);
+  const [errorMeta, setErrorMeta] = useState(null);
   const [progress, setProgress] = useState({
     phase: 'initializing',
     current: 0,
@@ -49,19 +63,59 @@ export const ScanProvider = ({ children }) => {
   // Refs
   const progressRef = useRef(null);
   const scanResultsRef = useRef(null);
+  const loggerRef = useRef(
+    createLogger({
+      component: 'ScanProvider',
+      sessionId: createRequestId('session')
+    })
+  );
 
-  const handleProgress = (progressData) => {
+  const setError = useCallback((message, meta = null) => {
+    setErrorState(message);
+    setErrorMeta(message ? meta : null);
+  }, []);
+
+  const clearFeedback = useCallback(() => {
+    setError(null);
+    setSuccessMessage('');
+  }, [setError]);
+
+  const handleProgress = useCallback((progressData) => {
     setProgress(progressData);
-  };
+  }, []);
+
+  const handleUiError = useCallback((error, fallbackMessage, requestId) => {
+    const normalized = normalizeError(error, {
+      message: fallbackMessage,
+      requestId,
+      userMessage: error?.userMessage || fallbackMessage
+    });
+
+    setError(getUserFacingMessage(normalized, fallbackMessage), {
+      code: normalized.code,
+      requestId: normalized.requestId || requestId,
+      status: normalized.status
+    });
+
+    return normalized;
+  }, [setError]);
 
   // File Upload (Local) scanning
   const scanLocalFiles = useCallback(async (files) => {
     if (files.length === 0) return;
 
+    const requestId = createRequestId('scan');
+    const scanLogger = withLogContext(loggerRef.current, {
+      action: 'scan-local-files',
+      requestId
+    });
+
     setScanning(true);
     progressRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setError(null);
+    clearFeedback();
     setScanResults(null);
+    setUsedCache(false);
+    setRateLimitInfo(null);
     setProgress({
       phase: 'initializing',
       current: 0,
@@ -70,9 +124,19 @@ export const ScanProvider = ({ children }) => {
     });
     setFirmwareMessage('');
 
+    scanLogger.info(
+      {
+        files: files.length,
+        includeFirmware
+      },
+      'Starting local file scan'
+    );
+
     try {
       const scanner = new VulnerabilityScanner({
-        onProgress: handleProgress
+        onProgress: handleProgress,
+        logger: scanLogger,
+        runId: requestId
       });
 
       const results = await scanner.scanLocalFiles(files);
@@ -103,29 +167,48 @@ export const ScanProvider = ({ children }) => {
       if (includeFirmware) {
         setFirmwareMessage('Firmware/Binary Analysis is coming soon!');
       }
-    } catch (err) {
-      console.error('Scan error:', err);
-      setError(err.message || 'Error scanning files');
+
+      scanLogger.info(
+        {
+          findings: results.summary.totalIssues,
+          partial: results.partial || false
+        },
+        'Local file scan completed'
+      );
+    } catch (error) {
+      const normalized = handleUiError(error, 'Error scanning files', requestId);
+      scanLogger.error(getErrorMetadata(normalized), 'Local file scan failed');
     } finally {
       setScanning(false);
     }
-  }, [includeFirmware]);
+  }, [clearFeedback, handleProgress, handleUiError, includeFirmware]);
 
   // GitHub repo scanning
   const scanRepository = useCallback(async (urlInput) => {
     if (!urlInput) return;
 
+    const requestId = createRequestId('scan');
+    const scanLogger = withLogContext(loggerRef.current, {
+      action: 'scan-repository',
+      requestId
+    });
+
     if (!authManager.hasToken()) {
-      setError('GitHub token required for repository scanning');
+      setError('GitHub token required for repository scanning', {
+        code: 'MISSING_TOKEN',
+        requestId,
+        status: 401
+      });
       return;
     }
 
     setScanning(true);
     progressRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setError(null);
+    clearFeedback();
     setScanResults(null);
     setUsedCache(false);
     setFirmwareMessage('');
+    setRateLimitInfo(null);
     setProgress({
       phase: 'fetching',
       current: 0,
@@ -133,9 +216,19 @@ export const ScanProvider = ({ children }) => {
       details: { url: urlInput }
     });
 
+    scanLogger.info(
+      {
+        url: urlInput,
+        includeFirmware
+      },
+      'Starting repository scan'
+    );
+
     try {
-      const results = await scanRepositoryLocally(urlInput, handleProgress);
-      console.log('Scan results:', results);
+      const results = await scanRepositoryLocally(urlInput, handleProgress, {
+        logger: scanLogger,
+        requestId
+      });
 
       if (results.findings && results.summary) {
         const normalizedResults = {
@@ -166,12 +259,11 @@ export const ScanProvider = ({ children }) => {
           }
         });
 
-        // Include scan statistics in success message
         const scanStatsMsg = results.scanStats 
           ? ` • Scanned ${results.scanStats.successCount}/${results.scanStats.totalFiles} files (${results.scanStats.completionRate}%) in ${results.scanStats.duration}s`
           : '';
         
-        const partialMsg = results.partial ? ' • ⚠️ Some files failed to download' : '';
+        const partialMsg = results.partial ? ' • Some files failed to download' : '';
         
         setSuccessMessage(
           `Scan complete! Found ${results.summary.totalIssues} potential vulnerabilities ` +
@@ -186,6 +278,15 @@ export const ScanProvider = ({ children }) => {
         if (includeFirmware) {
           setFirmwareMessage('Firmware/Binary Analysis is coming soon!');
         }
+
+        scanLogger.info(
+          {
+            findings: results.summary.totalIssues,
+            fromCache: results.fromCache || false,
+            partial: results.partial || false
+          },
+          'Repository scan completed'
+        );
       } else {
         setSuccessMessage(`Found ${results.files.length} files in repository`);
       }
@@ -193,23 +294,33 @@ export const ScanProvider = ({ children }) => {
       if (results.rateLimit) {
         setRateLimitInfo(results.rateLimit);
       }
-    } catch (err) {
-      setError(err.message);
-      if (err.status === 403) {
-        setError('Rate limit exceeded. Please try again later.');
-      }
+    } catch (error) {
+      const normalized = handleUiError(
+        error,
+        error?.status === 403
+          ? 'Rate limit exceeded. Please try again later.'
+          : 'Repository scan failed',
+        requestId
+      );
+      scanLogger.error(getErrorMetadata(normalized), 'Repository scan failed');
     } finally {
       setScanning(false);
     }
-  }, [includeFirmware]);
+  }, [clearFeedback, handleProgress, handleUiError, includeFirmware, setError]);
 
   // Website scanning
   const scanWebsite = useCallback(async (url) => {
+    const requestId = createRequestId('scan');
+    const scanLogger = withLogContext(loggerRef.current, {
+      action: 'scan-website',
+      requestId
+    });
+
     setScanning(true);
     progressRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setError(null);
+    clearFeedback();
     setScanResults(null);
-    setSuccessMessage('');
+    setRateLimitInfo(null);
     const startTime = Date.now();
     setProgress({
       phase: 'fetching',
@@ -223,18 +334,41 @@ export const ScanProvider = ({ children }) => {
     });
     setFirmwareMessage('');
 
+    scanLogger.info(
+      {
+        url
+      },
+      'Starting website scan'
+    );
+
     try {
       const urlPattern = /^(https?:\/\/)?([a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}|\d{1,3}(?:\.\d{1,3}){3}|localhost)(:\d+)?(\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=]*)?$/;
       if (!urlPattern.test(url)) {
-        throw new Error('Please enter a valid website URL');
+        throw normalizeError(new Error('Please enter a valid website URL'), {
+          code: 'INVALID_WEBSITE_URL',
+          status: 400,
+          requestId,
+          userMessage: 'Please enter a valid website URL'
+        });
       }
 
-      const data = await scanWebPage(url);
+      const data = await scanWebPage(url, {
+        requestId
+      });
+      const report = data.report || (
+        data.findings && data.summary
+          ? {
+              findings: data.findings,
+              summary: data.summary
+            }
+          : null
+      );
+      const rawFindings = Array.isArray(data.findings) ? data.findings : [];
 
-      if (data.findings && data.report) {
-        const mergedFindings = data.report.findings.map(finding => {
-          const rawFinding = data.findings.find(f => 
-            f.type === finding.type && f.file === finding.files[0]
+      if (report?.findings && report.summary) {
+        const mergedFindings = report.findings.map((finding) => {
+          const rawFinding = rawFindings.find((candidate) => 
+            candidate.type === finding.type && finding.files?.includes(candidate.file)
           );
           return {
             ...finding,
@@ -244,7 +378,7 @@ export const ScanProvider = ({ children }) => {
         });
 
         const finalReport = {
-          ...data.report,
+          ...report,
           findings: mergedFindings
         };
 
@@ -271,21 +405,16 @@ export const ScanProvider = ({ children }) => {
           }
         });
 
-        // Calculate scan duration
-        const endTime = Date.now();
-        const duration = Math.round((endTime - startTime) / 1000 * 100) / 100;
-        
-        // Count scanned items (HTML + scripts)
+        const duration = Math.round((Date.now() - startTime) / 1000 * 100) / 100;
         const scriptCount = data.scriptsScanned || 0;
-        const totalScanned = scriptCount + 1; // +1 for HTML page
+        const totalScanned = scriptCount + 1;
         
-        // Send completion progress
         setProgress({
           phase: 'completed',
           current: totalScanned,
           total: totalScanned,
           details: {
-            duration: duration,
+            duration,
             successCount: totalScanned,
             failureCount: 0,
             completionRate: 100,
@@ -298,17 +427,24 @@ export const ScanProvider = ({ children }) => {
           `Website scan complete! Found ${summary.totalIssues || 0} potential vulnerabilities • ` +
           `Scanned ${totalScanned} items in ${duration}s`
         );
+
+        scanLogger.info(
+          {
+            findings: summary.totalIssues || 0,
+            scannedItems: totalScanned,
+            duration
+          },
+          'Website scan completed'
+        );
       } else {
-        // Calculate scan duration even for no results
-        const endTime = Date.now();
-        const duration = Math.round((endTime - startTime) / 1000 * 100) / 100;
+        const duration = Math.round((Date.now() - startTime) / 1000 * 100) / 100;
         
         setProgress({
           phase: 'completed',
           current: 1,
           total: 1,
           details: {
-            duration: duration,
+            duration,
             successCount: 1,
             failureCount: 0,
             completionRate: 100,
@@ -319,15 +455,20 @@ export const ScanProvider = ({ children }) => {
         
         setSuccessMessage(`Website scan completed in ${duration}s, but no vulnerabilities reported.`);
       }
-    } catch (err) {
-      console.error('Website scan error:', err);
-      setError(err.message || 'Error scanning website. Please check the URL and try again.');
+    } catch (error) {
+      const normalized = handleUiError(
+        error,
+        'Error scanning website. Please check the URL and try again.',
+        requestId
+      );
+      scanLogger.error(getErrorMetadata(normalized), 'Website scan failed');
     } finally {
       setScanning(false);
     }
-  }, []);
+  }, [clearFeedback, handleUiError]);
 
   const cancelScan = useCallback(() => {
+    loggerRef.current.warn('Scan cancelled by user');
     setScanning(false);
     setProgress({
       phase: 'cancelled',
@@ -345,7 +486,7 @@ export const ScanProvider = ({ children }) => {
       const matchesSearch =
         searchQuery.toLowerCase() === '' ||
         finding.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        finding.files.some((file) =>
+        (finding.files || []).some((file) =>
           file.toLowerCase().includes(searchQuery.toLowerCase())
         );
 
@@ -355,12 +496,10 @@ export const ScanProvider = ({ children }) => {
       return matchesSearch && matchesSeverity;
     });
 
-    // Group by type
     setFilteredByType(filtered);
 
-    // Group by file
     const byFile = filtered.reduce((acc, finding) => {
-      finding.files.forEach((file) => {
+      (finding.files || []).forEach((file) => {
         if (!acc[file]) acc[file] = [];
         acc[file].push(finding);
       });
@@ -379,6 +518,7 @@ export const ScanProvider = ({ children }) => {
     // State
     scanning,
     error,
+    errorMeta,
     progress,
     scanResults,
     usedCache,

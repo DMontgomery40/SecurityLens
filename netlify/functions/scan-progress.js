@@ -1,56 +1,57 @@
+/* eslint-env node */
 import { getProgressForScan } from './utils/progressHandler.js';
+import { SecurityLensError } from '../../src/lib/errors.js';
+import {
+  createFunctionContext,
+  errorResponse,
+  jsonResponse,
+  methodNotAllowedResponse,
+  optionsResponse
+} from './utils/http.js';
 
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS'
-};
+export const handler = async (event) => {
+  const { headers, logger, requestId } = createFunctionContext('scan-progress', event, {
+    allowMethods: 'GET, OPTIONS'
+  });
 
-export const handler = async (event, context) => {
   // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers
-    };
+    return optionsResponse(headers);
   }
 
   // Only allow GET requests
   if (event.httpMethod !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
+    return methodNotAllowedResponse(headers);
   }
 
   try {
     const scanId = event.queryStringParameters?.scanId;
     
     if (!scanId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Missing scanId parameter' })
-      };
+      throw new SecurityLensError('Missing scanId parameter', {
+        code: 'MISSING_SCAN_ID',
+        status: 400,
+        requestId,
+        userMessage: 'Missing scanId parameter'
+      });
     }
 
     const progress = await getProgressForScan(scanId);
+
+    logger.debug(
+      {
+        scanId,
+        status: progress.status
+      },
+      'Returning scan progress'
+    );
     
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        ...progress,
-        timestamp: Date.now()
-      })
-    };
+    return jsonResponse(200, headers, {
+      ...progress,
+      requestId,
+      timestamp: Date.now()
+    });
   } catch (error) {
-    console.error('Error getting scan progress:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Internal server error' })
-    };
+    return errorResponse(error, headers, logger);
   }
 };

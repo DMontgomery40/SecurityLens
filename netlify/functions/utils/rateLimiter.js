@@ -1,4 +1,6 @@
+/* eslint-env node */
 import { RateLimiterMemory } from 'rate-limiter-flexible';
+import { SecurityLensError } from '../../../src/lib/errors.js';
 
 const rateLimiter = new RateLimiterMemory({
   points: 30, // Number of points
@@ -9,8 +11,12 @@ export async function checkRateLimit(ip) {
   try {
     await rateLimiter.consume(ip);
     return true;
-  } catch (error) {
-    throw new Error('Rate limit exceeded. Please try again later.');
+  } catch {
+    throw new SecurityLensError('Rate limit exceeded. Please try again later.', {
+      code: 'RATE_LIMITED',
+      status: 429,
+      userMessage: 'Rate limit exceeded. Please try again later.'
+    });
   }
 }
 
@@ -24,7 +30,11 @@ export async function checkTokenRateLimit(ip) {
   try {
     await tokenRateLimiter.consume(ip);
     return true;
-  } catch (error) {
-    throw new Error('Too many token validation attempts. Please try again later.');
+  } catch {
+    throw new SecurityLensError('Too many token validation attempts. Please try again later.', {
+      code: 'TOKEN_RATE_LIMITED',
+      status: 429,
+      userMessage: 'Too many token validation attempts. Please try again later.'
+    });
   }
 }
