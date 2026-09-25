@@ -1,5 +1,5 @@
 # ---- Build stage --------------------------------------------------------
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Create app directory
 WORKDIR /app
@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # ---- Runtime stage ------------------------------------------------------
-FROM node:18-alpine AS runtime
+FROM node:22-alpine AS runtime
 LABEL maintainer="SecurityLens Team"
 
 # Set working directory

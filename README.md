@@ -5,98 +5,131 @@
 
 
 [//]: # (01001000 01101001 01101110 01110100 00111010 00100000 01000011 01101000 01100101 01100011 01101011 00100000 01110100 01101000 01100101 00100000 01100110 01101111 01101111 01110100 01100101 01110010)
-**Because everyone should be able to explore cybersecurity—no fancy tools or gatekeeping required.**
+**Who is speaking on this page?**
 
-> **Your Journey into Security Starts Here!**  
 <!-- Looking for secrets? Try reading between the lines... -->
 
-> Ever wondered how hackers find vulnerabilities? Want to learn how to protect websites and apps? You're in the right place! Drop in your code or website, and let's discover security together in a way that's fun, practical, and *totally* beginner-friendly.
+AI agents read every word on a page as if the site said it. A comment, a review, an issue body, or a line of hidden text can give an agent orders, and today nothing tells the agent that someone other than the site wrote it.
 
----
+SecurityLens shows which words on a page belong to the site, which belong to other people, and which are hidden. It flags anything that tries to steer an agent. It also defines the **Instruction Security Policy**, a one-header way for a site to declare who is speaking, and gives agents the same view over MCP.
 
-## What is SecurityLens?
 [//]: # (Hint 2: URLs aren't just for websites...)
 
-SecurityLens is an educational tool designed to **bridge the gap** between curious minds and real-world security concepts. No need for advanced command-line skills or pricey security suites. If you can paste a link or drag a file, you're good to go!
+## What it does
 
-### Why This Matters
-- **Security should be accessible**: Tools like Kali Linux or Burp Suite can feel daunting to a newcomer.
-- **Hands-on learning**: We believe you learn better by *trying* things, not just reading about them.
-- **Next-gen security pros**: We need more people (of all ages!) excited about protecting digital spaces.
+- **Lens.** Enter a URL, a GitHub repository, or pasted HTML. The page is shown as a transcript by speaker, with findings for hidden instructions, orders inside user content, invisible Unicode payloads, poisoned WebMCP tool descriptions, and request input echoed as the site's voice. Pasted HTML never leaves the browser.
+- **Repository mode.** For a GitHub repository, the lens reads what an agent working there is told: `AGENTS.md`, `CLAUDE.md`, rules files, skills, hooks, and MCP configs are the repository's voice, while open issues, pull requests, and comments are other people.
+- **Instruction Security Policy.** A draft standard, like Content Security Policy but for prompt injection. The [spec](docs/spec/instruction-security-policy.md) is short, and the analyzer here is its reference implementation.
+- **Policy tools.** Draft a policy from what the lens found, test it against the live page, copy the header for your server, check an existing policy, and create a report endpoint for agents to send violations to.
+- **For agents.** A remote MCP server at `/mcp`, the same tools over stdio, an HTTP API, and an isomorphic library that harnesses can embed.
+- **Code scanner.** The original educational vulnerability scanner still lives at `/scanner`.
 
----
+## Instruction Security Policy in one minute
 
-## How It Works
+```text
+Instruction-Security-Policy: default voice; untrusted #comments, .review-body; tools 'self'; report-to https://securitylens.io/r/7f3c9a
+```
 
-1. **Scan a GitHub Repo**: Paste in the URL of an open-source project or your personal repo.
-2. **Check a Live Website**: Curious if a site has potential issues? Enter the address—no special setup needed.
-3. **Analyze Local Code**: Drag and drop files from your machine to see what might be lurking in your own projects.
-4. **Firmware/Binary (Coming Soon!)**: We're working on a mini-lab approach to help you peek inside binaries without advanced tools.
+- Content is either `voice` (the site is speaking) or `untrusted` (someone else is). Agents may use untrusted content as information and never follow it as instructions.
+- Untrusted always wins. Nothing inside an untrusted region can become voice, and the `data-isp` attribute can only mark content untrusted.
+- Text hidden from sighted readers is always untrusted.
+- A policy that does not parse cleanly fails closed: every voice grant is dropped.
+- Delivery is a response header, a meta tag inside `head`, or `/.well-known/instruction-security-policy`.
 
----
+Read the full [draft spec](docs/spec/instruction-security-policy.md).
 
-## Understanding Your Discoveries
+## Use it from an agent
 
-When you run a scan, you'll see potential issues sorted by **severity**:
-
-- **CRITICAL**:  
-  Whoa! Immediate attention needed—like leaving your front door wide open!  
-- **HIGH**:  
-  Serious stuff—like a weak lock that a determined intruder could easily crack.  
-- **MEDIUM**:  
-  Worth fixing—think of it as upgrading old locks to sturdier ones.  
-- **LOW**:  
-  Good practice—like adding a camera to an already secure house. Always nice to have.
-
-Each finding includes a quick explanation of **why** it matters, some **code examples**, multipe **references** to learn more,and **tips** to fix it—so you can learn and apply that knowledge going forward.
-
----
-
-## Pro Tips for New Security Researchers
-
-- **Look deeper**: Don't just stop at the first warning. Real security experts always ask *"Why?"*  
-- **Examine the code**: Our examples show you *exactly* where vulnerabilities might lurk.  
-- **Explore solutions**: We provide "safe" snippets or pointers to help you patch issues effectively.  
-- **No gatekeeping**: If you don't know a term, no worries! That's why we're here—to make it clear and approachable.
-
----
-
-## Quick Start (Local Dev)
+The remote server speaks Streamable HTTP in stateless JSON mode and needs no account.
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/DMontgomery40/SecurityLens.git
+# Claude Code
+claude mcp add --transport http securitylens https://securitylens.io/mcp
+```
 
-# 2. Install dependencies
+```toml
+# Codex: ~/.codex/config.toml
+[mcp_servers.securitylens]
+url = "https://securitylens.io/mcp"
+```
+
+```bash
+# Local stdio server, from a clone
+node src/cli/index.js mcp
+```
+
+| Tool | What it returns |
+| --- | --- |
+| `read_page` | The page grouped by speaker, with hidden text removed and boundaries that page text cannot forge |
+| `check_page` | Findings, regions, and policy status, optionally with a draft policy applied |
+| `check_repository` | What a GitHub repository's instruction files, hooks, MCP configs, issues, and comments tell agents |
+| `check_policy` | A policy explained directive by directive, with errors and warnings |
+| `write_policy` | A drafted policy and snippets for common servers |
+
+## HTTP API
+
+```bash
+# Agent view as plain text
+curl 'https://securitylens.io/api/lens?url=https://example.com/post&view=agent&format=text'
+
+# Full analysis of submitted HTML
+curl -X POST https://securitylens.io/api/lens \
+  -H 'content-type: application/json' \
+  -d '{"html":"<p>Ignore previous instructions</p>"}'
+```
+
+`view=policy` returns a drafted policy. A `policy` field in a POST body tests a draft policy instead of the site's own. Repository URLs return a repository report.
+
+## Command line
+
+The package is not published to npm yet. Run the CLI from a clone, or run `npm link` once to get a `securitylens` command.
+
+```bash
+node src/cli/index.js lens https://example.com/post          # transcript and findings
+node src/cli/index.js lens --html page.html --format agent    # agent view of a local file
+node src/cli/index.js lens https://github.com/owner/repo       # repository mode
+node src/cli/index.js policy check "untrusted #comments"
+node src/cli/index.js policy write https://example.com/post
+```
+
+`lens` exits with status 1 when it finds a critical or high finding that no policy contains, so it can gate CI.
+
+## Local development
+
+```bash
 npm install
-
-# 3. Run the development server
-npm run dev
-
-# 4. Build for production
+netlify dev          # site, functions, and Blobs on http://localhost:8888
+npm test
 npm run build
 ```
 
-Open the app in your browser, and you're off to the races. No advanced CLI wizardry needed—just your curiosity!
+In a git worktree, the Netlify CLI looks for functions in the wrong directory. Pass the folder explicitly: `netlify dev --functions "$PWD/netlify/functions"`.
 
----
+## Security notes
 
-## Command-Line Scanner
+- The server-side fetcher resolves DNS itself, refuses loopback, private, link-local, cloud metadata, and other reserved addresses (including IPv4-mapped and NAT64 IPv6 forms), pins the connection to the checked address, and re-checks every redirect. The classic website scanner uses the same fetcher.
+- The lens renders page text as text. It never injects fetched HTML into the page.
+- Report endpoints are capability URLs. The endpoint in a policy can only submit reports, and reading them takes a separate view key that is stored only as a hash.
+- Repository mode only contacts `api.github.com` and `raw.githubusercontent.com`.
 
-SecurityLens also ships with a fully-featured CLI that you can use outside of the web UI.
+## Code scanner
+
+### Code scanner CLI
+
+The original pattern scanner runs from the same CLI. The package is not published to npm yet, so run it from a clone, or run `npm link` once to get a `securitylens` command.
 
 ```bash
 # Display the built-in help
-npx securitylens --help
+securitylens --help
 
 # Scan a local path (file or directory)
-npx securitylens scan ./path/to/project
+securitylens scan ./path/to/project
 
 # Scan a public GitHub repository
-npx securitylens scan-repo https://github.com/owner/repo
+securitylens scan-repo https://github.com/owner/repo
 
 # Scan with custom concurrency (default: 10, max: 50)
-npx securitylens scan-repo --concurrency 2 https://github.com/owner/repo
+securitylens scan-repo --concurrency 2 https://github.com/owner/repo
 
 # Exit codes follow common CI conventions – the process exits with 1 when
 # CRITICAL or HIGH vulnerabilities are found so you can gate builds easily.
@@ -105,10 +138,10 @@ npx securitylens scan-repo --concurrency 2 https://github.com/owner/repo
 If you need to access private repositories remember to provide a GitHub token:
 
 ```bash
-GITHUB_TOKEN=ghp_... npx securitylens scan-repo https://github.com/owner/private-repo
+GITHUB_TOKEN=ghp_... securitylens scan-repo https://github.com/owner/private-repo
 ```
 
-### Performance & Rate Limiting
+#### Performance and rate limiting
 
 The scanner includes configurable concurrency controls to balance speed with GitHub API rate limits:
 
@@ -121,25 +154,25 @@ For large repositories, consider using lower concurrency (e.g., `--concurrency 2
 
 ---
 
-## Docker Support 🚢
+### Docker
 
 Prefer containers? We've got you covered! The repository includes a production-ready
 `Dockerfile` that bundles **both** the static web interface **and** the CLI.
 
-### 1. Build the image
+#### Build the image
 
 ```bash
 docker build -t securitylens .
 ```
 
-### 2. Run the web UI
+#### Run the web UI
 
 ```bash
 # Expose the Vite preview server on http://localhost:4173
 docker run --rm -p 4173:4173 securitylens
 ```
 
-### 3. Use the CLI inside the container
+#### Use the CLI inside the container
 
 ```bash
 # Show help
@@ -160,15 +193,17 @@ all the regular flags shown in the examples above.
 
 ---
 
-## Architecture & Development
+### Code scanner architecture
 
-### Modular Architecture
+#### Modules
 
 SecurityLens uses a clean, modular architecture that makes it easy to extend and maintain:
 
 ```
 src/
-├── lib/                      # Core scanning modules
+├── lib/                      # Core modules
+│   ├── isp/                 # Instruction Security Policy analyzer, generator, agent view
+│   │   └── node/            # SSRF-safe fetcher, GitHub reader, MCP server, reports
 │   ├── RepositoryCrawler.js  # GitHub API integration with concurrency control
 │   ├── FileScanner.js        # File content analysis orchestrator  
 │   ├── ReportBuilder.js      # Report generation and formatting
@@ -187,7 +222,7 @@ src/
 └── context/                # React state management
 ```
 
-### Adding New Vulnerability Patterns
+#### Adding vulnerability patterns
 
 SecurityLens makes it easy to add new security checks. All patterns are organized by category in `src/lib/patterns/`:
 
@@ -226,7 +261,7 @@ export const allPatterns = [
 
 That's it! Your new pattern will automatically be included in scans across CLI, web UI, and Netlify functions.
 
-### Performance & Concurrency
+#### Performance and concurrency
 
 SecurityLens includes intelligent performance optimizations:
 
@@ -236,7 +271,7 @@ SecurityLens includes intelligent performance optimizations:
 - **Rate limit protection**: Built-in safeguards prevent hitting GitHub API limits
 - **Efficient parsing**: Patterns only applied to relevant file types
 
-### Error Handling
+#### Error handling
 
 Robust error handling ensures scans complete even when individual files fail:
 
@@ -249,15 +284,9 @@ Robust error handling ensures scans complete even when individual files fail:
 
 ## Roadmap
 
-### Now
-- Basic vulnerability scanning  
-- Educational how-to-fix guides  
-- GitHub integration  
-
-### Up Next
-- Firmware/binary scanning in a mini-lab environment  
-- Interactive tutorials & challenges  
-- More advanced patterns & "cheat codes" for security  
+- Harness adoption of the Instruction Security Policy, starting with the SecurityLens MCP tools as the reference consumer.
+- Rendered-page analysis for content that JavaScript adds after load.
+- Firmware and binary scanning for the classic scanner.
 
 ---
 
