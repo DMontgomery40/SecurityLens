@@ -3,7 +3,7 @@ import path from 'node:path';
 
 // A tool that flags invisible payloads must not ship them in its own source.
 const ROOT = path.resolve(__dirname, '../..');
-const DIRECTORIES = ['src/lib/isp', 'src/components/lens', 'src/pages', 'netlify/functions', 'tests/isp', 'docs/spec'];
+const DIRECTORIES = ['src/lib/isp', 'src/lib/rearview', 'src/components/lens', 'src/pages', 'src/cli', 'netlify/functions', 'tests/isp', 'tests/rearview', 'docs/spec'];
 const INVISIBLE = /[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uFE00-\uFE0F]|[\u{E0000}-\u{E007F}]|[\u{E0100}-\u{E01EF}]/u;
 
 function listFiles(directory) {
