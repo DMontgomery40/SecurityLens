@@ -18,7 +18,6 @@ publish = "dist"
 [functions]
   node_bundler = "esbuild"
   included_files = ["src/lib/**"]
-  external_node_modules = ["@octokit/rest", "@octokit/core", "@octokit/plugin-rest-endpoint-methods"]
 
 [functions.scan-repository]
   timeout = 30
