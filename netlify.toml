@@ -22,12 +22,10 @@ publish = "dist"
 
 [functions.scan-repository]
   timeout = 30
-  memory = 1024
   node_bundler = "esbuild"
 
 [functions.scan-webpage]
   timeout = 30
-  memory = 1024
   node_bundler = "esbuild"
 
 [dev]
