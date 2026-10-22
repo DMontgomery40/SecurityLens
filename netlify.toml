@@ -2,6 +2,9 @@
   functions = "netlify/functions"
   publish = "dist"
 
+[build.environment]
+  NODE_VERSION = "22.23.4"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -14,4 +17,3 @@
   
 [functions.scan-repository]
   timeout = 30 # Increase timeout to 30 seconds
-  memory = 1024 # Increase memory to 1GB
