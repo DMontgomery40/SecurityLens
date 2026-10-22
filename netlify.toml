@@ -6,8 +6,7 @@ publish = "dist"
 
 
 [build.environment]
-  NODE_VERSION = "18"
-  AWS_LAMBDA_JS_RUNTIME = "nodejs18.x"
+  NODE_VERSION = "22.23.4"
   SCANNER_CONCURRENCY = "8"
   WEBPAGE_SCRIPT_CONCURRENCY = "5"
 
